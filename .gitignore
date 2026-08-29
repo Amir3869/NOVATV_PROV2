@@ -1,0 +1,96 @@
+# ============================================================
+#  NOVA TV — fichiers ignorés par Git
+# ============================================================
+# Tout ce qui est listé ici n'est JAMAIS envoyé sur GitHub.
+# Deux raisons : soit c'est régénérable (inutile de le versionner),
+# soit c'est secret (dangereux de le versionner).
+# ============================================================
+
+# --- Dépendances ---
+# Régénérées par `npm install` à partir de package.json.
+# Des dizaines de milliers de fichiers : jamais dans Git.
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# --- Build Next.js ---
+# Généré par `npm run build`. Régénérable à tout moment.
+/.next/
+/out/
+/build
+/dist
+
+# --- Tests ---
+/coverage
+
+# --- Secrets / variables d'environnement ---
+# CRITIQUE : ces fichiers contiennent identifiants et clés d'API.
+# Seul .env.example (sans valeurs réelles) est versionné.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+!.env.example
+
+# --- Capacitor / Android (à partir de la Phase 9) ---
+# Le dossier android/ est régénéré par `npx cap add android`.
+/android/app/build/
+/android/build/
+/android/.gradle/
+/android/local.properties
+/android/app/release/
+/android/app/debug/
+/ios/App/Pods/
+/ios/App/build/
+/ios/App/output/
+
+# CRITIQUE : clés de signature APK.
+# Si une seule de ces clés fuit, n'importe qui peut publier
+# une fausse mise à jour signée comme si elle venait de nous.
+*.keystore
+*.jks
+keystore.properties
+key.properties
+!debug.keystore
+
+# --- TypeScript ---
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# --- Système d'exploitation ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- Éditeurs ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Divers ---
+.vercel
+.turbo
+*.pem

@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Nova TV — icône d'application
+       Reprise fidèle de NovaIcon (src/design-system/components/NovaLogo.tsx),
+       mise à l'échelle 48 -> 512 (facteur 10,667) et centrée. -->
+  <rect width="512" height="512" rx="112" fill="#050505"/>
+  <g transform="translate(21.33, 32) scale(9.6)">
+    <rect x="2" y="6" width="44" height="32" rx="5" fill="none" stroke="#C8102E" stroke-width="2.5"/>
+    <line x1="16" y1="6" x2="10" y2="1" stroke="#C8102E" stroke-width="2" stroke-linecap="round"/>
+    <line x1="32" y1="6" x2="38" y2="1" stroke="#C8102E" stroke-width="2" stroke-linecap="round"/>
+    <rect x="18" y="38" width="12" height="4" rx="1" fill="#C8102E"/>
+    <rect x="14" y="42" width="20" height="3" rx="1.5" fill="#C8102E"/>
+    <path d="M20 16 L20 30 L34 23 Z" fill="#C8102E"/>
+    <circle cx="8" cy="12" r="2" fill="#C8102E" opacity="0.7"/>
+  </g>
+</svg>
