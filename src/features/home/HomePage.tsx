@@ -130,7 +130,7 @@ export function HomePage() {
     <div className="min-h-screen">
       {featured.length > 0 && <HeroBanner items={featured} />}
 
-      <div className="px-4 md:px-8 lg:px-10 py-8 space-y-10">
+      <div className="px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-12 md:space-y-14">
         {continueWatching.length > 0 && (
           <section>
             <SectionHeader
@@ -161,9 +161,9 @@ export function HomePage() {
               onSeeAll={() => router.push('/live')}
               className="mb-4"
             />
-            <div className="space-y-1">
-              {channels.slice(0, 6).map((channel) => (
-                <ChannelCard key={channel.id} channel={channel} />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {channels.slice(0, 12).map((channel) => (
+                <ChannelCard key={channel.id} channel={channel} variant="grid" />
               ))}
             </div>
           </section>

@@ -33,6 +33,7 @@ export const fr = {
     mainMenu: 'Menu principal',
     closeMenu: 'Fermer le menu',
     collapseMenu: 'Réduire le menu',
+    openMenu: 'Ouvrir le menu',
   },
 
   // ── Actions communes ──
@@ -47,6 +48,7 @@ export const fr = {
     delete: 'Supprimer',
     remove: 'Retirer',
     cancel: 'Annuler',
+    erase: 'Effacer',
     save: 'Enregistrer',
     close: 'Fermer',
     back: 'Retour',
@@ -427,6 +429,8 @@ export const fr = {
     kidsProfile: 'Profil enfant',
     kidsDescription: 'Contenus adaptés uniquement',
     deleteConfirm: 'Supprimer ce profil ?',
+    deleteMessage: 'Ce profil et ses listes seront retirés. L’historique et les favoris des autres profils sont conservés.',
+    deleted: 'Profil supprimé',
     newProfile: 'Nouveau profil',
     editProfile: 'Modifier le profil',
     firstName: 'Prénom',
@@ -455,6 +459,7 @@ export const fr = {
     noPin: 'Aucun code défini sur ce profil',
     enterCode: 'Saisir le code',
     wrongCode: 'Code incorrect — réessaie',
+    codeProgress: 'Code saisi',
     newPin: 'Nouveau code',
     confirmPin: 'Confirmer le code',
     pinMismatch: 'Les codes ne correspondent pas',

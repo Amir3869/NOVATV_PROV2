@@ -1,11 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Home, Tv, Film, BookOpen, Heart, Search, History,
-  Settings, List, Radio, ChevronRight, X, Menu
+  Home, Tv, Film, BookOpen, Search, History,
+  Settings, List, Radio, ChevronRight, X, Menu, MoreHorizontal, CalendarDays
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Avatar } from './Avatar';
@@ -28,7 +28,6 @@ const navItems: { href: string; labelKey: MessageKey; icon: React.ElementType }[
   { href: '/movies', labelKey: 'nav.movies', icon: Film },
   { href: '/series', labelKey: 'nav.series', icon: BookOpen },
   { href: '/epg', labelKey: 'nav.epg', icon: Radio },
-  { href: '/favorites', labelKey: 'nav.favorites', icon: Heart },
   { href: '/lists', labelKey: 'nav.lists', icon: List },
   { href: '/search', labelKey: 'nav.search', icon: Search },
   { href: '/history', labelKey: 'nav.history', icon: History },
@@ -63,9 +62,9 @@ function NavItem({ href, label, icon: Icon, collapsed = false, onNavigate }: {
       href={href}
       onClick={onNavigate}
       className={cn(
-        'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group',
+        'flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-300 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset',
         isActive
-          ? 'bg-accent/15 text-white'
+          ? 'bg-accent/15 text-white shadow-[0_0_24px_rgba(220,38,38,0.12)]'
           : 'text-white/50 hover:text-white hover:bg-white/5',
         collapsed && 'justify-center px-2'
       )}
@@ -114,8 +113,8 @@ export function Sidebar() {
   if (isTablet) {
     return (
       <aside className={cn(
-        'flex flex-col bg-surface-1/95 backdrop-blur-xl border-r border-white/5 transition-all duration-300 flex-shrink-0',
-        sidebarOpen ? 'w-56' : 'w-16'
+        'my-4 ml-4 flex flex-col rounded-[2rem] border border-white/10 bg-black/35 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_35px_rgba(220,38,38,0.06)] transition-all duration-300 flex-shrink-0 overflow-hidden',
+        sidebarOpen ? 'w-56' : 'w-20'
       )}>
         <SidebarContent collapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} profile={profile} />
       </aside>
@@ -125,8 +124,8 @@ export function Sidebar() {
   // Desktop
   return (
     <aside className={cn(
-      'flex flex-col bg-surface-1/95 backdrop-blur-xl border-r border-white/5 transition-all duration-300 flex-shrink-0',
-      sidebarOpen ? 'w-56' : 'w-56'
+      'my-4 ml-4 flex flex-col rounded-[2rem] border border-white/10 bg-black/35 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_35px_rgba(220,38,38,0.06)] transition-all duration-300 flex-shrink-0 overflow-hidden',
+      sidebarOpen ? 'w-60' : 'w-60'
     )}>
       <SidebarContent profile={profile} />
     </aside>
@@ -149,7 +148,7 @@ function SidebarContent({
     <>
       {/* Logo */}
       <div className={cn(
-        'flex items-center border-b border-white/5 flex-shrink-0',
+        'flex items-center border-b border-white/10 flex-shrink-0 bg-white/[0.025]',
         collapsed ? 'px-2 py-4 justify-center' : 'px-4 py-4 gap-3'
       )}>
         {collapsed ? (
@@ -188,7 +187,7 @@ function SidebarContent({
       {/* Profile */}
       {profile && (
         <div className={cn(
-          'border-t border-white/5 flex-shrink-0',
+          'border-t border-white/10 flex-shrink-0 bg-white/[0.025]',
           collapsed ? 'p-2' : 'p-3'
         )}>
           <Link
@@ -231,13 +230,17 @@ export function BottomNav() {
     { href: '/', label: t('nav.home'), icon: Home },
     { href: '/live', label: t('nav.liveTV'), icon: Tv },
     { href: '/movies', label: t('nav.movies'), icon: Film },
-    { href: '/favorites', label: t('nav.favorites'), icon: Heart },
+    { href: '/lists', label: t('nav.lists'), icon: List },
     { href: '/search', label: t('nav.search'), icon: Search },
   ];
 
   return (
-    <nav aria-label={t('nav.mainMenu')} className="fixed bottom-0 left-0 right-0 z-50 bg-surface-1/95 backdrop-blur-xl border-t border-white/5 safe-area-pb">
-      <div className="flex items-center justify-around px-2 py-2">
+    <nav
+      aria-label={t('nav.mainMenu')}
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-black/45 shadow-[0_18px_50px_rgba(0,0,0,0.55),0_0_30px_rgba(220,38,38,0.10)] backdrop-blur-2xl safe-area-pb"
+      style={{ borderRadius: 32, left: '1rem', right: '1rem', bottom: '1rem' }}
+    >
+      <div className="flex items-center justify-around gap-1 px-2 py-2">
         {mobileItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
@@ -245,11 +248,11 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all min-w-0',
-                isActive ? 'text-accent' : 'text-white/40 hover:text-white/70'
+                'relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-full transition-all duration-300 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                isActive ? 'bg-accent/15 text-white shadow-[0_0_20px_rgba(220,38,38,0.18)]' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
               )}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
+              <Icon className={cn("w-5 h-5 flex-shrink-0 transition-transform", isActive && "scale-110 text-accent")} />
               <span className="text-[9px] font-medium truncate">{label}</span>
             </Link>
           );
@@ -261,28 +264,56 @@ export function BottomNav() {
 
 export function TopBar() {
   const { t } = useTranslation();
-  const { isMobile } = useDeviceType();
-  const { setSidebarOpen } = useAppStore();
   const pathname = usePathname();
-
-  if (!isMobile) return null;
-
-  const currentItem = navItems.find((item) =>
-    item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
-  );
+  const profile = useActiveProfile();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const primaryItems = [
+    { href: '/', label: t('nav.home'), icon: Home },
+    { href: '/live', label: t('nav.liveTV'), icon: Tv },
+    { href: '/movies', label: t('nav.movies'), icon: Film },
+    { href: '/series', label: t('nav.series'), icon: BookOpen },
+    { href: '/lists', label: t('nav.lists'), icon: List },
+  ];
+  const secondaryItems = [
+    { href: '/epg', label: t('nav.epg'), icon: CalendarDays },
+    { href: '/history', label: t('nav.history'), icon: History },
+    { href: '/playlists', label: t('nav.playlists'), icon: Radio },
+  ];
 
   return (
-    <header className="sticky top-0 z-40 flex items-center gap-3 px-4 py-3 bg-surface-1/90 backdrop-blur-xl border-b border-white/5">
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="text-white/60 hover:text-white transition-colors"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
-      <NovaLogo variant="compact" size="xs" className="flex-1" />
-      <Link href="/search" className="text-white/60 hover:text-white transition-colors">
-        <Search className="w-5 h-5" aria-label={t('nav.search')} />
-      </Link>
+    <header className="sticky top-0 z-40 px-3 pt-3 sm:px-5 lg:px-6">
+      <nav aria-label={t('nav.mainMenu')} className="relative mx-auto flex min-h-16 max-w-[1500px] flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/10 bg-surface-1/75 px-3 py-2 shadow-[0_16px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+        <NovaLogo variant="compact" size="xs" className="mx-2 shrink-0" />
+        <div className="hidden h-7 w-px shrink-0 bg-white/10 sm:block" />
+        <div className="order-3 flex w-full min-w-0 items-center justify-center gap-1 overflow-hidden sm:order-none sm:w-auto sm:flex-1 sm:gap-2">
+          {primaryItems.map(({ href, label, icon: Icon }) => {
+            const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+            return (
+              <Link key={href} href={href} className={cn('flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-semibold leading-tight transition-all duration-300 sm:flex-none sm:flex-row sm:gap-2 sm:rounded-full sm:px-4 sm:py-2.5 sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', isActive ? 'bg-accent/15 text-white shadow-[0_0_24px_rgba(217,74,82,0.18)]' : 'text-white/55 hover:bg-white/5 hover:text-white')}>
+                <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-accent')} />
+                <span className="whitespace-nowrap text-center sm:truncate">{label}</span>
+              </Link>
+            );
+          })}
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Link href="/search" aria-label={t('nav.search')} className="flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Search className="h-4 w-4" /></Link>
+          <button type="button" aria-label={'Plus'} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)} className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', moreOpen && 'bg-white/10 text-white')}><MoreHorizontal className="h-5 w-5" /></button>
+          <Link href="/settings" aria-label={t('nav.settings')} className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', pathname.startsWith('/settings') && 'bg-accent/15 text-accent')}><Settings className="h-4 w-4" /></Link>
+          <Link href="/profiles" aria-label={t('nav.profiles')} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1.5 pr-2 sm:pr-3 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            {profile ? <Avatar profile={profile} size="sm" /> : <Settings className="h-4 w-4" />}
+            <span className="hidden text-xs font-semibold text-white/75 sm:inline">{profile?.name ?? t('nav.profiles')}</span>
+          </Link>
+        </div>
+        {moreOpen && (
+          <div className="absolute right-3 top-[calc(100%+0.5rem)] z-50 grid min-w-56 gap-1 rounded-2xl border border-white/10 bg-surface-2/95 p-2 shadow-2xl backdrop-blur-2xl">
+            {secondaryItems.map(({ href, label, icon: Icon }) => (
+              <Link key={href} href={href} onClick={() => setMoreOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Icon className="h-4 w-4 text-accent" />{label}</Link>
+            ))}
+          </div>
+        )}
+      </nav>
     </header>
   );
 }
+

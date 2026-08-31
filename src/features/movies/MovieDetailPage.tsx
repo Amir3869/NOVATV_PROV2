@@ -52,13 +52,18 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
         {movie.backdrop && !imgError ? (
           <img src={movie.backdrop} alt={movie.name} className="absolute inset-0 w-full h-full object-cover" onError={() => setImgError(true)} />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1A0000] via-surface-2 to-surface-0" />
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-surface-0" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/50 to-black/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-surface-0/80 via-transparent to-transparent" />
 
-        {/* Back */}
-        <button onClick={() => router.back()} className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10">
+        {/* Back : `.cinema` garde l'icône blanche sur l'affiche. */}
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label={t('common.back')}
+          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10"
+        >
           <ArrowLeft className="w-4 h-4" />
         </button>
       </div>
@@ -102,7 +107,7 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
         <div className="flex gap-3 flex-wrap">
           <Link
             href={`/player?type=movie&id=${movie.id}`}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-accent hover:bg-accent-hover text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-red-900/20 min-w-36"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 min-h-11 px-6 py-3.5 bg-accent hover:bg-accent-hover text-white on-accent font-bold text-sm rounded-xl transition-colors shadow-lg shadow-red-900/20 min-w-36"
           >
             <Play className="w-4 h-4 fill-white" />
             {movie.watchProgress && movie.watchProgress > 0 ? t('common.resume') : t('common.watch')}

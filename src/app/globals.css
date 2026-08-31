@@ -48,14 +48,15 @@
 
 :root,
 html.dark {
-  /* Thème sombre — celui d'origine, valeurs inchangées. */
-  --surface-0: #050505; /* fond de l'application */
-  --surface-1: #0a0a0a; /* barres de navigation */
-  --surface-2: #0f0f0f; /* cartes, panneaux */
-  --surface-3: #1a1a1a; /* éléments surélevés, menus */
-  --accent: #c8102e;    /* rouge Nova */
-  --accent-hover: #e8162e;
-  --line: rgb(255 255 255 / 8%);
+  /* Thème sombre Obsidienne : noirs teintés et reliefs visibles. */
+  --surface-0: #0b0f16; /* fond de l'application */
+  --surface-1: #121925; /* barres et panneaux flottants */
+  --surface-2: #192231; /* cartes et panneaux */
+  --surface-3: #243044; /* éléments surélevés, menus */
+  --color-white: #f1f5f9; /* blanc froid, moins agressif */
+  --accent: #d94a52;    /* rouge rubis Nova */
+  --accent-hover: #f26a70;
+  --line: rgb(160 180 205 / 14%);
   --on-accent: #ffffff; /* texte posé sur l'accent : reste blanc */
   /* Pastille mobile des interrupteurs. Doit trancher sur la piste, qui est
      sombre en thème sombre et claire en thème clair : elle ne peut donc pas
@@ -68,15 +69,14 @@ html.light {
   /* Thème clair. `--color-white` est la bascule principale : tous les
      `text-white/xx` et `bg-white/xx` deviennent des gris foncés
      semi-transparents, ce qui inverse le contraste sans réécrire le code. */
-  --color-white: #0b0b0c;
-  --surface-0: #f4f4f5;
-  --surface-1: #ffffff;
+  --color-white: #1b2635; /* encre bleu-ardoise */
+  --surface-0: #eef2f7;
+  --surface-1: #f8fafc;
   --surface-2: #ffffff;
-  --surface-3: #e9e9ec;
-  /* Rouge assombri : le #C8102E d'origine manque de contraste sur blanc. */
-  --accent: #b00c26;
-  --accent-hover: #8f0a1f;
-  --line: rgb(0 0 0 / 12%);
+  --surface-3: #dfe7f0;
+  --accent: #b83e4b;
+  --accent-hover: #972f3b;
+  --line: rgb(50 70 95 / 16%);
   --on-accent: #ffffff;
   --knob: #ffffff; /* la piste inactive est grise : le blanc reste lisible */
   color-scheme: light;

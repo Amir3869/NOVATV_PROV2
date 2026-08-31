@@ -106,7 +106,9 @@ export function Slider({
 
   const releasePointer = (el: HTMLElement, pointerId: number) => {
     try {
-      el.releasePointerCapture(pointerId);
+      // Certains navigateurs emettent pointerup apres avoir deja annule
+      // la capture (notamment lors d'un geste tactile interrompu).
+      if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
     } catch {
       // Deja relachee par le navigateur : rien a faire.
     }

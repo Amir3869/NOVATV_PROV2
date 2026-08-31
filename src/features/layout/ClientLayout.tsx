@@ -3,7 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
-import { Sidebar, BottomNav, TopBar } from '@/design-system/components/Navigation';
+import { TopBar } from '@/design-system/components/Navigation';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useFocusScroll } from '@/hooks/useFocusScroll';
 import { useAnimations } from '@/hooks/useAnimations';
@@ -94,26 +94,24 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex h-screen w-full overflow-hidden">
         {/* Sidebar – hidden on mobile (uses drawer instead) */}
-        {!isImmersive && <Sidebar />}
+        
 
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Top bar for mobile */}
+          {/* Navigation principale horizontale */}
           {!isImmersive && <TopBar />}
 
           {/* Page content */}
           <main
             id="contenu-principal"
             tabIndex={-1}
-            className={`flex-1 overflow-y-auto overflow-x-hidden ${isMobile && !isImmersive ? 'pb-20' : ''}`}
+            className="flex-1 overflow-y-auto overflow-x-hidden"
           >
             {children}
           </main>
         </div>
       </div>
 
-      {/* Bottom nav for mobile */}
-      {!isImmersive && <BottomNav />}
 
       {/* Toast notifications */}
       <Toaster

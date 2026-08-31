@@ -15,7 +15,7 @@ const variantStyles = {
   glass: 'bg-white/5 backdrop-blur-xl border border-white/8 shadow-[0_8px_32px_rgba(0,0,0,0.4)]',
   opaque: 'bg-surface-3 border border-white/5 shadow-lg',
   dark: 'bg-surface-2/90 backdrop-blur-xl border border-white/6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]',
-  red: 'bg-red-950/60 backdrop-blur-xl border border-red-800/30 shadow-[0_8px_32px_rgba(200,16,46,0.15)]',
+  red: 'bg-accent/10 backdrop-blur-xl border border-accent/25 shadow-[0_8px_32px_rgba(200,16,46,0.15)]',
 };
 
 const paddingStyles = {

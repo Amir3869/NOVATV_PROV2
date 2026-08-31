@@ -28,7 +28,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(movie.id));
 
-  const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-36 md:w-40' : 'w-44 md:w-52';
+  const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
     <div className={cn('group relative flex-shrink-0', widthClass, className)}>
@@ -113,7 +113,7 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
   const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(series.id));
-  const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-36 md:w-40' : 'w-44 md:w-52';
+  const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
     <div className={cn('group relative flex-shrink-0', widthClass, className)}>
@@ -176,9 +176,10 @@ interface ChannelCardProps {
   channel: LiveChannel;
   className?: string;
   variant?: 'list' | 'grid';
+  listId?: string;
 }
 
-export function ChannelCard({ channel, className, variant = 'list' }: ChannelCardProps) {
+export function ChannelCard({ channel, className, variant = 'list', listId }: ChannelCardProps) {
   const { t } = useTranslation();
   const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
@@ -203,7 +204,7 @@ export function ChannelCard({ channel, className, variant = 'list' }: ChannelCar
   // Cliquer une chaîne la LANCE. Auparavant on ouvrait sa fiche, et il
   // fallait un second clic sur « Regarder en direct » : deux gestes pour
   // une intention évidente.
-  const playHref = `/player?type=live&id=${encodeURIComponent(channel.id)}`;
+  const playHref = `/player?type=live&id=${encodeURIComponent(channel.id)}${listId ? `&listId=${encodeURIComponent(listId)}` : ''}`;
   const infoHref = `/live?id=${encodeURIComponent(channel.id)}`;
 
   // La fiche reste joignable, par un chemin adapté à l'appareil :
@@ -227,8 +228,8 @@ export function ChannelCard({ channel, className, variant = 'list' }: ChannelCar
             }
           }}
         >
-          <div className={cn('relative bg-surface-3 hover:bg-surface-3 rounded-xl overflow-hidden border border-white/5 hover:border-white/10 transition-all duration-200', blocked && 'opacity-60')}>
-            <div className="aspect-video flex items-center justify-center p-4">
+          <div className={cn('relative overflow-hidden rounded-xl md:rounded-2xl border border-line bg-gradient-to-br from-surface-3 via-surface-3 to-surface-1 shadow-lg shadow-black/10 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-black/25 focus-within:-translate-y-1 focus-within:border-white/30 focus-within:ring-2 focus-within:ring-accent/70 focus-within:ring-offset-2 focus-within:ring-offset-surface-0', blocked && 'opacity-60')}>
+            <div className="relative aspect-video flex items-center justify-center bg-black/10 p-2 md:p-5">
               {channel.logo && !imgError ? (
                 <img
                   src={channel.logo}
@@ -247,10 +248,10 @@ export function ChannelCard({ channel, className, variant = 'list' }: ChannelCar
                 </span>
               )}
             </div>
-            <div className="px-3 pb-3">
-              <p className="text-xs font-semibold text-white truncate">{displayName}</p>
+            <div className="px-2 pb-2 md:px-3 md:pb-3">
+              <p className="truncate text-xs md:text-sm font-semibold text-white">{displayName}</p>
               {channel.currentProgram && (
-                <p className="text-[10px] text-white/40 truncate mt-0.5">{channel.currentProgram.title}</p>
+                <p className="mt-1 truncate text-[11px] text-white/50">{channel.currentProgram.title}</p>
               )}
             </div>
             <Badge variant="live" size="xs" pulse className="absolute top-2 right-2">{t('common.liveShort')}</Badge>

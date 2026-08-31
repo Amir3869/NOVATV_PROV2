@@ -836,7 +836,7 @@ export const useAppStore = create<AppState>()(
                   items: [
                     ...l.items,
                     {
-                      id: `li-${Date.now()}`,
+                      id: `li-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
                       listId,
                       mediaId,
                       mediaType,

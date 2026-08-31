@@ -633,7 +633,7 @@ function PlayerContent() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="cinema min-h-screen bg-black flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-2 border-accent border-t-transparent animate-spin" />
       </div>
     );
@@ -643,7 +643,7 @@ function PlayerContent() {
     <div
       ref={containerRef}
       className={cn(
-        'relative bg-black flex items-center justify-center overflow-hidden select-none',
+        'cinema relative bg-black flex items-center justify-center overflow-hidden select-none',
         isFullscreen ? 'fixed inset-0 z-[100]' : 'min-h-screen w-full'
       )}
       onMouseMove={resetControlsTimer}
@@ -688,7 +688,7 @@ function PlayerContent() {
 
       {/* Aucune source branchée : ce n'est pas une erreur de lecture. */}
       {!streamUrl && (
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0A0000] via-surface-0 to-surface-0 flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-surface-0 to-surface-0 flex items-center justify-center">
           <div className="text-center space-y-4">
             <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto border border-white/10">
               {isLive ? (
@@ -1271,7 +1271,7 @@ function PlayerContent() {
 export function PlayerPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="cinema min-h-screen bg-black flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-2 border-accent border-t-transparent animate-spin" />
       </div>
     }>

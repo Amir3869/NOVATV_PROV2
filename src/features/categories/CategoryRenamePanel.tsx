@@ -111,7 +111,7 @@ export function CategoryRenamePanel({
                 aria-pressed={isLocked}
                 title={isLocked ? t('parental.unlock') : t('parental.lock')}
                 className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+                  'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
                   isLocked
                     ? 'bg-accent/15 text-accent hover:bg-accent/25'
                     : 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white'
@@ -126,7 +126,7 @@ export function CategoryRenamePanel({
                   onClick={() => handleRename(cat.id, '')}
                   aria-label={t('liveTV.restoreCategoryName')}
                   title={t('liveTV.restoreCategoryName')}
-                  className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                  className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -136,7 +136,7 @@ export function CategoryRenamePanel({
                 type="button"
                 onClick={() => setEditing(cat)}
                 aria-label={t('liveTV.renameCategory')}
-                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
               >
                 <Pencil className="w-4 h-4" />
               </button>

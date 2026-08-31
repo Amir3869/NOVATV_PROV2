@@ -57,7 +57,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
   return (
     <div className={cn('relative w-full overflow-hidden', className)}>
       {/* Background */}
-      <div className="relative w-full h-[55vh] md:h-[65vh] lg:h-[70vh] min-h-[400px]">
+      <div className="relative w-full min-h-[430px] h-[62vh] max-h-[760px] md:h-[68vh] lg:h-[72vh]">
         {backdrop && !imgError ? (
           <img
             src={backdrop}
@@ -76,7 +76,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-accent/5 to-transparent" />
 
         {/* Content */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10 lg:p-14">
+        <div className="absolute bottom-0 left-0 right-0 p-5 pb-10 sm:p-8 sm:pb-12 md:p-10 lg:p-14 lg:pb-16">
           {/* Type badge */}
           <div className="flex items-center gap-3 mb-3">
             <Badge variant="live" size="sm" pulse>
@@ -88,7 +88,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
           </div>
 
           {/* Title */}
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-tight mb-3 max-w-xl drop-shadow-2xl">
+          <h1 className="max-w-xl text-3xl font-black leading-[1.05] text-white drop-shadow-2xl sm:text-4xl md:text-5xl lg:text-6xl">
             {item.name}
           </h1>
 

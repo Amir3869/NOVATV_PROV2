@@ -5,26 +5,27 @@
 >
 > Documents liés : `AUDIT_NOVA_IPTV.md` (état initial, figé) · `DOCUMENTATION.md` (référence technique)
 
-**Dernière mise à jour :** 17 août 2026
-**Phase en cours :** aucune — en attente du feu vert pour la Phase 1
+**Dernière mise à jour :** 29 août 2026
+**Commit audité :** `57f4e3e`
+**Phase en cours :** mise à jour de la progression réelle du projet
 
 ---
 
 ## Vue d'ensemble
 
 ```
-Avancement global : ███░░░░░░░░░░░░░░░░░  15 %
+Avancement global : socle applicatif avancé — validation production non terminée
 
-Phase  1  Sécurisation & nettoyage      ░░░░░░░░░░   0 %   ~2 j
-Phase  2  Bugs bloquants                ░░░░░░░░░░   0 %   ~2 j
-Phase  3  Stockage local (Dexie)        ░░░░░░░░░░   0 %   ~4 j
-Phase  4  Sources IPTV réelles          ░░░░░░░░░░   0 %   ~8 j
-Phase  5  Lecteur vidéo                 ░░░░░░░░░░   0 %   ~9 j
-Phase  6  Interface & performance       ░░░░░░░░░░   0 %   ~6 j
-Phase  7  Multilingue & thèmes          ░░░░░░░░░░   0 %   ~4 j
-Phase  8  Adaptation TV                 ░░░░░░░░░░   0 %   ~8 j
-Phase  9  APK Capacitor                 ░░░░░░░░░░   0 %   ~7 j
-Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~6 j
+Phase  1  Sécurisation & nettoyage      ⚠️ partiel             ~2 j
+Phase  2  Bugs bloquants                ✅ vérifié côté code    ~2 j
+Phase  3  Stockage local                ⚠️ IndexedDB maison     ~4 j
+Phase  4  Sources IPTV réelles           ⚠️ code présent, réel ❓ ~8 j
+Phase  5  Lecteur vidéo                  ⚠️ web présent, réel ❓  ~9 j
+Phase  6  Interface & performance        ⚠️ partiel              ~6 j
+Phase  7  Multilingue & thèmes           ⚠️ partiel              ~4 j
+Phase  8  Adaptation TV                  ⚠️ code présent, réel ❓  ~8 j
+Phase  9  APK Capacitor                  ⚠️ config seulement      ~7 j
+Phase 10  Tests, publication, suite      ⚠️ tests unitaires seuls ~6 j
                                                     ─────────
                                         Total ≈ 56 jours ouvrés
                                               ≈ 7 semaines à 35 h
@@ -41,9 +42,9 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 | `src/types/index.ts` (387 l.) | ✅ Excellent | Modèle de domaine complet, réutilisable tel quel |
 | `src/design-system/` (11 composants) | ✅ Bon | Base solide, quelques bugs à corriger |
 | Structure `app/` → `features/` | ✅ Bon | Architecture saine, à conserver |
-| 16 pages / routes | ✅ Complet | Navigation entière en place |
-| `src/services/` (Xtream, M3U, XMLTV) | 🟡 Écrit, jamais branché | ~494 lignes à réactiver en Phase 4 |
-| `src/store/useAppStore.ts` | 🟡 À adapter | Passage de localStorage à Dexie |
+| 18 routes générées | ✅ Vérifié | Routes applicatives et légales présentes |
+| `src/services/` (Xtream, M3U, XMLTV) | ⚠️ Présent, réel non vérifié | Services et synchronisations présents |
+| `src/store/useAppStore.ts` | ⚠️ Fonctionnel | Catalogue séparé vers IndexedDB maison |
 | Configuration TypeScript stricte | ✅ | 0 erreur de type |
 
 ---
@@ -67,12 +68,13 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 
 **Branche :** `fix/p0-securite` · **Objectif :** un dépôt propre, sans risque, prêt à recevoir du code.
 
-- [ ] Créer `.gitignore` (absent — risque de committer des secrets)
-- [ ] Créer `.env.example`
-- [ ] Créer `README.md`
+- [x] `.gitignore` présent — à maintenir
+- [x] `.env.example` présent
+- [x] `README.md` présent
 - [ ] Renommer le projet dans `package.json` (`nextjs-postgresql-template` → `nova-tv`)
-- [ ] Remplir `next.config.ts` : export statique, images non optimisées, en-têtes de sécurité
-- [ ] Créer `public/` + favicon (actuellement 404 sur chaque page)
+- [x] Export statique et images non optimisées configurés
+- [ ] En-têtes de sécurité à appliquer sur l’hébergement
+- [x] `public/`, favicon, icônes et manifeste présents
 - [ ] Supprimer `drizzle.config.json`, `src/db/`, `src/app/api/` ⚠️ *sur confirmation*
 - [ ] Désinstaller les dépendances serveur
 - [ ] Mettre en place la CI GitHub Actions (lint + typecheck + build)
@@ -102,12 +104,12 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 
 **Branche :** `feat/stockage-local` · **Objectif :** remplacer localStorage (5 Mo) par IndexedDB (plusieurs Go).
 
-- [ ] Installer `dexie` et `dexie-react-hooks`
-- [ ] Créer `src/db/local/` : schéma des 10 tables
-- [ ] Chiffrement des identifiants IPTV (Web Crypto, AES-GCM)
+- [x] Stockage IndexedDB maison présent (Dexie non utilisé)
+- [x] `src/lib/catalogStore.ts` gère le stockage du catalogue
+- [ ] Chiffrement effectif des identifiants IPTV — le stockage actuel est en clair
 - [ ] Adapter `useAppStore` : Zustand pour l'interface, Dexie pour les données
 - [ ] Migration automatique depuis l'ancien localStorage
-- [ ] Gestion de version du schéma
+- [ ] Gestion complète de version et migration du schéma
 
 **Validation :** 50 000 chaînes écrites et relues sans ralentissement · données conservées après fermeture · identifiants illisibles en clair dans l'inspecteur.
 **Risque :** modéré — touche le cœur de l'état applicatif. À faire en commits séparés.
@@ -119,19 +121,19 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 **Branche :** `feat/sources-iptv` · **Objectif :** l'application se connecte enfin à une vraie source.
 
 ### Xtream Codes
-- [ ] Brancher `xtreamService` (194 lignes déjà écrites)
+- [x] `xtreamService` et `xtreamSync` présents et testés unitairement
 - [ ] **Test de connexion réel** — remplacer le faux succès systématique
 - [ ] Import : catégories, chaînes, films, séries
 - [ ] Gestion des erreurs : identifiants invalides, serveur injoignable, compte expiré
 
 ### M3U
-- [ ] Brancher `m3uParser` (131 lignes) + corriger le bug de double incrément
+- [x] `m3uParser` et `m3uSync` présents et testés unitairement
 - [ ] Import par URL et par fichier local
 - [ ] Analyse dans un Web Worker (interface non figée)
 - [ ] Écriture par lots de 500
 
 ### EPG
-- [ ] Brancher `epgService` (169 lignes) — attention : `DOMParser` non disponible en Worker
+- [x] `epgService` et `epgSync` présents et testés unitairement
 - [ ] Association programmes ↔ chaînes, gestion des fuseaux horaires
 - [ ] Rafraîchissement automatique
 
@@ -156,7 +158,7 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 - [ ] Définir le contrat commun (`load`, `play`, `pause`, `seek`, `volume`, pistes, qualité, événements)
 
 ### Moteur web
-- [ ] Installer `hls.js` et `mpegts.js`
+- [x] `hls.js` et `mpegts.js` installés et utilisés par le lecteur web
 - [ ] Détection automatique du format (`.m3u8` → HLS, `.ts` → MPEG-TS)
 - [ ] HLS natif sur Safari
 - [ ] Reconnexion automatique avec délai progressif
@@ -164,7 +166,7 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 - [ ] Sélection de qualité, pistes audio, sous-titres
 
 ### Interface
-- [ ] Remplacer le placeholder de `PlayerPage.tsx` par le vrai lecteur
+- [x] `PlayerPage.tsx` utilise le lecteur vidéo réel
 - [ ] Contrôles réellement câblés (ils ne pilotent aujourd'hui que du décor)
 - [ ] Sauvegarde de position toutes les ~10 s
 - [ ] Reprise de lecture · épisode suivant · zapping chaîne ±1
@@ -204,9 +206,9 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 - [ ] Extraire **toutes** les chaînes de caractères des composants
 - [ ] Traductions FR, EN, ES (anglais = langue de secours)
 - [ ] Détection de la langue système + choix manuel persisté
-- [ ] Variables CSS pour les deux thèmes
-- [ ] Thème clair complet
-- [ ] Sélecteur clair / sombre / automatique
+- [x] Variables CSS et thèmes clair/sombre présents
+- [x] Thème clair présent — validation visuelle complète à poursuivre
+- [x] Sélecteur clair / sombre / système présent
 
 **Validation :** aucun texte en dur · les trois langues complètes · les deux thèmes lisibles partout.
 
@@ -216,7 +218,7 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 
 **Branche :** `feat/tv`
 
-- [ ] Détection TV par identifiant navigateur (`Android TV`, `AFT`, `Google TV`)
+- [x] Détection TV par identifiant navigateur présente — appareils réels non vérifiés
 - [ ] Navigation directionnelle à la télécommande
 - [ ] Défilement automatique vers l'élément focalisé (**obligatoire**)
 - [ ] Focus par défaut sur chaque écran
@@ -235,8 +237,8 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 
 **Branche :** `feat/capacitor`
 
-- [ ] Passer Next.js en export statique
-- [ ] Installer et configurer Capacitor
+- [x] Next.js utilise déjà `output: 'export'`
+- [x] Capacitor est configuré — projet Android non généré
 - [ ] Générer le projet Android
 - [ ] Icônes et écran de démarrage (téléphone + bannière TV)
 - [ ] Déclarer le lancement TV (`LEANBACK_LAUNCHER`)
@@ -255,12 +257,12 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 
 **Branche :** `feat/tests` puis `release/v1`
 
-- [ ] Vitest : parseurs, stockage, utilitaires
+- [x] Vitest : 29 fichiers et 690 tests réussis
 - [ ] Playwright : parcours critiques
 - [ ] CI complète
 - [ ] Vitrine web sur Cloudflare Pages (gratuit)
 - [ ] Préparer la couche licence (**désactivée**, prête à brancher)
-- [ ] Mentions légales, CGU, politique de confidentialité
+- [x] Pages de mentions légales, CGU et confidentialité présentes — revue finale à faire
 - [ ] Documentation utilisateur
 - [ ] Version 1.0.0 étiquetée
 
@@ -309,4 +311,4 @@ Phase 10  Tests, publication, suite     ░░░░░░░░░░   0 %   ~
 - Incident : `npx` a modifié `next-env.d.ts` et `package-lock.json` → **restaurés par `git checkout`**, dépôt intact
 - **Aucun fichier du projet modifié**
 
-**Prochaine étape :** feu vert pour les Phases 1 et 2 (~4 jours, sans risque).
+**Prochaine étape :** sécuriser les secrets IPTV, puis valider les sources et le lecteur avec des données réelles.

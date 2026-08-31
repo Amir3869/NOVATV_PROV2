@@ -40,8 +40,8 @@ export function ProfilesPage() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
-        <div className="w-full max-w-lg space-y-8">
+      <div className="min-h-[100svh] flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,rgba(180,20,30,0.14),transparent_42%),linear-gradient(180deg,#090909_0%,#050505_100%)] px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
+        <div className="w-full max-w-3xl space-y-6 sm:space-y-10 [@media(max-height:500px)]:space-y-3">
           <div className="flex flex-col items-center gap-4">
             <Skeleton className="h-10 w-40" />
             <Skeleton className="h-7 w-48" />
@@ -64,17 +64,17 @@ export function ProfilesPage() {
   const editingProfile = editingId ? profiles.find((p) => p.id === editingId) : undefined;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
-      <div className="w-full max-w-lg space-y-8">
+    <div className="min-h-[100svh] flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,rgba(180,20,30,0.14),transparent_42%),linear-gradient(180deg,#090909_0%,#050505_100%)] px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
+      <div className="w-full max-w-3xl space-y-6 sm:space-y-10 [@media(max-height:500px)]:space-y-3">
         {/* Logo */}
         <div className="text-center">
-          <NovaLogo variant="full" size="lg" className="inline-flex mb-4" />
-          <h1 className="text-2xl font-black text-white">{t('profiles.whoIsWatching')}</h1>
+          <NovaLogo variant="full" size="lg" className="inline-flex mb-3 [@media(max-height:500px)]:mb-1" />
+          <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight [@media(max-height:500px)]:text-lg">{t('profiles.whoIsWatching')}</h1>
           <p className="text-sm text-white/40 mt-1">{t('profiles.selectProfile')}</p>
         </div>
 
         {/* Profile grid */}
-        <div className={cn('grid gap-4', profiles.length <= 2 ? 'grid-cols-2' : 'grid-cols-3')}>
+        <div className={cn('grid gap-3 sm:gap-5 md:gap-6 [@media(max-height:500px)]:gap-2', profiles.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3')}>
           {profiles.map((profile) => (
             // Les boutons Modifier/Supprimer sont des freres du bouton de
             // selection, pas ses enfants : un <button> imbrique dans un
@@ -85,7 +85,7 @@ export function ProfilesPage() {
             <div
               key={profile.id}
               className={cn(
-                'group relative rounded-2xl border-2 transition-all duration-200',
+                'group relative rounded-3xl border-2 transition-all duration-200 shadow-xl shadow-black/10',
                 activeProfileId === profile.id
                   ? 'border-accent bg-accent/10'
                   : 'border-white/5 bg-white/3 hover:border-white/15 hover:bg-white/6'
@@ -124,7 +124,7 @@ export function ProfilesPage() {
                   type="button"
                   onClick={() => setEditingId(profile.id)}
                   aria-label={t('profiles.editProfileNamed', { name: profile.name })}
-                  className="w-6 h-6 rounded-lg bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white focus-visible:opacity-100 transition-colors"
+                  className="w-8 h-8 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white focus-visible:opacity-100 transition-colors"
                 >
                   <Edit2 className="w-3 h-3" />
                 </button>
@@ -133,7 +133,7 @@ export function ProfilesPage() {
                     type="button"
                     onClick={() => deleteProfile(profile.id)}
                     aria-label={t('profiles.deleteProfileNamed', { name: profile.name })}
-                    className="w-6 h-6 rounded-lg bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/40 hover:text-red-400 focus-visible:opacity-100 transition-colors"
+                    className="w-8 h-8 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/40 hover:text-red-400 focus-visible:opacity-100 transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -149,7 +149,7 @@ export function ProfilesPage() {
               onClick={() => setShowCreate(true)}
               className="flex flex-col items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-white/10 text-white/30 hover:border-white/20 hover:text-white/50 hover:bg-white/3 transition-all"
             >
-              <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
+              <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-white/5 [@media(min-height:501px)]:w-20 [@media(min-height:501px)]:h-20 flex items-center justify-center">
                 <Plus className="w-8 h-8" />
               </div>
               <p className="text-sm font-medium">{t('common.add')}</p>
@@ -161,7 +161,7 @@ export function ProfilesPage() {
         {activeProfileId && (
           <Link
             href="/"
-            className="w-full flex items-center justify-center gap-2 py-4 bg-accent hover:bg-accent-hover text-white font-bold text-base rounded-2xl transition-colors shadow-lg shadow-red-900/20"
+            className="w-full flex items-center justify-center gap-2 py-3 sm:py-[1.125rem] bg-accent [@media(max-height:500px)]:py-2 hover:bg-accent-hover text-white font-bold text-base rounded-2xl transition-colors shadow-lg shadow-red-900/20"
           >
             {t('common.continue')}
             <ChevronRight className="w-5 h-5" />

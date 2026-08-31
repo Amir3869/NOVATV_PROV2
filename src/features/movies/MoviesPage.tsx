@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, MediaCardSkeleton } from '@/design-system/components/LoadingSkeleton';
-import { LayoutGrid, List, SlidersHorizontal, Star, Film } from 'lucide-react';
+import { LayoutGrid, List, Search, Star, Film } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { SearchBar } from '@/design-system/components/SearchBar';
 import { MovieCard } from '@/design-system/components/MediaCard';
@@ -18,20 +18,13 @@ import { ImageWithFallback } from '@/design-system/components/ImageWithFallback'
 // elle ne doit pas être traduite, sinon le filtre casse au changement de langue.
 const ALL_CATEGORY = '__all__';
 
-const SORT_OPTIONS = [
-  { value: 'default', labelKey: 'movies.sortDefault' },
-  { value: 'rating', labelKey: 'movies.sortRating' },
-  { value: 'year', labelKey: 'movies.sortYear' },
-  { value: 'name', labelKey: 'movies.sortTitle' },
-] as const satisfies ReadonlyArray<{ value: string; labelKey: MessageKey }>;
-
 export function MoviesPage() {
   const { t } = useTranslation();
   const allMovies = useAppStore((s) => s.movies);
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [category, setCategory] = useState(ALL_CATEGORY);
-  const [sort, setSort] = useState('default');
+  const [showMovieSearch, setShowMovieSearch] = useState(false);
 
   // Les catégories proviennent du catalogue de l'utilisateur : proposer
   // des genres figés afficherait des filtres sans aucun résultat.
@@ -52,23 +45,19 @@ export function MoviesPage() {
       const q = search.toLowerCase();
       movies = movies.filter((m) => m.name.toLowerCase().includes(q) || m.director?.toLowerCase().includes(q) || m.cast?.toLowerCase().includes(q));
     }
-    if (sort === 'rating') movies.sort((a, b) => parseFloat(b.rating ?? '0') - parseFloat(a.rating ?? '0'));
-    if (sort === 'year') movies.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-    if (sort === 'name') movies.sort((a, b) => a.name.localeCompare(b.name));
     return movies;
-  }, [search, category, sort, allMovies]);
+  }, [search, category, allMovies]);
 
   // Voir useHydrated : ne pas annoncer « aucun film » avant d'avoir lu
   // les données enregistrées.
   const hydrated = useHydrated();
 
-  const favorites = allMovies.filter((m) => m.isFavorite);
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-8">
+      <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-10 md:space-y-12">
         <Skeleton className="h-8 w-40" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {Array.from({ length: 12 }).map((_, i) => (
             <MediaCardSkeleton key={i} />
           ))}
@@ -78,33 +67,32 @@ export function MoviesPage() {
   }
 
   return (
-    <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-white">{t('movies.title')}</h1>
-        <p className="text-sm text-white/40 mt-0.5">{t('movies.count', { count: allMovies.length })}</p>
-      </div>
-
+    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-10 md:space-y-12">
       {/* Search & View */}
-      <div className="flex gap-3 flex-wrap">
-        <SearchBar value={search} onChange={setSearch} placeholder={t('movies.searchPlaceholder')} className="flex-1 min-w-48" />
-
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="px-3 py-2.5 rounded-xl bg-white/6 border border-white/8 text-sm text-white/70 focus:outline-none focus:border-accent/50 cursor-pointer"
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value} className="bg-surface-3">{t(o.labelKey)}</option>
-          ))}
-        </select>
-
-        <div className="flex rounded-xl border border-white/8 overflow-hidden">
-          <button onClick={() => setView('grid')} aria-label={t('liveTV.gridView')} className={cn('px-3 py-2.5 transition-colors', view === 'grid' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
-            <LayoutGrid className="w-4 h-4" />
+      <div className="flex items-center gap-3 rounded-3xl border border-line bg-surface-1 p-3 sm:p-4">
+        {showMovieSearch && (
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder={t('movies.searchPlaceholder')}
+            className="min-w-0 flex-1"
+          />
+        )}
+        <div className="ml-auto flex shrink-0 overflow-hidden rounded-2xl border border-line bg-surface-2">
+          <button
+            type="button"
+            onClick={() => setShowMovieSearch((v) => !v)}
+            aria-label={t('nav.search')}
+            aria-expanded={showMovieSearch}
+            className={cn('px-3 py-2.5 transition-colors', showMovieSearch ? 'bg-accent text-white' : 'text-white/50 hover:bg-surface-3 hover:text-white')}
+          >
+            <Search className="h-4 w-4" />
           </button>
-          <button onClick={() => setView('list')} aria-label={t('liveTV.listView')} className={cn('px-3 py-2.5 transition-colors', view === 'list' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-white/5')}>
+          <button onClick={() => setView('list')} aria-label={t('liveTV.listView')} className={cn('px-3 py-2.5 transition-colors', view === 'list' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-surface-3')}>
             <List className="w-4 h-4" />
+          </button>
+          <button onClick={() => setView('grid')} aria-label={t('liveTV.gridView')} className={cn('px-3 py-2.5 transition-colors', view === 'grid' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-surface-3')}>
+            <LayoutGrid className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -116,8 +104,8 @@ export function MoviesPage() {
             key={cat}
             onClick={() => setCategory(cat)}
             className={cn(
-              'flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
-              cat === category ? 'bg-accent text-white' : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white border border-white/8'
+              'flex-shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200',
+              cat === category ? 'bg-accent text-white' : 'bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white border border-line'
             )}
           >
             {cat === ALL_CATEGORY ? t('common.all') : cat}
@@ -125,20 +113,9 @@ export function MoviesPage() {
         ))}
       </div>
 
-      {/* Favorites */}
-      {!search && category === ALL_CATEGORY && favorites.length > 0 && (
-        <section>
-          <SectionHeader title={t('movies.myFavorites')} accent className="mb-4" />
-          <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">
-            {favorites.map((movie) => (
-              <MovieCard key={movie.id} movie={movie} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Grid / List */}
-      <section>
+      <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
         <SectionHeader title={
             search || category !== ALL_CATEGORY
               ? t('common.results', { count: filtered.length })
@@ -148,7 +125,7 @@ export function MoviesPage() {
         {filtered.length === 0 ? (
           <EmptyState emoji="🎬" title={t('movies.noResults')} description={t('movies.noResultsDescription')} />
         ) : view === 'grid' ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 md:gap-x-4 md:gap-y-10">
             {filtered.map((movie) => (
               <MovieCard key={movie.id} movie={movie} size="md" />
             ))}
@@ -176,7 +153,6 @@ export function MoviesPage() {
                     )}
                     {movie.genre && <span className="text-xs text-white/40">{movie.genre.split(',')[0]}</span>}
                   </div>
-                  {movie.plot && <p className="text-xs text-white/50 mt-2 line-clamp-2">{movie.plot}</p>}
                 </div>
               </Link>
             ))}

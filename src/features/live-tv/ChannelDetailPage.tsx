@@ -73,11 +73,16 @@ export function ChannelDetailPage({ channelId }: Props) {
   return (
     <div className="min-h-screen">
       {/* Hero */}
-      <div className="relative h-48 md:h-64 bg-gradient-to-br from-[#1A0000] via-surface-2 to-surface-0 overflow-hidden">
+      <div className="relative h-48 md:h-64 bg-gradient-to-br from-black via-zinc-900 to-surface-0 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface-0" />
 
         {/* Back */}
-        <button onClick={() => router.back()} className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label={t('common.back')}
+          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10"
+        >
           <ArrowLeft className="w-4 h-4" />
         </button>
 
@@ -109,7 +114,7 @@ export function ChannelDetailPage({ channelId }: Props) {
                   onClick={() => setRenameOpen(true)}
                   aria-label={t('liveTV.renameChannel')}
                   title={t('liveTV.renameChannel')}
-                  className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                  className="w-11 h-11 rounded-xl bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all inline-flex items-center justify-center"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>

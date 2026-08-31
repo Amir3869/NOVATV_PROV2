@@ -48,27 +48,22 @@ export function FavoritesPage() {
   if (!hydrated) return <GridPageSkeleton count={8} />;
 
   return (
-    <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-white">{t('favorites.title')}</h1>
-        <p className="text-sm text-white/40 mt-0.5">{total} élément{total !== 1 ? 's' : ''} sauvegardé{total !== 1 ? 's' : ''}</p>
-      </div>
-
+    <div className="min-h-screen bg-surface-0 px-4 md:px-8 lg:px-10 py-6 space-y-6">
       {/* Tabs */}
-      <div className="flex gap-1 bg-white/5 rounded-xl p-1 border border-white/5">
+      <div className="flex gap-1 bg-surface-1 rounded-xl p-1 border border-line">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all',
-              activeTab === tab.id ? 'bg-accent text-white shadow-md' : 'text-white/50 hover:text-white hover:bg-white/5'
+              activeTab === tab.id ? 'bg-accent text-white shadow-md' : 'text-white/50 hover:text-white hover:bg-surface-3'
             )}
           >
             <tab.icon className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{t(tab.labelKey)}</span>
             {tab.count > 0 && (
-              <span className={cn('text-xs rounded-full px-1.5 py-0.5', activeTab === tab.id ? 'bg-white/20' : 'bg-white/10')}>
+              <span className={cn('text-xs rounded-full px-1.5 py-0.5', activeTab === tab.id ? 'bg-surface-3' : 'bg-surface-2')}>
                 {tab.count}
               </span>
             )}
@@ -87,7 +82,7 @@ export function FavoritesPage() {
 
       {/* Channels */}
       {(activeTab === 'all' || activeTab === 'channels') && favChannels.length > 0 && (
-        <section>
+        <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           {activeTab === 'all' && <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><Tv className="w-4 h-4 text-accent" />{t('common.channels')}</h2>}
           <div className="space-y-1">
             {favChannels.map((ch) => <ChannelCard key={ch.id} channel={ch} />)}
@@ -97,9 +92,9 @@ export function FavoritesPage() {
 
       {/* Movies */}
       {(activeTab === 'all' || activeTab === 'movies') && favMovies.length > 0 && (
-        <section>
+        <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           {activeTab === 'all' && <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><Film className="w-4 h-4 text-accent" />{t('nav.movies')}</h2>}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {favMovies.map((movie) => <MovieCard key={movie.id} movie={movie} />)}
           </div>
         </section>
@@ -107,9 +102,9 @@ export function FavoritesPage() {
 
       {/* Series */}
       {(activeTab === 'all' || activeTab === 'series') && favSeries.length > 0 && (
-        <section>
+        <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           {activeTab === 'all' && <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-accent" />{t('nav.series')}</h2>}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {favSeries.map((series) => <SeriesCard key={series.id} series={series} />)}
           </div>
         </section>

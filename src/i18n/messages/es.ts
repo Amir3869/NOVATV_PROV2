@@ -19,6 +19,7 @@ export const es: Messages = {
     mainMenu: 'Menú principal',
     closeMenu: 'Cerrar el menú',
     collapseMenu: 'Contraer el menú',
+    openMenu: 'Abrir el menú',
   },
 
   common: {
@@ -32,6 +33,7 @@ export const es: Messages = {
     delete: 'Eliminar',
     remove: 'Quitar',
     cancel: 'Cancelar',
+    erase: 'Borrar',
     save: 'Guardar',
     close: 'Cerrar',
     back: 'Volver',
@@ -402,6 +404,8 @@ export const es: Messages = {
     kidsProfile: 'Perfil infantil',
     kidsDescription: 'Solo contenido apropiado',
     deleteConfirm: '¿Eliminar este perfil?',
+    deleteMessage: 'Este perfil y sus listas se eliminarán. El historial y los favoritos de los demás perfiles se conservan.',
+    deleted: 'Perfil eliminado',
     newProfile: 'Nuevo perfil',
     editProfile: 'Editar el perfil',
     firstName: 'Nombre',
@@ -429,6 +433,7 @@ export const es: Messages = {
     noPin: 'No hay PIN definido en este perfil',
     enterCode: 'Introducir el código',
     wrongCode: 'Código incorrecto — inténtalo de nuevo',
+    codeProgress: 'Código introducido',
     newPin: 'Nuevo PIN',
     confirmPin: 'Confirmar PIN',
     pinMismatch: 'Los códigos no coinciden',

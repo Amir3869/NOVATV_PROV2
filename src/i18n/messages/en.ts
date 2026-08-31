@@ -25,6 +25,7 @@ export const en: Messages = {
     mainMenu: 'Main menu',
     closeMenu: 'Close menu',
     collapseMenu: 'Collapse menu',
+    openMenu: 'Open menu',
   },
 
   common: {
@@ -38,6 +39,7 @@ export const en: Messages = {
     delete: 'Delete',
     remove: 'Remove',
     cancel: 'Cancel',
+    erase: 'Erase',
     save: 'Save',
     close: 'Close',
     back: 'Back',
@@ -408,6 +410,8 @@ export const en: Messages = {
     kidsProfile: 'Kids profile',
     kidsDescription: 'Age-appropriate content only',
     deleteConfirm: 'Delete this profile?',
+    deleteMessage: 'This profile and its lists will be removed. History and favourites of other profiles are kept.',
+    deleted: 'Profile deleted',
     newProfile: 'New profile',
     editProfile: 'Edit profile',
     firstName: 'First name',
@@ -435,6 +439,7 @@ export const en: Messages = {
     noPin: 'No PIN set on this profile',
     enterCode: 'Enter code',
     wrongCode: 'Incorrect code — try again',
+    codeProgress: 'Entered code',
     newPin: 'New PIN',
     confirmPin: 'Confirm PIN',
     pinMismatch: 'The codes do not match',

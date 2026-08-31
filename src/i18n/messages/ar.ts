@@ -28,6 +28,7 @@ export const ar: Messages = {
     mainMenu: 'القائمة الرئيسية',
     closeMenu: 'إغلاق القائمة',
     collapseMenu: 'طيّ القائمة',
+    openMenu: 'فتح القائمة',
   },
 
   common: {
@@ -41,6 +42,7 @@ export const ar: Messages = {
     delete: 'حذف',
     remove: 'إزالة',
     cancel: 'إلغاء',
+    erase: 'مسح',
     save: 'حفظ',
     close: 'إغلاق',
     back: 'رجوع',
@@ -411,6 +413,8 @@ export const ar: Messages = {
     kidsProfile: 'ملف الأطفال',
     kidsDescription: 'محتوى مناسب فقط',
     deleteConfirm: 'حذف هذا الملف الشخصي؟',
+    deleteMessage: 'سيتم إزالة هذا الملف وقوائمه. يُحتفظ بسجل ومفضلات الملفات الأخرى.',
+    deleted: 'تم حذف الملف الشخصي',
     newProfile: 'ملف جديد',
     editProfile: 'تعديل الملف الشخصي',
     firstName: 'الاسم الأول',
@@ -438,6 +442,7 @@ export const ar: Messages = {
     noPin: 'لا يوجد رمز محدّد لهذا الملف',
     enterCode: 'إدخال الرمز',
     wrongCode: 'رمز غير صحيح — حاول مجدداً',
+    codeProgress: 'الرمز المدخل',
     newPin: 'رمز جديد',
     confirmPin: 'تأكيد الرمز',
     pinMismatch: 'الرموز غير متطابقة',

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Play, Film, Tv, BookOpen, GripVertical, X, Check } from 'lucide-react';
+import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { GlassCard } from '@/design-system/components/GlassCard';
 import { EmptyState } from '@/design-system/components/EmptyState';
@@ -10,6 +10,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import toast from 'react-hot-toast';
 import type { CustomList } from '@/types';
 import { useTranslation } from '@/i18n';
@@ -53,8 +54,8 @@ export function CustomListsPage() {
   return (
     <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
           <h1 className="text-2xl font-black text-white">{t('lists.title')}</h1>
           <p className="text-sm text-white/40 mt-0.5">
             {t(profileLists.length > 1 ? 'lists.listCountPlural' : 'lists.listCount', { count: profileLists.length })}
@@ -63,7 +64,7 @@ export function CustomListsPage() {
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
+          className="flex items-center gap-2 min-h-11 px-4 py-2.5 bg-accent text-white on-accent text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
         >
           <Plus className="w-4 h-4" />
           {t('lists.newList')}
@@ -248,74 +249,77 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <GlassCard variant="dark" padding="lg" className="w-full max-w-sm">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-white">{t('lists.newList')}</h2>
-          <button type="button" onClick={onClose} aria-label={t('common.close')} className="text-white/40 hover:text-white transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {/* Emoji picker */}
-          <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-2">{t('common.icon')}</label>
-            <div className="flex flex-wrap gap-2">
-              {EMOJI_OPTIONS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  aria-pressed={icon === e}
-                  onClick={() => setIcon(e)}
-                  className={cn('w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all', icon === e ? 'bg-accent/20 ring-1 ring-accent' : 'bg-white/5 hover:bg-white/10')}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-1.5">{t('common.name')}</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('lists.defaultName')}
-              maxLength={30}
-              autoFocus
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-1.5">{t('lists.description')} {t('common.optional')}</label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('lists.descriptionPlaceholder')}
-              maxLength={60}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-3 mt-6">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all">
+    <AppDialog
+      open
+      onClose={onClose}
+      title={t('lists.newList')}
+      footer={
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 min-h-11 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all"
+          >
             {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={handleCreate}
             disabled={!name.trim()}
-            className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
+            className="flex-1 min-h-11 py-2.5 rounded-xl bg-accent text-white on-accent text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
           >
             {t('common.create')}
           </button>
         </div>
-      </GlassCard>
-    </div>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-2">{t('common.icon')}</label>
+          <div className="flex flex-wrap gap-2">
+            {EMOJI_OPTIONS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                aria-pressed={icon === e}
+                onClick={() => setIcon(e)}
+                className={cn(
+                  'w-11 h-11 rounded-xl text-lg flex items-center justify-center transition-all',
+                  icon === e ? 'bg-accent/20 ring-1 ring-accent' : 'bg-white/5 hover:bg-white/10',
+                )}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-1.5">{t('common.name')}</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('lists.defaultName')}
+            maxLength={30}
+            className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-1.5">
+            {t('lists.description')} {t('common.optional')}
+          </label>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t('lists.descriptionPlaceholder')}
+            maxLength={60}
+            className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
+          />
+        </div>
+      </div>
+    </AppDialog>
   );
 }
