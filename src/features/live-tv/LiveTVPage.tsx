@@ -1,19 +1,17 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { LayoutGrid, List, Lock, Search, Settings2 } from 'lucide-react';
-import { cn } from '@/utils/cn';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { ChannelCard } from '@/design-system/components/MediaCard';
-import { SearchBar } from '@/design-system/components/SearchBar';
+import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, ChannelCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
 import { CategoryRenamePanel } from '@/features/categories/CategoryRenamePanel';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { useParental } from '@/features/parental/ParentalProvider';
-import Link from 'next/link';
 import { useTranslation } from '@/i18n';
 
 export function LiveTVPage() {
@@ -25,7 +23,6 @@ export function LiveTVPage() {
   const channelRenames = useAppStore((s) => s.channelRenames);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [showCategories, setShowCategories] = useState(false);
-  const [showChannelSearch, setShowChannelSearch] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const favorites = useAppStore((s) => s.favorites);
@@ -90,96 +87,52 @@ export function LiveTVPage() {
 
   return (
     <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
-      {showCategories && (
+      <AppDialog
+        open={showCategories}
+        onClose={() => setShowCategories(false)}
+        title={t('liveTV.myCategories')}
+        description={t('liveTV.myCategoriesHint')}
+        size="lg"
+      >
         <CategoryRenamePanel
           categories={allCategories}
           title={t('liveTV.myCategories')}
           hint={t('liveTV.myCategoriesHint')}
         />
-      )}
+      </AppDialog>
 
-      {/* Unified page controls */}
-      <div className="flex flex-col gap-3 rounded-3xl border border-line bg-surface-1 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.12)] sm:flex-row sm:items-center sm:p-4">
-        {showChannelSearch && (
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder={t('liveTV.searchPlaceholder')}
-            className="order-first min-w-0 w-full sm:order-2 sm:flex-1"
-          />
-        )}
-        <div className="flex w-full items-center justify-between gap-3 sm:contents">
-          <button
-            type="button"
-            onClick={() => setShowCategories((v) => !v)}
-            aria-expanded={showCategories}
-            className={cn(
-              'order-1 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 sm:px-4',
-              showCategories
-                ? 'bg-accent text-white'
-                : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white'
-            )}
-          >
-            <Settings2 className="h-4 w-4" />
-            <span className="whitespace-nowrap">{t('liveTV.manageCategories')}</span>
-          </button>
-          <div className="order-3 flex shrink-0 overflow-hidden rounded-2xl border border-line bg-surface-2">
-            <button
-              type="button"
-              onClick={() => setShowChannelSearch((v) => !v)}
-              aria-label={t('nav.search')}
-              aria-expanded={showChannelSearch}
-              className={cn('px-3 py-2.5 transition-colors', showChannelSearch ? 'bg-accent text-white' : 'text-white/40 hover:bg-surface-3 hover:text-white')}
-            >
-              <Search className="h-4 w-4" />
-            </button>
-            <button onClick={() => setView('list')} aria-label={t('liveTV.listView')} className={cn('px-3 py-2.5 transition-colors', view === 'list' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-surface-3')}>
-              <List className="h-4 w-4" />
-            </button>
-            <button onClick={() => setView('grid')} aria-label={t('liveTV.gridView')} className={cn('px-3 py-2.5 transition-colors', view === 'grid' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-surface-3')}>
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Categories */}
-      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-line bg-surface-1 p-2 scrollbar-none pb-2">
-        <button
-          onClick={() => setActiveCategory(null)}
-          className={cn(
-            'flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
-            !activeCategory ? 'bg-accent text-white' : 'bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white border border-line'
-          )}
-        >
-          {t('liveTV.allCategories')}
-        </button>
-        {allCategories.map((cat) => {
-          const blocked = isCategoryBlocked(cat);
-          return (
-            <button
-              key={cat.id}
-              onClick={() => {
-                // Une catégorie verrouillée demande le code avant de
-                // s'ouvrir. Le code déjà saisi ceci fait permet.
-                if (blocked) {
-                  void ensureUnlocked();
-                  return;
-                }
-                setActiveCategory(cat.id === activeCategory ? null : cat.id);
-              }}
-              className={cn(
-                'flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
-                cat.id === activeCategory ? 'bg-accent text-white' : 'bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white border border-line',
-                blocked && 'opacity-70'
-              )}
-            >
-              {blocked && <Lock className="w-3 h-3 mr-1.5 inline -mt-0.5" />}
-              {categoryDisplayName(cat.id, cat.name, categoryRenames)}
-            </button>
-          );
-        })}
-      </div>
+      <CatalogToolbar
+        allLabel={t('liveTV.allCategories')}
+        categories={allCategories.map((cat) => ({
+          id: cat.id,
+          label: categoryDisplayName(cat.id, cat.name, categoryRenames),
+          blocked: isCategoryBlocked(cat),
+        }))}
+        activeId={activeCategory}
+        onSelect={(id) => {
+          if (id) {
+            const cat = allCategories.find((c) => c.id === id);
+            // Une catégorie verrouillée demande le code avant de s'ouvrir.
+            if (cat && isCategoryBlocked(cat)) {
+              void ensureUnlocked();
+              return;
+            }
+            setActiveCategory(id === activeCategory ? null : id);
+            return;
+          }
+          setActiveCategory(null);
+        }}
+        onManage={() => setShowCategories(true)}
+        manageLabel={t('liveTV.manageCategories')}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t('liveTV.searchPlaceholder')}
+        searchLabel={t('nav.search')}
+        view={view}
+        onViewChange={setView}
+        listLabel={t('liveTV.listView')}
+        gridLabel={t('liveTV.gridView')}
+      />
 
       {/* Favorites section */}
       {!search && !activeCategory && favoriteChannels.length > 0 && (

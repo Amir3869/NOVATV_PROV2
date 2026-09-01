@@ -38,6 +38,7 @@ const SIZE = {
   xs: 'max-w-xs',
   sm: 'max-w-sm',
   md: 'max-w-md',
+  lg: 'max-w-2xl',
 } as const;
 
 export interface AppDialogProps {
@@ -156,7 +157,7 @@ export function AppDialog({
         aria-describedby={description ? descId : undefined}
         className={cn(
           'relative w-full rounded-2xl bg-surface-2 border border-line shadow-2xl',
-          'flex flex-col max-h-[min(90dvh,40rem)]',
+          'flex flex-col max-h-[90dvh]',
           SIZE[size],
           className,
         )}

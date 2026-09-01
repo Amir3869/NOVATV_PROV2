@@ -27,6 +27,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
   const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(movie.id));
+  const { hasHover } = useDeviceType();
 
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
@@ -94,7 +95,12 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
         onClick={(e) => { e.preventDefault(); toggleFavorite(movie.id, 'movie'); }}
         aria-label={isFav ? `Retirer ${movie.name} des favoris` : `Ajouter ${movie.name} aux favoris`}
         aria-pressed={isFav}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+        className={cn(
+          'absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
+          hasHover
+            ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
+            : 'opacity-100',
+        )}
       >
         <Heart className={cn('w-3.5 h-3.5', isFav ? 'fill-accent text-accent' : 'text-white')} />
       </button>
@@ -113,6 +119,7 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
   const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(series.id));
+  const { hasHover } = useDeviceType();
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
@@ -163,7 +170,12 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
         onClick={(e) => { e.preventDefault(); toggleFavorite(series.id, 'series'); }}
         aria-label={isFav ? `Retirer ${series.name} des favoris` : `Ajouter ${series.name} aux favoris`}
         aria-pressed={isFav}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+        className={cn(
+          'absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
+          hasHover
+            ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
+            : 'opacity-100',
+        )}
       >
         <Heart className={cn('w-3.5 h-3.5', isFav ? 'fill-accent text-accent' : 'text-white')} />
       </button>

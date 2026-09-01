@@ -54,7 +54,7 @@ export function EPGPage() {
   if (!hydrated) return <ListPageSkeleton />;
 
   return (
-    <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-6">
+    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -63,20 +63,22 @@ export function EPGPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setDayOffset((d) => Math.max(d - 1, -1))}
             disabled={dayOffset <= -1}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 disabled:opacity-30 transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-2 text-white/60 transition-colors hover:bg-surface-3 hover:text-white disabled:opacity-30"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
           <div className="flex gap-1">
             {[-1, 0, 1].map((offset) => (
               <button
                 key={offset}
+                type="button"
                 onClick={() => setDayOffset(offset)}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-                  offset === dayOffset ? 'bg-accent text-white' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'
+                  'min-h-11 rounded-full px-4 text-sm font-semibold transition-all',
+                  offset === dayOffset ? 'bg-accent text-white' : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white'
                 )}
               >
                 {t(DAY_KEYS[offset + 1])}
@@ -84,11 +86,12 @@ export function EPGPage() {
             ))}
           </div>
           <button
+            type="button"
             onClick={() => setDayOffset((d) => Math.min(d + 1, 1))}
             disabled={dayOffset >= 1}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 disabled:opacity-30 transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-2 text-white/60 transition-colors hover:bg-surface-3 hover:text-white disabled:opacity-30"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -128,7 +131,7 @@ export function EPGPage() {
           <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-none pb-2 mb-4">
             <button
               onClick={() => setSelectedChannelId(null)}
-              className={cn('flex-shrink-0 px-3 py-1.5 rounded-full text-sm transition-all', !selectedChannelId ? 'bg-accent text-white' : 'bg-white/5 text-white/50')}
+              className={cn('flex h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-all', !selectedChannelId ? 'bg-accent text-white' : 'border border-line bg-surface-2 text-white/60')}
             >
               {t('epg.allChannels')}
             </button>

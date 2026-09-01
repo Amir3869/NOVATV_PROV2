@@ -11,6 +11,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { secureStore } from '@/lib/secureStore';
 import {
   fetchCategoryCatalog,
@@ -89,8 +90,8 @@ export function PlaylistsPage() {
   if (!hydrated) return <ListPageSkeleton rows={3} />;
 
   return (
-    <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8">
+      <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-black text-white">{t('playlists.pageTitle')}</h1>
           <p className="text-sm text-white/40 mt-0.5">{t('playlists.pageSubtitle')}</p>
@@ -99,7 +100,7 @@ export function PlaylistsPage() {
           <button
             type="button"
             onClick={() => setAddMode('xtream')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
+            className="flex items-center gap-2 min-h-11 px-4 py-2.5 bg-accent text-white on-accent text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
           >
             <Plus className="w-4 h-4" />
             {t('common.add')}
@@ -127,7 +128,7 @@ export function PlaylistsPage() {
                 aria-pressed={addMode === mode}
                 onClick={() => setAddMode(mode)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border',
+                  'flex items-center gap-2 min-h-11 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border',
                   addMode === mode ? 'bg-accent text-white border-accent' : 'bg-white/5 text-white/60 border-white/8 hover:bg-white/10'
                 )}
               >
@@ -218,6 +219,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const setEpgPrograms = useAppStore((s) => s.setEpgPrograms);
   const deletePlaylist = useAppStore((s) => s.deletePlaylist);
   const setActivePlaylist = useAppStore((s) => s.setActivePlaylist);
+  const activePlaylistId = useAppStore((s) => s.activePlaylistId);
+  const isCurrent = playlist.id === activePlaylistId;
 
   /**
    * Chaînes déjà synchronisées de cette source.
@@ -538,9 +541,109 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const typeIcon = playlist.type === 'xtream' ? Server : playlist.type === 'm3u_url' ? LinkIcon : FileText;
   const TypeIcon = typeIcon;
 
+  const actions = (
+    <>
+          {/* Pas de bouton pour un fichier local : le navigateur ne peut
+              pas le relire sans que l'utilisateur le redésigne. Un
+              bouton présent mais sans effet serait un mensonge de
+              plus. */}
+          {playlist.type !== 'm3u_file' && (
+            <button
+              onClick={() => handleSync()}
+              disabled={syncing}
+              type="button"
+              aria-label={t('playlists.syncPlaylist')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+            >
+              <RefreshCw className={cn('h-4 w-4', syncing && 'animate-spin')} />
+            </button>
+          )}
+          {/* Gérer les catégories (ajouter / masquer des groupes).
+              Réservé aux sources Xtream : une liste M3U livre un fichier
+              entier, sans catalogue de catégories à interroger. */}
+          {playlist.type === 'xtream' && (
+            <button
+              type="button"
+              onClick={handleOpenCategories}
+              disabled={loadingCategories || syncing}
+              aria-label={t('playlists.categoriesEdit')}
+              className={cn(
+                'inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition-colors disabled:opacity-50 sm:px-2.5',
+                'w-11 sm:w-auto',
+                editCatalog
+                  ? 'bg-accent/20 text-accent'
+                  : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              <Layers className={cn('h-4 w-4', loadingCategories && 'animate-pulse')} />
+              <span className="hidden sm:inline">{t('playlists.categoriesEdit')}</span>
+            </button>
+          )}
+          {/* Renommer les catégories et les chaînes. Disponible pour
+              toutes les sources : contrairement à la sélection
+              ci-dessus, qui n'a de sens que pour Xtream (catalogue
+              interrogeable), le renommage agit sur les catégories et
+              chaînes déjà rapportées, y compris celles d'une liste
+              M3U. */}
+          <button
+            type="button"
+            onClick={() => setShowRenames((v) => !v)}
+            disabled={syncing}
+            aria-expanded={showRenames}
+            aria-label={t('playlists.catalogManage')}
+            className={cn(
+              'inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition-colors disabled:opacity-50 sm:px-2.5',
+              'w-11 sm:w-auto',
+              showRenames
+                ? 'bg-accent/20 text-accent'
+                : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+            )}
+          >
+            <Tags className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('playlists.catalogManage')}</span>
+          </button>
+          {/* Guide des programmes. Bouton absent quand la source n'en
+              propose pas : une liste M3U sans adresse XMLTV n'a aucun
+              guide à récupérer. Désactivé pendant la synchronisation du
+              catalogue, car il a besoin des chaînes qu'elle écrit. */}
+          {hasEpgSource && (
+            <button
+              onClick={handleSyncEPG}
+              disabled={epgBusy || syncing}
+              type="button"
+              aria-label={t('playlists.syncEpg')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+            >
+              <CalendarDays className={cn('h-4 w-4', epgBusy && 'animate-pulse')} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setDraftName(playlist.name);
+              setEditing(true);
+            }}
+            disabled={editing}
+            aria-label={t('playlists.editPlaylist')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            aria-label={t('playlists.deletePlaylist')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-red-900/20 hover:text-red-400"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+    </>
+  );
+
   return (
     <GlassCard variant="glass" padding="md">
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-4">
         <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center flex-shrink-0">
           <TypeIcon className="w-5 h-5 text-accent" />
         </div>
@@ -575,7 +678,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             ) : (
               <h3 className="font-semibold text-white truncate">{playlist.name}</h3>
             )}
-            {playlist.isActive && <Badge variant="new" size="xs">{t('common.active')}</Badge>}
+            {isCurrent && <Badge variant="new" size="xs">{t('common.active')}</Badge>}
             <Badge variant="hd" size="xs">{typeLabel}</Badge>
           </div>
 
@@ -616,117 +719,31 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             </p>
           )}
         </div>
+        </div>
 
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Pas de bouton pour un fichier local : le navigateur ne peut
-              pas le relire sans que l'utilisateur le redésigne. Un
-              bouton présent mais sans effet serait un mensonge de
-              plus. */}
-          {playlist.type !== 'm3u_file' && (
-            <button
-              onClick={() => handleSync()}
-              disabled={syncing}
-              type="button"
-              aria-label={t('playlists.syncPlaylist')}
-              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
-            </button>
-          )}
-          {/* Gérer les catégories (ajouter / masquer des groupes).
-              Réservé aux sources Xtream : une liste M3U livre un fichier
-              entier, sans catalogue de catégories à interroger. */}
-          {playlist.type === 'xtream' && (
-            <button
-              type="button"
-              onClick={handleOpenCategories}
-              disabled={loadingCategories || syncing}
-              aria-label={t('playlists.categoriesEdit')}
-              className={cn(
-                'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50',
-                editCatalog
-                  ? 'bg-accent/20 text-accent'
-                  : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white'
-              )}
-            >
-              <Layers className={cn('w-4 h-4', loadingCategories && 'animate-pulse')} />
-              {t('playlists.categoriesEdit')}
-            </button>
-          )}
-          {/* Renommer les catégories et les chaînes. Disponible pour
-              toutes les sources : contrairement à la sélection
-              ci-dessus, qui n'a de sens que pour Xtream (catalogue
-              interrogeable), le renommage agit sur les catégories et
-              chaînes déjà rapportées, y compris celles d'une liste
-              M3U. */}
-          <button
-            type="button"
-            onClick={() => setShowRenames((v) => !v)}
-            disabled={syncing}
-            aria-expanded={showRenames}
-            aria-label={t('playlists.catalogManage')}
-            className={cn(
-              'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50',
-              showRenames
-                ? 'bg-accent/20 text-accent'
-                : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white'
-            )}
-          >
-            <Tags className="w-4 h-4" />
-            {t('playlists.catalogManage')}
-          </button>
-          {/* Guide des programmes. Bouton absent quand la source n'en
-              propose pas : une liste M3U sans adresse XMLTV n'a aucun
-              guide à récupérer. Désactivé pendant la synchronisation du
-              catalogue, car il a besoin des chaînes qu'elle écrit. */}
-          {hasEpgSource && (
-            <button
-              onClick={handleSyncEPG}
-              disabled={epgBusy || syncing}
-              type="button"
-              aria-label={t('playlists.syncEpg')}
-              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors disabled:opacity-50"
-            >
-              <CalendarDays className={cn('w-4 h-4', epgBusy && 'animate-pulse')} />
-            </button>
-          )}
-          {/* Choisir la source active était impossible : avec deux
-              abonnements, le second restait inatteignable. */}
-          {!playlist.isActive && (
-            <button
-              type="button"
-              onClick={() => {
-                setActivePlaylist(playlist.id);
-                toast.success(t('playlists.activated', { name: playlist.name }));
-              }}
-              aria-label={t('playlists.setActive')}
-              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-emerald-400 transition-colors"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setDraftName(playlist.name);
-              setEditing(true);
-            }}
-            disabled={editing}
-            aria-label={t('playlists.editPlaylist')}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors disabled:opacity-40"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            aria-label={t('playlists.deletePlaylist')}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-900/20 flex items-center justify-center text-white/50 hover:text-red-400 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+        <div className="flex w-full items-center gap-1 sm:w-auto sm:shrink-0 sm:flex-wrap sm:justify-end">
+          {actions}
         </div>
       </div>
+
+      {/*
+        Une seule source visible à la fois. Pas de popup : activer n'est
+        pas destructif, un toast suffit. Le bouton est hors de la rangée
+        d'icônes — trop facile à rater au milieu de sync / poubelle.
+      */}
+      {!isCurrent && (
+        <button
+          type="button"
+          onClick={() => {
+            setActivePlaylist(playlist.id);
+            toast.success(t('playlists.activated', { name: playlist.name }));
+          }}
+          className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/5 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {t('playlists.activate')}
+        </button>
+      )}
 
       {editing && (
         <p className="text-xs text-white/30 mt-3">
@@ -740,11 +757,14 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
         faire 300 lignes, une modale imposerait deux zones de défilement
         imbriquées, impraticables à la télécommande.
       */}
-      {editCatalog && (
-        <div className="mt-5 pt-5 border-t border-white/8">
-          <p className="text-xs text-white/40 mb-4 leading-relaxed">
-            {t('playlists.categoriesEditHint')}
-          </p>
+      <AppDialog
+        open={editCatalog !== null}
+        onClose={() => setEditCatalog(null)}
+        title={t('playlists.categoriesEditTitle')}
+        description={t('playlists.categoriesEditHint')}
+        size="lg"
+      >
+        {editCatalog && (
           <CategoryPicker
             catalog={editCatalog}
             selection={editSelection}
@@ -754,19 +774,23 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             onCancel={() => setEditCatalog(null)}
             busy={syncing}
           />
-        </div>
-      )}
+        )}
+      </AppDialog>
 
-      {showRenames && (
-        <div className="mt-5 pt-5 border-t border-white/8 space-y-2">
-          <CatalogManager
-            categories={playlistCategories}
-            channels={playlistChannels}
-            title={t('playlists.catalogTitle', { name: playlist.name })}
-            hint={t('playlists.catalogHint')}
-          />
-        </div>
-      )}
+      <AppDialog
+        open={showRenames}
+        onClose={() => setShowRenames(false)}
+        title={t('playlists.catalogTitle', { name: playlist.name })}
+        description={t('playlists.catalogHint')}
+        size="lg"
+      >
+        <CatalogManager
+          categories={playlistCategories}
+          channels={playlistChannels}
+          title={t('playlists.catalogTitle', { name: playlist.name })}
+          hint={t('playlists.catalogHint')}
+        />
+      </AppDialog>
 
       {/* Une suppression efface la source, son catalogue et son mot de
           passe : rien de tout cela n'est récupérable. */}

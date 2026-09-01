@@ -70,9 +70,9 @@ export function SearchPage() {
   if (!hydrated) return <ListPageSkeleton rows={4} />;
 
   return (
-    <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-6">
+    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
       {/* Search input */}
-      <div className="max-w-2xl">
+      <div className="mx-auto w-full max-w-2xl">
         <h1 className="text-2xl font-black text-white mb-4">{t('search.title')}</h1>
         <SearchBar
           value={query}

@@ -3,30 +3,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Delete } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { GlassCard } from './GlassCard';
+import { useTranslation } from '@/i18n';
+import { AppDialog } from './AppDialog';
 
-/**
- * Fenêtre de saisie du code PIN parental.
- *
- * ── Contrat ────────────────────────────────────────────────────
- * Le composant est volontairement muet sur la suite : il recueille un
- * code de 4 chiffres, l'envoie à `onVerify`, et affiche un message
- * d'erreur si `onVerify` renvoie `false`. Il ne connaît ni le profil
- * ni le hachage — le parent d'appel (le fournisseur `ParentalProvider`)
- * s'occupe de vérifier contre `pinHash` du profil actif.
- *
- * ── Pourquoi un clavier numérique et non un champ texte ─────────
- * La cible est un téléviseur (télécommande). Un clavier en grille
- * donne un cible de focus simple et prévisible ; un `<input>` masqué
- * (type `password`) rendrait la saisie au doigt plus pénible et ne
- * montrerait pas la progression du code. Les points du haut reflètent
- * la saisie en cours, en plus de l'accessibilité.
- *
- * ── Remise à zéro ──────────────────────────────────────────────
- * À chaque ouverture (`open` passe à `true`), le code saisi et le
- * message d'erreur sont effacés : deux tentatives successives ne
- * doivent pas hériter de la saisie de la première.
- */
 export function PinEntryDialog({
   open,
   title,
@@ -36,18 +15,16 @@ export function PinEntryDialog({
 }: {
   open: boolean;
   title: string;
-  /** Précision sur quel profil/protection demande le code. */
   subtitle?: string;
-  /** Vérifie le code ; doit renvoyer `true` pour fermer en succès. */
   onVerify: (pin: string) => Promise<boolean>;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const previousOpen = useRef(open);
 
-  // Remise à zéro à la (ré)ouverture.
   useEffect(() => {
     if (open && !previousOpen.current) {
       setValue('');
@@ -56,8 +33,6 @@ export function PinEntryDialog({
     }
     previousOpen.current = open;
   }, [open]);
-
-  if (!open) return null;
 
   const press = async (digit: string) => {
     if (busy) return;
@@ -83,18 +58,21 @@ export function PinEntryDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <GlassCard variant="dark" padding="lg" className="w-full max-w-xs text-center">
+    <AppDialog
+      open={open}
+      onClose={onCancel}
+      title={title}
+      description={subtitle}
+      size="xs"
+      busy={busy}
+      closeOnOverlay={false}
+    >
+      <div className="text-center">
         <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-accent/15 flex items-center justify-center">
           <Lock className="w-5 h-5 text-accent" />
         </div>
-        <h2 className="text-base font-bold text-white">{title}</h2>
-        {subtitle && (
-          <p className="text-xs text-white/50 mt-1 leading-relaxed">{subtitle}</p>
-        )}
 
-        {/* Points de progression */}
-        <div className="flex justify-center gap-4 my-6" aria-label="Code saisi">
+        <div className="flex justify-center gap-4 my-6" aria-label={t('parental.codeProgress')}>
           {[0, 1, 2, 3].map((i) => (
             <span
               key={i}
@@ -104,20 +82,16 @@ export function PinEntryDialog({
                   ? 'bg-white border-white'
                   : i === value.length && error
                     ? 'border-accent animate-pulse'
-                    : 'border-white/25'
+                    : 'border-white/25',
               )}
             />
           ))}
         </div>
 
-        <p
-          role="alert"
-          className={cn('text-xs text-accent mb-3 h-4', error ? '' : 'invisible')}
-        >
-          Code incorrect — réessaie.
+        <p role="alert" className={cn('text-xs text-accent mb-3 h-4', error ? '' : 'invisible')}>
+          {t('parental.wrongCode')}
         </p>
 
-        {/* Clavier 1-9, puis vide/0/effacement */}
         <div className="grid grid-cols-3 gap-2.5">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
             <button
@@ -125,7 +99,7 @@ export function PinEntryDialog({
               type="button"
               onClick={() => press(d)}
               disabled={busy}
-              className="h-12 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors disabled:opacity-50"
+              className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors disabled:opacity-50"
             >
               {d}
             </button>
@@ -135,7 +109,7 @@ export function PinEntryDialog({
             type="button"
             onClick={() => press('0')}
             disabled={busy}
-            className="h-12 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors disabled:opacity-50"
+            className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors disabled:opacity-50"
           >
             0
           </button>
@@ -143,8 +117,8 @@ export function PinEntryDialog({
             type="button"
             onClick={backspace}
             disabled={busy || value.length === 0}
-            aria-label="Effacer"
-            className="h-12 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white/60 hover:text-white flex items-center justify-center transition-colors disabled:opacity-40"
+            aria-label={t('common.erase')}
+            className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white/60 hover:text-white flex items-center justify-center transition-colors disabled:opacity-40"
           >
             <Delete className="w-4 h-4" />
           </button>
@@ -154,11 +128,11 @@ export function PinEntryDialog({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="mt-4 text-xs text-white/40 hover:text-white underline underline-offset-2 transition-colors disabled:opacity-50"
+          className="mt-4 min-h-11 text-xs text-white/40 hover:text-white underline underline-offset-2 transition-colors disabled:opacity-50"
         >
-          Annuler
+          {t('common.cancel')}
         </button>
-      </GlassCard>
-    </div>
+      </div>
+    </AppDialog>
   );
 }

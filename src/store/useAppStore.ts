@@ -620,13 +620,21 @@ export const useAppStore = create<AppState>()(
 
       // Playlists (sources)
       addPlaylist: (playlist) =>
-        set((state) => ({
-          playlists: [...state.playlists, playlist],
+        set((state) => {
           // La première source ajoutée devient forcément l'active :
           // sans cela l'application afficherait « aucune source »
-          // alors qu'il y en a une.
-          activePlaylistId: state.activePlaylistId ?? playlist.id,
-        })),
+          // alors qu'il y en a une. Une source suivante reste en
+          // réserve : l'utilisateur l'active lui-même, sinon le
+          // catalogue à l'écran basculerait sans qu'il l'ait demandé.
+          const activeId = state.activePlaylistId ?? playlist.id;
+          return {
+            playlists: [
+              ...state.playlists.map((p) => ({ ...p, isActive: p.id === activeId })),
+              { ...playlist, isActive: playlist.id === activeId },
+            ],
+            activePlaylistId: activeId,
+          };
+        }),
 
       updatePlaylist: (playlistId, updates) =>
         set((state) => ({
@@ -652,12 +660,16 @@ export const useAppStore = create<AppState>()(
       deletePlaylist: (playlistId) => {
         set((state) => {
           const remaining = state.playlists.filter((p) => p.id !== playlistId);
+          const nextActiveId =
+            state.activePlaylistId === playlistId
+              ? remaining[0]?.id ?? null
+              : state.activePlaylistId;
           return {
-            playlists: remaining,
-            activePlaylistId:
-              state.activePlaylistId === playlistId
-                ? remaining[0]?.id ?? null
-                : state.activePlaylistId,
+            playlists: remaining.map((p) => ({
+              ...p,
+              isActive: p.id === nextActiveId,
+            })),
+            activePlaylistId: nextActiveId,
             channels: state.channels.filter((c) => c.playlistId !== playlistId),
             liveCategories: state.liveCategories.filter(
               (c) => c.playlistId !== playlistId

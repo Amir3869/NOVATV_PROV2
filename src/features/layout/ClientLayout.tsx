@@ -3,7 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
-import { TopBar } from '@/design-system/components/Navigation';
+import { TopBar, BottomNav } from '@/design-system/components/Navigation';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useFocusScroll } from '@/hooks/useFocusScroll';
 import { useAnimations } from '@/hooks/useAnimations';
@@ -105,13 +105,14 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           <main
             id="contenu-principal"
             tabIndex={-1}
-            className="flex-1 overflow-y-auto overflow-x-hidden"
+            className="flex-1 overflow-y-auto overflow-x-hidden pb-28 lg:pb-0"
           >
             {children}
           </main>
         </div>
       </div>
 
+      {!isImmersive && <BottomNav />}
 
       {/* Toast notifications */}
       <Toaster

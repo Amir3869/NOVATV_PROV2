@@ -107,6 +107,24 @@ html.light {
   [class~="from-accent"].text-white {
     color: var(--on-accent);
   }
+
+  /* Crayon / poubelle des cartes profil : en clair, pas de pastille noire.
+     Le sombre garde bg-black/60 + icône claire (classes Tailwind du bouton). */
+  .profile-card-action {
+    background-color: transparent;
+    color: color-mix(in oklab, var(--color-white) 48%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .profile-card-action:hover,
+  .profile-card-action:focus-visible {
+    background-color: color-mix(in oklab, var(--color-white) 8%, transparent);
+    color: var(--color-white);
+  }
+  .profile-card-action-danger:hover,
+  .profile-card-action-danger:focus-visible {
+    color: #e11d48;
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -400,6 +418,21 @@ html.light {
 }
 
 @layer utilities {
+  /* Lecteur : contrôles blancs sur la vidéo, même en thème clair.
+     Sans cette règle, `--color-white` devient de l'encre sombre et les
+     boutons disparaissent sur l'image. */
+  .cinema {
+    --color-white: #ffffff;
+    --surface-0: #000000;
+    --surface-1: #0b0b0c;
+    --surface-2: #12141a;
+    --surface-3: #1a1d26;
+    --line: rgb(255 255 255 / 14%);
+    --on-accent: #ffffff;
+    --knob: #ffffff;
+    color-scheme: dark;
+  }
+
   .text-shadow-lg {
     text-shadow: 0 2px 16px rgba(0, 0, 0, 0.8);
   }

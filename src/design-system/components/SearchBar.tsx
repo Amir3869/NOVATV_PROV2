@@ -25,7 +25,10 @@ export function SearchBar({
 
   return (
     <div className={cn('relative flex items-center', className)}>
-      <Search className="absolute left-3.5 w-4 h-4 text-white/40 pointer-events-none" />
+      {/* `start` / `end` / `ps` / `pe` suivent `dir` : en arabe l'icône
+          et la croix basculent avec le texte, au lieu de rester calées
+          à gauche / à droite du cadre. */}
+      <Search className="pointer-events-none absolute start-3.5 h-4 w-4 text-white/40" />
       <input
         ref={ref}
         type="text"
@@ -34,18 +37,18 @@ export function SearchBar({
         placeholder={placeholder}
         autoFocus={autoFocus}
         className={cn(
-          'w-full pl-10 pr-10 py-2.5 rounded-xl text-sm text-white placeholder:text-white/30',
-          'bg-white/6 border border-white/8 backdrop-blur-xl',
-          'focus:outline-none focus:border-accent/50 focus:bg-white/8',
+          'w-full rounded-xl border border-white/8 bg-white/6 py-2.5 ps-10 pe-10 text-sm text-white backdrop-blur-xl placeholder:text-white/30',
+          'focus:border-accent/50 focus:bg-white/8 focus:outline-none',
           'transition-all duration-200'
         )}
       />
       {value && (
         <button
+          type="button"
           onClick={() => { onChange(''); onClear?.(); ref.current?.focus(); }}
-          className="absolute right-3.5 text-white/40 hover:text-white/70 transition-colors"
+          className="absolute end-3.5 text-white/40 transition-colors hover:text-white/70"
         >
-          <X className="w-4 h-4" />
+          <X className="h-4 w-4" />
         </button>
       )}
     </div>

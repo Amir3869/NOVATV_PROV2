@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Lock, Pencil, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '@/utils/cn';
-import { GlassCard } from '@/design-system/components/GlassCard';
 import { useAppStore } from '@/store/useAppStore';
 import { categoryDisplayName } from '@/lib/displayNames';
 import { CategoryRenameDialog } from './CategoryRenameDialog';
@@ -14,37 +13,14 @@ import type { LiveCategory } from '@/types';
 import { useTranslation } from '@/i18n';
 
 /**
- * Panneau de renommage des catégories, partagé entre la page TV en
- * direct (section A) et la page Sources (section B).
- *
- * ── Pourquoi un panneau en place et non une fenêtre superposée ─────
- * Comme le choix des catégories dans `PlaylistsPage`, une liste peut
- * faire des dizaines de lignes. Une modale imposerait deux zones de
- * défilement imbriquées, impraticables à la télécommande. On affiche
- * donc la liste sous l'en-tête.
- *
- * ── Ce que fait chaque action ─────────────────────────────────────
- * Le crayon ouvre la fenêtre de renommage ; si un surnom est
- * enregistré, une pastille le signale et un bouton « restaurer » rend
- * la main au nom d'origine. Les deux passent par la même action du
- * store (`renameCategory`), qui gère le champ vide comme une
- * restauration — une seule règle, impossible d'en désynchroniser deux.
- *
- * ── Titre et texte fournis par l'appelant ──────────────────────────
- * Le panneau ne connaît pas le contexte (page TV ou page Sources) : le
- * titre et le texte d'introduction lui sont passés déjà traduits, les
- * pastilles et la fenêtre utilisent les libellés partagés.
+ * Liste de renommage des catégories. Le titre est celui de la fenêtre
+ * parente (`AppDialog`) : ce composant n'affiche que les lignes.
  */
 export function CategoryRenamePanel({
   categories,
-  title,
-  hint,
 }: {
-  /** Catégories à lister (déjà filtrées par l'appelant). */
   categories: LiveCategory[];
-  /** Titre du panneau, traduit par l'appelant. */
   title: string;
-  /** Texte d'introduction, traduit par l'appelant. */
   hint: string;
 }) {
   const { t } = useTranslation();
@@ -65,20 +41,11 @@ export function CategoryRenamePanel({
   };
 
   if (categories.length === 0) {
-    return (
-      <GlassCard variant="dark" padding="md" className="mb-6">
-        <p className="text-sm text-white/40">{t('liveTV.noCategories')}</p>
-      </GlassCard>
-    );
+    return <p className="text-sm text-white/40">{t('liveTV.noCategories')}</p>;
   }
 
   return (
-    <GlassCard variant="dark" padding="md" className="mb-6">
-      <div className="mb-3">
-        <h2 className="text-lg font-bold text-white">{title}</h2>
-        <p className="text-sm text-white/40 mt-0.5">{hint}</p>
-      </div>
-
+    <>
       <ul className="divide-y divide-white/5">
         {categories.map((cat) => {
           const display = categoryDisplayName(cat.id, cat.name, renames);
@@ -102,8 +69,6 @@ export function CategoryRenamePanel({
                 </p>
               </div>
 
-              {/* Cadenas : verrouilleur / déverrouilleur de la catégorie.
-                  Passe par le code PIN (voir useParental). */}
               <button
                 type="button"
                 onClick={() => toggleLock(lockKey)}
@@ -152,6 +117,6 @@ export function CategoryRenamePanel({
           onClose={() => setEditing(null)}
         />
       )}
-    </GlassCard>
+    </>
   );
 }

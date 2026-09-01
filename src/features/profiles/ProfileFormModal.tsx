@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Check, Lock, Shield } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { AvatarPicker } from './AvatarPicker';
-import { GlassCard } from '@/design-system/components/GlassCard';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { hashPin } from '@/lib/pin';
 import type { AvatarId } from '@/types';
 import { useTranslation } from '@/i18n';
@@ -44,6 +44,7 @@ export function ProfileFormModal({
   initialName,
   initialAvatarId,
   initialIsKids,
+  initialPinHash,
   onSubmit,
   onClose,
 }: {
@@ -85,7 +86,7 @@ export function ProfileFormModal({
     // Le hachage est asynchrone (PBKDF2 via Web Crypto) : on l'attend
     // avant de remettre les valeurs, qui ne portent jamais le code en
     // clair, seulement l'empreinte. Champ vide → aucun code.
-    const pinHash = pin ? await hashPin(pin) : undefined;
+    const pinHash = pin ? await hashPin(pin) : initialPinHash;
     onSubmit({
       name: name.trim(),
       avatarId,
@@ -98,10 +99,26 @@ export function ProfileFormModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <GlassCard variant="dark" padding="lg" className="w-full max-w-sm">
-        <h2 className="text-lg font-bold text-white mb-5">{title}</h2>
-
+    <AppDialog
+      open
+      onClose={onClose}
+      title={title}
+      footer={
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 min-h-11 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all">
+            {t('common.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="flex-1 min-h-11 py-2.5 rounded-xl bg-accent text-white on-accent text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
+          >
+            {submitLabel}
+          </button>
+        </div>
+      }
+    >
         <div className="space-y-4">
           <div>
             <label className="text-xs text-white/50 uppercase tracking-wider font-medium block mb-1.5">{t('common.name')}</label>
@@ -112,7 +129,7 @@ export function ProfileFormModal({
               placeholder={t('profiles.firstName')}
               maxLength={20}
               autoFocus
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
+              className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
             />
           </div>
 
@@ -170,26 +187,13 @@ export function ProfileFormModal({
               <Shield className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             )}
           </div>
-          <p className="text-[11px] text-white/30 mt-1.5">{t('profiles.pinHint')}</p>
+          <p className="text-[11px] text-white/30 mt-1.5">
+            {initialPinHash ? t('profiles.pinKeepHint') : t('profiles.pinHint')}
+          </p>
           {pinError && (
             <p className="text-[11px] text-red-400 mt-1">{t('profiles.pinError')}</p>
           )}
         </div>
-
-        <div className="flex gap-3 mt-6">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all">
-            {t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="flex-1 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
-          >
-            {submitLabel}
-          </button>
-        </div>
-      </GlassCard>
-    </div>
+    </AppDialog>
   );
 }

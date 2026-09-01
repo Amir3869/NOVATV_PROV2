@@ -161,9 +161,14 @@ export function HomePage() {
               onSeeAll={() => router.push('/live')}
               className="mb-4"
             />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {channels.slice(0, 12).map((channel) => (
-                <ChannelCard key={channel.id} channel={channel} variant="grid" />
+            <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">
+              {channels.slice(0, 20).map((channel) => (
+                <ChannelCard
+                  key={channel.id}
+                  channel={channel}
+                  variant="grid"
+                  className="w-40 shrink-0 sm:w-44 md:w-48"
+                />
               ))}
             </div>
           </section>

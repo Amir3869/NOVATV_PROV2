@@ -4,10 +4,9 @@ import React from 'react';
 import {
   User, Globe, Palette,
   ChevronRight, Volume2, Wifi, Monitor,
-  Sun, Moon, Laptop, Ratio, RotateCcw
+  Sun, Moon, Laptop, Ratio
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { cn } from '@/utils/cn';
 import { Avatar } from '@/design-system/components/Avatar';
 import { GlassCard } from '@/design-system/components/GlassCard';
@@ -20,18 +19,7 @@ import { QUALITY_POLICIES, type QualityPolicy } from '@/services/player/qualityL
 import { VIDEO_FIT_MODES, type VideoFitMode } from '@/services/player/videoFit';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { NovaLogo } from '@/design-system/components/NovaLogo';
-import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
 import { useTranslation, useSetLocale, LOCALES, LOCALE_NAMES, type MessageKey } from '@/i18n';
-
-/**
- * Les trois choix de thème. « Système » suit le réglage du téléphone ou
- * du téléviseur, qui bascule souvent en sombre à la tombée du jour.
- */
-const THEME_OPTIONS = [
-  { value: 'light' as const, labelKey: 'settings.themeLightFull', icon: Sun },
-  { value: 'dark' as const, labelKey: 'settings.themeDarkFull', icon: Moon },
-  { value: 'system' as const, labelKey: 'settings.themeSystemFull', icon: Laptop },
-] as const satisfies ReadonlyArray<{ value: 'light' | 'dark' | 'system'; labelKey: MessageKey; icon: React.ElementType }>;
 
 /**
  * Horizons proposes pour le guide TV.
@@ -138,6 +126,78 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 }
 
 /**
+ * Choix parmi une liste courte (langue, qualité, jours EPG…).
+ *
+ * Un `<select>` natif dessine le menu de l'OS : sur Windows il ressort
+ * comme un contrôle d'un autre âge, et il ignore les jetons clair/sombre
+ * de l'application. Ici chaque option est un bouton : mêmes couleurs que
+ * le reste de la page, cible assez grande pour le doigt et la
+ * télécommande, focus visible.
+ */
+function SettingsChoice<T extends string | number>({
+  label,
+  description,
+  icon: Icon,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  icon?: React.ElementType;
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  const many = options.length >= 4;
+
+  return (
+    <div className="space-y-3 px-4 py-3.5">
+      <div className="flex items-center gap-4">
+        {Icon && (
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/5">
+            <Icon className="h-4 w-4 text-white/60" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-white">{label}</p>
+          {description && <p className="mt-0.5 text-xs text-white/40">{description}</p>}
+        </div>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label={label}
+        className={cn(
+          'grid gap-1 rounded-2xl border border-line bg-surface-3 p-1',
+          many ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'
+        )}
+      >
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <button
+              key={String(option.value)}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                'min-h-11 rounded-xl px-2 py-2 text-center text-xs font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:text-sm',
+                selected
+                  ? 'bg-surface-1 text-white shadow-sm ring-1 ring-accent/35'
+                  : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Libellés et descriptions des politiques de qualité.
  *
  * Le réglage ne propose plus de résolution (« 720p ») mais une
@@ -198,42 +258,6 @@ export function SettingsPage() {
     prefersReducedMotion
   );
   const updatePreferences = useAppStore((s) => s.updatePreferences);
-  const setOnboarded = useAppStore((s) => s.setOnboarded);
-  const router = useRouter();
-
-  /**
-   * Ouverture de la demande de confirmation du rejeu.
-   *
-   * Tous les hooks sont appelés AVANT le `return` de chargement plus
-   * bas : React exige que le nombre de hooks d'un composant ne change
-   * jamais d'un rendu à l'autre, ce qu'un hook placé après un `return`
-   * conditionnel violerait.
-   */
-  const [replayOpen, setReplayOpen] = React.useState(false);
-
-  /**
-   * Relance le parcours de configuration.
-   *
-   * Ce que cela fait : remet le drapeau `isOnboarded` à `false` et
-   * efface la reprise d'étape, puis ouvre l'écran d'accueil.
-   *
-   * Ce que cela NE fait PAS, volontairement : rien n'est supprimé. Les
-   * profils, les sources et le catalogue restent en place. Le parcours
-   * sert à revoir ou compléter sa configuration, pas à réinitialiser
-   * l'application — une remise à zéro destructive mérite son propre
-   * réglage, avec un avertissement autrement plus net.
-   */
-  const handleReplay = React.useCallback(() => {
-    setReplayOpen(false);
-    try {
-      window.localStorage.removeItem('novatv-onboarding');
-    } catch {
-      // Mode privé ou quota : sans conséquence, le parcours repart de
-      // sa première étape.
-    }
-    setOnboarded(false);
-    router.replace('/welcome');
-  }, [setOnboarded, router]);
 
   // Voir useHydrated : sans ce garde, les réglages affichent un instant
   // les valeurs par défaut au lieu de celles enregistrées — un
@@ -243,7 +267,7 @@ export function SettingsPage() {
   if (!hydrated) return <ListPageSkeleton rows={5} />;
 
   return (
-    <div className="min-h-screen px-4 md:px-8 lg:px-10 py-6 space-y-6 max-w-2xl">
+    <div className="mx-auto min-h-screen w-full max-w-2xl space-y-6 bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10">
       <h1 className="text-2xl font-black text-white">{t('settings.title')}</h1>
 
       {/* Profile */}
@@ -255,13 +279,6 @@ export function SettingsPage() {
           rightElement={profile ? <Avatar profile={profile} size="xs" /> : undefined}
           href="/profiles"
         />
-        <SettingsRow icon={User} label={t('settings.manageProfiles')} href="/profiles" />
-        <SettingsRow
-          icon={RotateCcw}
-          label={t('settings.replayOnboarding')}
-          description={t('settings.replayOnboardingDescription')}
-          onClick={() => setReplayOpen(true)}
-        />
         {/* « Controle parental » a ete retire du menu. Le champ `pinHash`
             existe dans le type `Profile` mais rien ne l'ecrit ni ne le
             lit : aucun ecran n'est protege. Une ligne de reglage laissait
@@ -272,72 +289,33 @@ export function SettingsPage() {
 
       {/* Playback */}
       <SettingsSection title={t('settings.playback')}>
-        <SettingsRow
+        <SettingsChoice
           icon={Monitor}
           label={t('settings.quality')}
           description={t(QUALITY_DESCRIPTIONS[preferences.defaultQuality])}
-          rightElement={
-            <select
-              value={preferences.defaultQuality}
-              onChange={(e) => updatePreferences({ defaultQuality: e.target.value as typeof preferences.defaultQuality })}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-transparent text-sm text-white/60 focus:outline-none cursor-pointer"
-            >
-              {QUALITY_POLICIES.map((q) => (
-                <option key={q} value={q} className="bg-surface-3">
-                  {t(QUALITY_LABELS[q])}
-                </option>
-              ))}
-            </select>
-          }
+          value={preferences.defaultQuality}
+          options={QUALITY_POLICIES.map((q) => ({ value: q, label: t(QUALITY_LABELS[q]) }))}
+          onChange={(v) => updatePreferences({ defaultQuality: v })}
         />
         {/* Le meme reglage existe dans le lecteur, ou il se voit en
             direct sur l'image. Il est repris ici parce qu'une chaine
             d'archives en 4:3 se corrige une fois pour toutes, sans
             rouvrir le lecteur a chaque fois. */}
-        <SettingsRow
+        <SettingsChoice
           icon={Ratio}
           label={t('player.fitTitle')}
           description={t(FIT_DESCRIPTIONS[preferences.videoFit])}
-          rightElement={
-            <select
-              value={preferences.videoFit}
-              onChange={(e) => updatePreferences({ videoFit: e.target.value as VideoFitMode })}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t('player.fitTitle')}
-              className="bg-transparent text-sm text-white/60 focus:outline-none cursor-pointer"
-            >
-              {VIDEO_FIT_MODES.map((mode) => (
-                <option key={mode} value={mode} className="bg-surface-3">
-                  {t(FIT_LABELS[mode])}
-                </option>
-              ))}
-            </select>
-          }
+          value={preferences.videoFit}
+          options={VIDEO_FIT_MODES.map((mode) => ({ value: mode, label: t(FIT_LABELS[mode]) }))}
+          onChange={(v) => updatePreferences({ videoFit: v })}
         />
-        <SettingsRow
+        <SettingsChoice
           icon={Volume2}
           label={t('settings.audioLanguagePreferred')}
           description={t('settings.audioLanguagePreferredDescription')}
-          rightElement={
-            // Meme choix que pour la langue de l'interface : une liste
-            // deroulante native, pilotable a la telecommande sur Fire TV.
-            // La preference sert a preselectionner une piste audio quand
-            // le flux en propose plusieurs.
-            <select
-              value={preferences.defaultAudioLanguage}
-              onChange={(e) => updatePreferences({ defaultAudioLanguage: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t('settings.audioLanguagePreferred')}
-              className="bg-transparent text-sm text-white/60 focus:outline-none cursor-pointer"
-            >
-              {LOCALES.map((code) => (
-                <option key={code} value={code} className="bg-surface-3">
-                  {LOCALE_NAMES[code]}
-                </option>
-              ))}
-            </select>
-          }
+          value={preferences.defaultAudioLanguage}
+          options={LOCALES.map((code) => ({ value: code, label: LOCALE_NAMES[code] }))}
+          onChange={(v) => updatePreferences({ defaultAudioLanguage: v })}
         />
         <SettingsRow
           icon={Globe}
@@ -357,7 +335,7 @@ export function SettingsPage() {
 
       {/* Appearance */}
       <SettingsSection title={t('settings.appearance')}>
-        <SettingsRow
+        <SettingsChoice
           icon={preferences.theme === 'light' ? Sun : preferences.theme === 'dark' ? Moon : Laptop}
           label={t('settings.theme')}
           description={
@@ -367,37 +345,13 @@ export function SettingsPage() {
                 ? t('settings.themeDark')
                 : t('settings.themeSystem')
           }
-          rightElement={
-            // Trois boutons plutôt qu'un interrupteur : « suivre le système »
-            // n'est ni l'un ni l'autre, il ne rentre pas dans un oui/non.
-            <div
-              role="radiogroup"
-              aria-label={t('settings.themeSectionLabel')}
-              className="flex items-center gap-1 p-1 rounded-xl bg-white/5"
-            >
-              {THEME_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={preferences.theme === value}
-                  aria-label={t(labelKey)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updatePreferences({ theme: value });
-                  }}
-                  className={cn(
-                    'flex items-center justify-center w-9 h-8 rounded-lg transition-colors',
-                    preferences.theme === value
-                      ? 'bg-white/15 text-white'
-                      : 'text-white/40 hover:text-white/70'
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                </button>
-              ))}
-            </div>
-          }
+          value={preferences.theme}
+          options={[
+            { value: 'light' as const, label: t('settings.themeLight') },
+            { value: 'dark' as const, label: t('settings.themeDark') },
+            { value: 'system' as const, label: t('settings.themeSystem') },
+          ]}
+          onChange={(v) => updatePreferences({ theme: v })}
         />
         <SettingsRow
           icon={Palette}
@@ -414,7 +368,12 @@ export function SettingsPage() {
 
       {/* EPG */}
       <SettingsSection title={t('settings.tvGuide')}>
-        <SettingsRow
+        {/* Trois choix seulement : la liste se parcourt a la
+            telecommande, chaque valeur en plus est un appui en
+            plus. 1 = connexion lente ou boitier a faible memoire,
+            3 = defaut, 7 = semaine complete sur un appareil a
+            l'aise. */}
+        <SettingsChoice
           icon={Wifi}
           label={t('settings.epgDaysLabel')}
           description={
@@ -422,54 +381,24 @@ export function SettingsPage() {
               ? t('settings.epgDaysDescriptionOne')
               : t('settings.epgDaysDescription', { count: preferences.epgDays })
           }
-          rightElement={
-            <select
-              value={preferences.epgDays}
-              onChange={(e) => updatePreferences({ epgDays: Number(e.target.value) })}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t('settings.epgDaysLabel')}
-              className="bg-transparent text-sm text-white/60 focus:outline-none cursor-pointer"
-            >
-              {/* Trois choix seulement : la liste se parcourt a la
-                  telecommande, chaque valeur en plus est un appui en
-                  plus. 1 = connexion lente ou boitier a faible memoire,
-                  3 = defaut, 7 = semaine complete sur un appareil a
-                  l'aise. */}
-              {EPG_DAY_CHOICES.map((d) => (
-                <option key={d} value={d} className="bg-surface-3">
-                  {d === 1 ? t('settings.epgDaysOptionOne') : t('settings.epgDaysOption', { count: d })}
-                </option>
-              ))}
-            </select>
-          }
+          value={preferences.epgDays}
+          options={EPG_DAY_CHOICES.map((d) => ({
+            value: d,
+            label: d === 1 ? t('settings.epgDaysOptionOne') : t('settings.epgDaysOption', { count: d }),
+          }))}
+          onChange={(v) => updatePreferences({ epgDays: v })}
         />
       </SettingsSection>
 
       {/* Language */}
       <SettingsSection title={t('settings.language')}>
-        <SettingsRow
+        <SettingsChoice
           icon={Globe}
           label={t('settings.interfaceLanguage')}
           description={LOCALE_NAMES[locale]}
-          rightElement={
-            // Une liste déroulante plutôt que des boutons : le nombre de
-            // langues est appelé à grandir, et un <select> natif reste
-            // pilotable à la télécommande sur Fire TV, contrairement à un
-            // menu maison qu'il faudrait recâbler au clavier directionnel.
-            <select
-              value={locale}
-              onChange={(e) => setLocale(e.target.value as (typeof LOCALES)[number])}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={t('settings.interfaceLanguage')}
-              className="bg-transparent text-sm text-white/60 focus:outline-none cursor-pointer"
-            >
-              {LOCALES.map((code) => (
-                <option key={code} value={code} className="bg-surface-3">
-                  {LOCALE_NAMES[code]}
-                </option>
-              ))}
-            </select>
-          }
+          value={locale}
+          options={LOCALES.map((code) => ({ value: code, label: LOCALE_NAMES[code] }))}
+          onChange={(v) => setLocale(v)}
         />
       </SettingsSection>
 
@@ -495,17 +424,6 @@ export function SettingsPage() {
           {t('settings.legalText')}
         </p>
       </GlassCard>
-
-      <ConfirmDialog
-        open={replayOpen}
-        title={t('settings.replayOnboardingConfirmTitle')}
-        message={t('settings.replayOnboardingConfirmMessage')}
-        detail={t('settings.replayOnboardingConfirmDetail')}
-        confirmLabel={t('settings.replayOnboardingConfirmAction')}
-        tone="default"
-        onConfirm={handleReplay}
-        onCancel={() => setReplayOpen(false)}
-      />
     </div>
   );
 }

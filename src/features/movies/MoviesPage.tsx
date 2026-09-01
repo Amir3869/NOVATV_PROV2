@@ -4,14 +4,13 @@ import React, { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, MediaCardSkeleton } from '@/design-system/components/LoadingSkeleton';
-import { LayoutGrid, List, Search, Star, Film } from 'lucide-react';
-import { cn } from '@/utils/cn';
-import { SearchBar } from '@/design-system/components/SearchBar';
+import { Star, Film } from 'lucide-react';
+import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { MovieCard } from '@/design-system/components/MediaCard';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import Link from 'next/link';
-import { useTranslation, type MessageKey } from '@/i18n';
+import { useTranslation } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 
 // La valeur « ALL_CATEGORY » sert de sentinelle interne (jamais affichée) :
@@ -24,7 +23,6 @@ export function MoviesPage() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [category, setCategory] = useState(ALL_CATEGORY);
-  const [showMovieSearch, setShowMovieSearch] = useState(false);
 
   // Les catégories proviennent du catalogue de l'utilisateur : proposer
   // des genres figés afficherait des filtres sans aucun résultat.
@@ -68,50 +66,23 @@ export function MoviesPage() {
 
   return (
     <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-10 md:space-y-12">
-      {/* Search & View */}
-      <div className="flex items-center gap-3 rounded-3xl border border-line bg-surface-1 p-3 sm:p-4">
-        {showMovieSearch && (
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder={t('movies.searchPlaceholder')}
-            className="min-w-0 flex-1"
-          />
-        )}
-        <div className="ml-auto flex shrink-0 overflow-hidden rounded-2xl border border-line bg-surface-2">
-          <button
-            type="button"
-            onClick={() => setShowMovieSearch((v) => !v)}
-            aria-label={t('nav.search')}
-            aria-expanded={showMovieSearch}
-            className={cn('px-3 py-2.5 transition-colors', showMovieSearch ? 'bg-accent text-white' : 'text-white/50 hover:bg-surface-3 hover:text-white')}
-          >
-            <Search className="h-4 w-4" />
-          </button>
-          <button onClick={() => setView('list')} aria-label={t('liveTV.listView')} className={cn('px-3 py-2.5 transition-colors', view === 'list' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-surface-3')}>
-            <List className="w-4 h-4" />
-          </button>
-          <button onClick={() => setView('grid')} aria-label={t('liveTV.gridView')} className={cn('px-3 py-2.5 transition-colors', view === 'grid' ? 'bg-accent text-white' : 'text-white/40 hover:text-white hover:bg-surface-3')}>
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Categories */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            className={cn(
-              'flex-shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200',
-              cat === category ? 'bg-accent text-white' : 'bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white border border-line'
-            )}
-          >
-            {cat === ALL_CATEGORY ? t('common.all') : cat}
-          </button>
-        ))}
-      </div>
+      <CatalogToolbar
+        allLabel={t('common.all')}
+        categories={CATEGORIES.filter((cat) => cat !== ALL_CATEGORY).map((cat) => ({
+          id: cat,
+          label: cat,
+        }))}
+        activeId={category === ALL_CATEGORY ? null : category}
+        onSelect={(id) => setCategory(id ?? ALL_CATEGORY)}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t('movies.searchPlaceholder')}
+        searchLabel={t('nav.search')}
+        view={view}
+        onViewChange={setView}
+        listLabel={t('liveTV.listView')}
+        gridLabel={t('liveTV.gridView')}
+      />
 
 
       {/* Grid / List */}

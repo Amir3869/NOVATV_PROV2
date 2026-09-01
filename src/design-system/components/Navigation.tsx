@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home, Tv, Film, BookOpen, Search, History,
-  Settings, List, Radio, ChevronRight, X, Menu, MoreHorizontal, CalendarDays
+  Settings, List, Radio, ChevronRight, X, MoreHorizontal, CalendarDays
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Avatar } from './Avatar';
@@ -216,44 +216,35 @@ function SidebarContent({
 
 export function BottomNav() {
   const { t } = useTranslation();
-  const { isMobile } = useDeviceType();
-  // Les Hooks doivent TOUS être appelés avant le moindre `return`,
-  // et toujours dans le même ordre à chaque rendu (règle de React).
-  // `usePathname` était appelé après `if (!isMobile) return null`,
-  // ce qui changeait le nombre de Hooks entre deux rendus au
-  // redimensionnement et provoquait un plantage de l'application.
   const pathname = usePathname();
 
-  if (!isMobile) return null;
-
-  const mobileItems = [
+  const items = [
     { href: '/', label: t('nav.home'), icon: Home },
     { href: '/live', label: t('nav.liveTV'), icon: Tv },
     { href: '/movies', label: t('nav.movies'), icon: Film },
+    { href: '/series', label: t('nav.series'), icon: BookOpen },
     { href: '/lists', label: t('nav.lists'), icon: List },
-    { href: '/search', label: t('nav.search'), icon: Search },
   ];
 
   return (
     <nav
       aria-label={t('nav.mainMenu')}
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-black/45 shadow-[0_18px_50px_rgba(0,0,0,0.55),0_0_30px_rgba(220,38,38,0.10)] backdrop-blur-2xl safe-area-pb"
-      style={{ borderRadius: 32, left: '1rem', right: '1rem', bottom: '1rem' }}
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-surface-1/90 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl safe-area-pb lg:hidden"
     >
       <div className="flex items-center justify-around gap-1 px-2 py-2">
-        {mobileItems.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                'relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-full transition-all duration-300 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                isActive ? 'bg-accent/15 text-white shadow-[0_0_20px_rgba(220,38,38,0.18)]' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
+                'relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                isActive ? 'bg-accent/15 text-white' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
               )}
             >
-              <Icon className={cn("w-5 h-5 flex-shrink-0 transition-transform", isActive && "scale-110 text-accent")} />
-              <span className="text-[9px] font-medium truncate">{label}</span>
+              <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-accent')} />
+              <span className="max-w-full truncate text-[10px] font-medium">{label}</span>
             </Link>
           );
         })}
@@ -279,17 +270,24 @@ export function TopBar() {
     { href: '/history', label: t('nav.history'), icon: History },
     { href: '/playlists', label: t('nav.playlists'), icon: Radio },
   ];
+  // TV / Films / Séries ont déjà une loupe de filtre dans la rangée.
+  // La loupe du bandeau ouvre /search (autre écran) : deux portes pour
+  // deux jobs, même icône. On la retire ici, elle reste partout ailleurs.
+  const hideGlobalSearch =
+    pathname.startsWith('/live') ||
+    pathname.startsWith('/movies') ||
+    pathname.startsWith('/series');
 
   return (
     <header className="sticky top-0 z-40 px-3 pt-3 sm:px-5 lg:px-6">
       <nav aria-label={t('nav.mainMenu')} className="relative mx-auto flex min-h-16 max-w-[1500px] flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/10 bg-surface-1/75 px-3 py-2 shadow-[0_16px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
         <NovaLogo variant="compact" size="xs" className="mx-2 shrink-0" />
-        <div className="hidden h-7 w-px shrink-0 bg-white/10 sm:block" />
-        <div className="order-3 flex w-full min-w-0 items-center justify-center gap-1 overflow-hidden sm:order-none sm:w-auto sm:flex-1 sm:gap-2">
+        <div className="hidden h-7 w-px shrink-0 bg-white/10 lg:block" />
+        <div className="hidden min-w-0 items-center justify-center gap-2 overflow-hidden lg:flex lg:flex-1">
           {primaryItems.map(({ href, label, icon: Icon }) => {
             const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
             return (
-              <Link key={href} href={href} className={cn('flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-semibold leading-tight transition-all duration-300 sm:flex-none sm:flex-row sm:gap-2 sm:rounded-full sm:px-4 sm:py-2.5 sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', isActive ? 'bg-accent/15 text-white shadow-[0_0_24px_rgba(217,74,82,0.18)]' : 'text-white/55 hover:bg-white/5 hover:text-white')}>
+              <Link key={href} href={href} className={cn('flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold leading-tight transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', isActive ? 'bg-accent/15 text-white shadow-[0_0_24px_rgba(217,74,82,0.18)]' : 'text-white/55 hover:bg-white/5 hover:text-white')}>
                 <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-accent')} />
                 <span className="whitespace-nowrap text-center sm:truncate">{label}</span>
               </Link>
@@ -297,12 +295,20 @@ export function TopBar() {
           })}
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          <Link href="/search" aria-label={t('nav.search')} className="flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Search className="h-4 w-4" /></Link>
-          <button type="button" aria-label={'Plus'} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)} className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', moreOpen && 'bg-white/10 text-white')}><MoreHorizontal className="h-5 w-5" /></button>
-          <Link href="/settings" aria-label={t('nav.settings')} className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', pathname.startsWith('/settings') && 'bg-accent/15 text-accent')}><Settings className="h-4 w-4" /></Link>
-          <Link href="/profiles" aria-label={t('nav.profiles')} className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1.5 pr-2 sm:pr-3 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          {!hideGlobalSearch && (
+            <Link href="/search" aria-label={t('nav.search')} className="flex h-11 w-11 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Search className="h-4 w-4" /></Link>
+          )}
+          <button type="button" aria-label={t('nav.more')} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)} className={cn('flex h-11 w-11 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', moreOpen && 'bg-white/10 text-white')}><MoreHorizontal className="h-5 w-5" /></button>
+          <Link
+            href="/settings"
+            aria-label={t('nav.settings')}
+            className={cn(
+              'flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1.5 pr-2 sm:pr-3 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              (pathname.startsWith('/settings') || pathname.startsWith('/profiles')) && 'border-accent/40 bg-accent/15'
+            )}
+          >
             {profile ? <Avatar profile={profile} size="sm" /> : <Settings className="h-4 w-4" />}
-            <span className="hidden text-xs font-semibold text-white/75 sm:inline">{profile?.name ?? t('nav.profiles')}</span>
+            <span className="hidden text-xs font-semibold text-white/75 sm:inline">{profile?.name ?? t('nav.settings')}</span>
           </Link>
         </div>
         {moreOpen && (

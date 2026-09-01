@@ -6,7 +6,9 @@ import { Plus, Edit2, Trash2, Check, Shield, ChevronRight } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Avatar } from '@/design-system/components/Avatar';
 import { NovaLogo } from '@/design-system/components/NovaLogo';
+import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
 import { ProfileFormModal } from './ProfileFormModal';
+import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton } from '@/design-system/components/LoadingSkeleton';
@@ -33,6 +35,7 @@ export function ProfilesPage() {
   // l'écrit ; la fenêtre « Modifier le profil » le lit. Sans lecture,
   // le bouton ne faisait rien — voir l'étape 3.
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Voir useHydrated : sans ce garde, l'écran « Qui regarde ? » s'affiche
   // un instant sans aucun profil, comme si tous avaient été effacés.
@@ -40,7 +43,7 @@ export function ProfilesPage() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-[100svh] flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,rgba(180,20,30,0.14),transparent_42%),linear-gradient(180deg,#090909_0%,#050505_100%)] px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
+      <div className="min-h-[100svh] flex flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
         <div className="w-full max-w-3xl space-y-6 sm:space-y-10 [@media(max-height:500px)]:space-y-3">
           <div className="flex flex-col items-center gap-4">
             <Skeleton className="h-10 w-40" />
@@ -62,9 +65,10 @@ export function ProfilesPage() {
   // Le profil associé au crayon en cours. S'il a été supprimé entre-temps
   // (improbable mais possible), on n'affiche simplement pas la fenêtre.
   const editingProfile = editingId ? profiles.find((p) => p.id === editingId) : undefined;
+  const deletingProfile = deletingId ? profiles.find((p) => p.id === deletingId) : undefined;
 
   return (
-    <div className="min-h-[100svh] flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,rgba(180,20,30,0.14),transparent_42%),linear-gradient(180deg,#090909_0%,#050505_100%)] px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
+    <div className="min-h-[100svh] flex flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
       <div className="w-full max-w-3xl space-y-6 sm:space-y-10 [@media(max-height:500px)]:space-y-3">
         {/* Logo */}
         <div className="text-center">
@@ -118,24 +122,23 @@ export function ProfilesPage() {
 
             </button>
 
-              {/* Actions : freres du bouton de selection */}
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+              <div className="absolute top-2 end-2 flex gap-1">
                 <button
                   type="button"
                   onClick={() => setEditingId(profile.id)}
                   aria-label={t('profiles.editProfileNamed', { name: profile.name })}
-                  className="w-8 h-8 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white focus-visible:opacity-100 transition-colors"
+                  className="profile-card-action w-11 h-11 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/80 hover:text-white transition-colors"
                 >
-                  <Edit2 className="w-3 h-3" />
+                  <Edit2 className="w-4 h-4" />
                 </button>
                 {profiles.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => deleteProfile(profile.id)}
+                    onClick={() => setDeletingId(profile.id)}
                     aria-label={t('profiles.deleteProfileNamed', { name: profile.name })}
-                    className="w-8 h-8 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/40 hover:text-red-400 focus-visible:opacity-100 transition-colors"
+                    className="profile-card-action profile-card-action-danger w-11 h-11 rounded-xl bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-red-400 transition-colors"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -217,6 +220,21 @@ export function ProfilesPage() {
               });
             }}
             onClose={() => setEditingId(null)}
+          />
+        )}
+
+        {deletingProfile && (
+          <ConfirmDialog
+            open
+            title={t('profiles.deleteConfirm')}
+            message={t('profiles.deleteMessage')}
+            confirmLabel={t('common.delete')}
+            onConfirm={() => {
+              deleteProfile(deletingProfile.id);
+              setDeletingId(null);
+              toast.success(t('profiles.deleted'));
+            }}
+            onCancel={() => setDeletingId(null)}
           />
         )}
       </div>

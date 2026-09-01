@@ -97,7 +97,7 @@ export function QualityMenu({ quality, onSelect, onClose }: QualityMenuProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="cinema fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
