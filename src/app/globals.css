@@ -169,6 +169,60 @@ html.light {
   .border-white\/20 { border-color: color-mix(in oklab, var(--color-white) 20%, transparent); }
 }
 
+html.light .cinema {
+  /* `--color-*` : ce sont CES variables que Tailwind v4 lit dans
+     `bg-surface-*` / `border-line` / `text-white`. `@theme` les calcule
+     une fois sur `html` ; redéfinir seulement `--surface-*` ne change
+     donc pas les fonds. Sans `--color-surface-*` ici, la liste des
+     chaînes et les menus du lecteur restent des panneaux blancs, et le
+     texte blanc posé dessus disparaît. */
+  --color-white: #ffffff;
+  --color-surface-0: #000000;
+  --color-surface-1: #0b0b0c;
+  --color-surface-2: #12141a;
+  --color-surface-3: #1a1d26;
+  --color-line: rgb(255 255 255 / 14%);
+  --surface-0: #000000;
+  --surface-1: #0b0b0c;
+  --surface-2: #12141a;
+  --surface-3: #1a1d26;
+  --line: rgb(255 255 255 / 14%);
+  --on-accent: #ffffff;
+  --knob: #ffffff;
+  color-scheme: dark;
+}
+
+/* Hors @layer : le rattrapage html.light .text-white/xx (et bg/border)
+   est lui-même unlayered. */
+html.light .cinema .text-white { color: #ffffff; }
+html.light .cinema .text-white\/20 { color: rgb(255 255 255 / 0.20); }
+html.light .cinema .text-white\/25 { color: rgb(255 255 255 / 0.25); }
+html.light .cinema .text-white\/30 { color: rgb(255 255 255 / 0.30); }
+html.light .cinema .text-white\/40 { color: rgb(255 255 255 / 0.40); }
+html.light .cinema .text-white\/45 { color: rgb(255 255 255 / 0.45); }
+html.light .cinema .text-white\/50 { color: rgb(255 255 255 / 0.50); }
+html.light .cinema .text-white\/60 { color: rgb(255 255 255 / 0.60); }
+html.light .cinema .text-white\/70 { color: rgb(255 255 255 / 0.70); }
+html.light .cinema .text-white\/75 { color: rgb(255 255 255 / 0.75); }
+html.light .cinema .text-white\/80 { color: rgb(255 255 255 / 0.80); }
+html.light .cinema .text-white\/85 { color: rgb(255 255 255 / 0.85); }
+html.light .cinema .text-white\/90 { color: rgb(255 255 255 / 0.90); }
+html.light .cinema .placeholder\:text-white\/20::placeholder { color: rgb(255 255 255 / 0.20); }
+html.light .cinema .placeholder\:text-white\/30::placeholder { color: rgb(255 255 255 / 0.30); }
+html.light .cinema .placeholder\:text-white\/40::placeholder { color: rgb(255 255 255 / 0.40); }
+html.light .cinema .placeholder\:text-white\/50::placeholder { color: rgb(255 255 255 / 0.50); }
+
+html.light .cinema .bg-white\/3  { background-color: rgb(255 255 255 / 0.03); }
+html.light .cinema .bg-white\/5  { background-color: rgb(255 255 255 / 0.05); }
+html.light .cinema .bg-white\/8  { background-color: rgb(255 255 255 / 0.08); }
+html.light .cinema .bg-white\/10 { background-color: rgb(255 255 255 / 0.10); }
+html.light .cinema .bg-white\/15 { background-color: rgb(255 255 255 / 0.15); }
+html.light .cinema .bg-white\/20 { background-color: rgb(255 255 255 / 0.20); }
+
+html.light .cinema .border-white\/8  { border-color: rgb(255 255 255 / 0.08); }
+html.light .cinema .border-white\/10 { border-color: rgb(255 255 255 / 0.10); }
+html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -420,9 +474,17 @@ html.light {
 @layer utilities {
   /* Lecteur : contrôles blancs sur la vidéo, même en thème clair.
      Sans cette règle, `--color-white` devient de l'encre sombre et les
-     boutons disparaissent sur l'image. */
+     boutons disparaissent sur l'image.
+     La reprise `html.light .cinema` (jetons + texte) est HORS couche,
+     plus bas / plus haut selon le fichier : le rattrapage clair est
+     unlayered et battrait ces règles si elles restaient ici. */
   .cinema {
     --color-white: #ffffff;
+    --color-surface-0: #000000;
+    --color-surface-1: #0b0b0c;
+    --color-surface-2: #12141a;
+    --color-surface-3: #1a1d26;
+    --color-line: rgb(255 255 255 / 14%);
     --surface-0: #000000;
     --surface-1: #0b0b0c;
     --surface-2: #12141a;

@@ -102,6 +102,64 @@ export interface XtreamSeries {
 }
 
 /**
+ * Fiche détaillée d'une série, déjà convertie hors snake_case.
+ *
+ * Les saisons absentes du tableau `seasons` mais présentes dans
+ * `episodes` sont reconstituées : beaucoup de portails n'envoient
+ * que le dictionnaire d'épisodes.
+ */
+export interface XtreamSeriesInfo {
+  name: string;
+  cover: string;
+  plot: string;
+  cast: string;
+  director: string;
+  genre: string;
+  releaseDate: string;
+  rating: string;
+  backdrop: string;
+  seasons: XtreamSeasonInfo[];
+  episodes: XtreamEpisodeInfo[];
+}
+
+export interface XtreamSeasonInfo {
+  seasonNumber: number;
+  name: string;
+  cover: string;
+  airDate: string;
+  episodeCount: number;
+}
+
+export interface XtreamEpisodeInfo {
+  /** Identifiant de flux, indispensable pour construire l'adresse. */
+  streamId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  plot: string;
+  image: string;
+  durationSecs: number;
+  containerExtension: string;
+  rating: string;
+  airDate: string;
+}
+
+/** Métadonnées d'un film, absentes de `get_vod_streams`. */
+export interface XtreamVodInfo {
+  plot: string;
+  cast: string;
+  director: string;
+  genre: string;
+  releaseDate: string;
+  rating: string;
+  backdrop: string;
+  image: string;
+  durationSecs: number;
+  tmdbId: string;
+  containerExtension: string;
+}
+
+/**
  * Erreur enrichie : porte un message lisible par l'utilisateur final,
  * distinct du détail technique destiné aux journaux.
  */
@@ -421,6 +479,176 @@ function toSeries(raw: unknown): XtreamSeries {
   };
 }
 
+/**
+ * Première URL exploitable d'un champ qui arrive tantôt en chaîne,
+ * tantôt en tableau (`backdrop_path`).
+ */
+function firstUrl(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' && item.trim()) return item.trim();
+    }
+  }
+  return '';
+}
+
+/**
+ * Durée en secondes depuis un nombre, une chaîne numérique, ou une
+ * horloge `HH:MM:SS` / `MM:SS`. Zéro si le champ est absent ou illisible.
+ */
+function durationSecs(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  if (typeof value !== 'string') return 0;
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+  const parts = trimmed.split(':');
+  if (parts.length < 2 || parts.length > 3) return 0;
+  const numbers = parts.map((p) => Number(p));
+  if (numbers.some((n) => !Number.isFinite(n) || n < 0)) return 0;
+  if (numbers.length === 3) return numbers[0] * 3600 + numbers[1] * 60 + numbers[2];
+  return numbers[0] * 60 + numbers[1];
+}
+
+function toSeasonInfo(raw: unknown): XtreamSeasonInfo | null {
+  const r = asRecord(raw);
+  const seasonNumber = num(r.season_number, NaN);
+  if (!Number.isFinite(seasonNumber)) return null;
+  return {
+    seasonNumber,
+    name: str(r.name),
+    cover: firstUrl(r.cover) || firstUrl(r.cover_big),
+    airDate: str(r.air_date),
+    episodeCount: num(r.episode_count),
+  };
+}
+
+function toEpisodeInfo(raw: unknown, fallbackSeason: number): XtreamEpisodeInfo | null {
+  const r = asRecord(raw);
+  const streamId = num(r.id, 0) || num(r.episode_id, 0);
+  if (streamId <= 0) return null;
+  const nested = asRecord(r.info);
+  const episodeNumber = num(r.episode_num, 0) || num(r.episode_number, 0);
+  const seasonNumber = num(r.season, NaN);
+  return {
+    streamId,
+    seasonNumber: Number.isFinite(seasonNumber) ? seasonNumber : fallbackSeason,
+    episodeNumber,
+    title: str(r.title) || str(r.name) || `E${episodeNumber || streamId}`,
+    plot: str(nested.plot) || str(nested.description) || str(r.plot),
+    image: firstUrl(nested.movie_image) || firstUrl(r.movie_image) || firstUrl(r.cover),
+    durationSecs:
+      durationSecs(nested.duration_secs) ||
+      durationSecs(nested.duration) ||
+      durationSecs(r.duration_secs) ||
+      durationSecs(r.duration),
+    containerExtension: str(r.container_extension, 'mp4'),
+    rating: str(nested.rating) || str(r.rating),
+    airDate: str(nested.air_date) || str(r.air_date),
+  };
+}
+
+function collectEpisodes(raw: unknown): XtreamEpisodeInfo[] {
+  const out: XtreamEpisodeInfo[] = [];
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => {
+      const episode = toEpisodeInfo(item, 1);
+      if (episode) out.push(episode);
+    });
+    return out;
+  }
+  const bySeason = asRecord(raw);
+  for (const [key, list] of Object.entries(bySeason)) {
+    const seasonFromKey = Number(key);
+    const fallback = Number.isFinite(seasonFromKey) ? seasonFromKey : 1;
+    if (!Array.isArray(list)) continue;
+    list.forEach((item) => {
+      const episode = toEpisodeInfo(item, fallback);
+      if (episode) out.push(episode);
+    });
+  }
+  return out;
+}
+
+/**
+ * Convertit la réponse brute de `get_series_info`.
+ *
+ * Exportée pour les tests : la forme varie d'un portail à l'autre, et
+ * une régression ici viderait la fiche série sans rien afficher d'utile.
+ */
+export function parseSeriesInfo(raw: unknown): XtreamSeriesInfo {
+  const root = asRecord(raw);
+  const info = asRecord(root.info);
+  const episodes = collectEpisodes(root.episodes);
+  const listedSeasons = Array.isArray(root.seasons)
+    ? root.seasons.map(toSeasonInfo).filter((s): s is XtreamSeasonInfo => s !== null)
+    : [];
+
+  const byNumber = new Map<number, XtreamSeasonInfo>();
+  listedSeasons.forEach((season) => byNumber.set(season.seasonNumber, season));
+  const counts = new Map<number, number>();
+  episodes.forEach((episode) => {
+    counts.set(episode.seasonNumber, (counts.get(episode.seasonNumber) ?? 0) + 1);
+    if (!byNumber.has(episode.seasonNumber)) {
+      byNumber.set(episode.seasonNumber, {
+        seasonNumber: episode.seasonNumber,
+        name: '',
+        cover: '',
+        airDate: '',
+        episodeCount: 0,
+      });
+    }
+  });
+  const seasons = Array.from(byNumber.values())
+    .sort((a, b) => a.seasonNumber - b.seasonNumber)
+    .map((season) => ({
+      ...season,
+      episodeCount: counts.get(season.seasonNumber) ?? season.episodeCount,
+    }));
+
+  return {
+    name: str(info.name),
+    cover: firstUrl(info.cover) || firstUrl(info.cover_big),
+    plot: str(info.plot) || str(info.description),
+    cast: str(info.cast) || str(info.actors),
+    director: str(info.director),
+    genre: str(info.genre),
+    releaseDate: str(info.releaseDate) || str(info.release_date) || str(info.releasedate),
+    rating: str(info.rating),
+    backdrop: firstUrl(info.backdrop_path) || firstUrl(info.backdrop),
+    seasons,
+    episodes,
+  };
+}
+
+/**
+ * Convertit la réponse brute de `get_vod_info`.
+ */
+export function parseVodInfo(raw: unknown): XtreamVodInfo {
+  const root = asRecord(raw);
+  const info = asRecord(root.info);
+  const movieData = asRecord(root.movie_data);
+  const runTimeMinutes = num(info.episode_run_time, 0);
+  return {
+    plot: str(info.plot) || str(info.description),
+    cast: str(info.cast) || str(info.actors),
+    director: str(info.director),
+    genre: str(info.genre),
+    releaseDate:
+      str(info.releaseDate) || str(info.release_date) || str(info.releasedate) || str(info.release_date),
+    rating: str(info.rating),
+    backdrop: firstUrl(info.backdrop_path) || firstUrl(info.backdrop),
+    image: firstUrl(info.movie_image) || firstUrl(info.cover_big) || firstUrl(info.cover),
+    durationSecs: durationSecs(info.duration_secs) || durationSecs(info.duration) || (runTimeMinutes > 0 ? runTimeMinutes * 60 : 0),
+    tmdbId: str(info.tmdb_id) || str(info.tmdbId),
+    containerExtension: str(movieData.container_extension) || str(info.container_extension),
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* Construction des adresses de lecture                               */
 /* ------------------------------------------------------------------ */
@@ -622,26 +850,50 @@ export const xtreamService = {
 
   /**
    * Fiche détaillée d'une série : saisons et épisodes.
-   * La forme de la réponse varie fortement d'un portail à l'autre ;
-   * elle est renvoyée brute et sera normalisée en Phase 4, contre un
-   * vrai serveur.
+   *
+   * Un appel par série, uniquement à l'ouverture de la fiche : le
+   * demander pour tout le catalogue saturerait le portail.
    */
-  getSeriesInfo(creds: XtreamCredentials, seriesId: number, options?: RequestOptions) {
-    return xtreamRequest(
+  async getSeriesInfo(
+    creds: XtreamCredentials,
+    seriesId: number,
+    options?: RequestOptions
+  ): Promise<XtreamSeriesInfo> {
+    const raw = await xtreamRequest(
       creds,
       'get_series_info',
       { series_id: String(seriesId) },
       { timeoutMs: TIMEOUT_DETAIL, ...options }
     );
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new XtreamError(
+        'bad_response',
+        "Le serveur a renvoyé une réponse inattendue. Vérifiez que votre abonnement est actif.",
+        'get_series_info: not an object'
+      );
+    }
+    return parseSeriesInfo(raw);
   },
 
-  getVodInfo(creds: XtreamCredentials, vodId: number, options?: RequestOptions) {
-    return xtreamRequest(
+  async getVodInfo(
+    creds: XtreamCredentials,
+    vodId: number,
+    options?: RequestOptions
+  ): Promise<XtreamVodInfo> {
+    const raw = await xtreamRequest(
       creds,
       'get_vod_info',
       { vod_id: String(vodId) },
       { timeoutMs: TIMEOUT_DETAIL, ...options }
     );
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new XtreamError(
+        'bad_response',
+        "Le serveur a renvoyé une réponse inattendue. Vérifiez que votre abonnement est actif.",
+        'get_vod_info: not an object'
+      );
+    }
+    return parseVodInfo(raw);
   },
 
   /** Programmes à venir d'une chaîne (guide court). */

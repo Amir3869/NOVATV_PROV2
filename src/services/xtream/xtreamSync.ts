@@ -32,7 +32,10 @@ import {
   XtreamError,
   type XtreamCategory,
   type XtreamCredentials,
+  type XtreamSeriesInfo,
+  type XtreamVodInfo,
 } from './xtreamService';
+import type { Season, Episode } from '@/types';
 import {
   runWithConcurrency,
   selectionOrAll,
@@ -362,6 +365,132 @@ export function mapSeries(
     // Saisons et épisodes exigent un `get_series_info` par série :
     // chargés à l'ouverture de la fiche, pas ici.
   }));
+}
+
+export interface SeriesDetails {
+  seasons: Season[];
+  episodes: Episode[];
+  seriesPatch: Partial<Series>;
+}
+
+/**
+ * Traduit la fiche Xtream d'une série vers les types de l'application.
+ *
+ * Les identifiants sont préfixés comme le reste du catalogue, pour que
+ * deux abonnements ne se marchent pas dessus.
+ */
+export function mapSeriesInfo(
+  info: XtreamSeriesInfo,
+  creds: XtreamCredentials,
+  playlistId: string,
+  seriesId: string
+): SeriesDetails {
+  const seasons: Season[] = info.seasons.map((season) => ({
+    id: `${seriesId}:season:${season.seasonNumber}`,
+    seriesId,
+    seasonNumber: season.seasonNumber,
+    name: season.name.trim(),
+    cover: orUndefined(season.cover),
+    airDate: orUndefined(season.airDate),
+    episodeCount: season.episodeCount,
+  }));
+
+  const episodes: Episode[] = info.episodes.map((episode) => {
+    const seasonId = `${seriesId}:season:${episode.seasonNumber}`;
+    return {
+      id: `${seriesId}:episode:${episode.streamId}`,
+      seriesId,
+      seasonId,
+      seasonNumber: episode.seasonNumber,
+      episodeNumber: episode.episodeNumber,
+      title: episode.title,
+      plot: orUndefined(episode.plot),
+      image: orUndefined(episode.image),
+      duration: episode.durationSecs > 0 ? episode.durationSecs : undefined,
+      streamUrl: xtreamService.getEpisodeStreamUrl(
+        creds,
+        episode.streamId,
+        episode.containerExtension
+      ),
+      containerExtension: orUndefined(episode.containerExtension),
+      rating: orUndefined(episode.rating),
+      airDate: orUndefined(episode.airDate),
+      isWatched: false,
+    };
+  });
+
+  const seriesPatch: Partial<Series> = {
+    plot: orUndefined(info.plot),
+    cast: orUndefined(info.cast),
+    director: orUndefined(info.director),
+    genre: orUndefined(info.genre),
+    releaseDate: orUndefined(info.releaseDate),
+    year: yearFrom(info.releaseDate),
+    rating: orUndefined(info.rating),
+    cover: orUndefined(info.cover),
+    backdrop: orUndefined(info.backdrop),
+    episodeCount: episodes.length || undefined,
+  };
+
+  return { seasons, episodes, seriesPatch };
+}
+
+/**
+ * Ne recopie que les champs réellement fournis par le serveur.
+ * Un champ vide ne doit pas écraser une valeur déjà connue.
+ */
+export function mapVodInfo(info: XtreamVodInfo, movie: Movie): Partial<Movie> {
+  const patch: Partial<Movie> = {};
+  const plot = orUndefined(info.plot);
+  const cast = orUndefined(info.cast);
+  const director = orUndefined(info.director);
+  const genre = orUndefined(info.genre);
+  const releaseDate = orUndefined(info.releaseDate);
+  const rating = orUndefined(info.rating);
+  const backdrop = orUndefined(info.backdrop);
+  const image = orUndefined(info.image);
+  const tmdbId = orUndefined(info.tmdbId);
+  if (plot) patch.plot = plot;
+  if (cast) patch.cast = cast;
+  if (director) patch.director = director;
+  if (genre) patch.genre = genre;
+  if (releaseDate) {
+    patch.releaseDate = releaseDate;
+    const year = yearFrom(releaseDate);
+    if (year) patch.year = year;
+  }
+  if (rating) patch.rating = rating;
+  if (backdrop) patch.backdrop = backdrop;
+  if (image && !movie.logo) patch.logo = image;
+  if (tmdbId) patch.tmdbId = tmdbId;
+  if (info.durationSecs > 0) {
+    patch.duration = Math.round(info.durationSecs / 60);
+  }
+  if (orUndefined(info.containerExtension) && !movie.containerExtension) {
+    patch.containerExtension = info.containerExtension;
+  }
+  return patch;
+}
+
+export async function fetchSeriesDetails(
+  creds: XtreamCredentials,
+  playlistId: string,
+  seriesId: string,
+  xtreamSeriesId: number,
+  options?: { signal?: AbortSignal }
+): Promise<SeriesDetails> {
+  const info = await xtreamService.getSeriesInfo(creds, xtreamSeriesId, options);
+  return mapSeriesInfo(info, creds, playlistId, seriesId);
+}
+
+export async function fetchVodDetails(
+  creds: XtreamCredentials,
+  movie: Movie,
+  options?: { signal?: AbortSignal }
+): Promise<Partial<Movie>> {
+  if (typeof movie.streamId !== 'number') return {};
+  const info = await xtreamService.getVodInfo(creds, movie.streamId, options);
+  return mapVodInfo(info, movie);
 }
 
 /**

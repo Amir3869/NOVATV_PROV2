@@ -41,9 +41,10 @@ export interface QualityLevel {
 /**
  * Politique de départ, choisie une fois pour toutes dans les réglages.
  *
- * - `auto` : hls.js s'adapte au débit disponible. Défaut retenu.
- * - `saver` : démarre sur le niveau le plus bas, économise les données.
- * - `best` : démarre sur le niveau le plus haut.
+ * - `auto` : démarre sur le plus haut, puis hls.js baisse si le
+ *   réseau ne suit pas. Défaut retenu.
+ * - `saver` : démarre (et reste) sur le niveau le plus bas.
+ * - `best` : verrouille le niveau le plus haut, sans adaptation.
  */
 export type QualityPolicy = 'auto' | 'saver' | 'best';
 
@@ -105,6 +106,21 @@ export function levelForPolicy(
 
   const ordered = sortLevelsDescending(levels);
   return policy === 'best' ? ordered[0] : ordered[ordered.length - 1];
+}
+
+/**
+ * Niveau de DÉMARRAGE pour la politique `auto`.
+ *
+ * `levelForPolicy(..., 'auto')` rend `AUTO_LEVEL` : hls.js reste en
+ * adaptation. Sans `startLevel`, il commence souvent trop bas. On lui
+ * donne ici le plus haut : la première image est nette, et l'ABR
+ * redescend si le réseau ne suit pas.
+ *
+ * Rend `AUTO_LEVEL` s'il n'y a rien à choisir.
+ */
+export function startLevelForAuto(levels: readonly QualityLevel[]): number {
+  if (levels.length < 2) return AUTO_LEVEL;
+  return sortLevelsDescending(levels)[0];
 }
 
 /**

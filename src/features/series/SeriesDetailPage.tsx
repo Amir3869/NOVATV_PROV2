@@ -1,35 +1,101 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Play, Heart, Star, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/utils/cn';
 import { Badge } from '@/design-system/components/Badge';
 import { GlassCard } from '@/design-system/components/GlassCard';
-import { ProgressBar } from '@/design-system/components/ProgressBar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { sortedEpisodesOf } from '@/services/player/episodeQueue';
 import { useHydrated } from '@/hooks/useHydrated';
 import { DetailSkeleton } from '@/design-system/components/LoadingSkeleton';
 import type { Season, Episode } from '@/types';
 import { useTranslation } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
+import { getPlaylistXtreamCredentials } from '@/services/xtream/xtreamCredentials';
+import { fetchSeriesDetails, toSourceErrorKind } from '@/services/xtream/xtreamSync';
 
 export function SeriesDetailPage({ seriesId }: { seriesId: string }) {
   const { t } = useTranslation();
   const allEpisodes = useAppStore((s) => s.episodes);
   const allSeasons = useAppStore((s) => s.seasons);
-  const allSeries = useAppStore((s) => s.series);
+  const playlists = useAppStore((s) => s.playlists);
+  const setSeriesDetails = useAppStore((s) => s.setSeriesDetails);
+  const { series: allSeries } = useActiveCatalog();
   const router = useRouter();
   const [imgError, setImgError] = useState(false);
   const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
+  const [errorSeriesId, setErrorSeriesId] = useState<string | null>(null);
+  const [fetchedSeriesId, setFetchedSeriesId] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const playbackProgress = useAppStore((s) => s.playbackProgress);
 
   const series = allSeries.find((s) => s.id === seriesId);
-  const seasons = allSeasons.filter((s) => s.seriesId === seriesId);
+  const seasons = allSeasons
+    .filter((s) => s.seriesId === seriesId)
+    .slice()
+    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+  const playlist = series ? playlists.find((p) => p.id === series.playlistId) : undefined;
+  const xtreamSeriesId = series?.seriesId;
+  const canFetchEpisodes =
+    typeof xtreamSeriesId === 'number' && playlist?.type === 'xtream';
+  const hasCachedEpisodes =
+    seasons.length > 0 || allEpisodes.some((e) => e.seriesId === seriesId);
+  const episodesError = errorSeriesId === seriesId;
+  const episodesFetched = fetchedSeriesId === seriesId;
+
+  useEffect(() => {
+    if (!series || typeof xtreamSeriesId !== 'number') return;
+    if (!playlist || playlist.type !== 'xtream') return;
+
+    const alreadyLoaded = allEpisodes.some((e) => e.seriesId === series.id);
+    const controller = new AbortController();
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const creds = await getPlaylistXtreamCredentials(playlist.id);
+        if (!creds) {
+          if (!cancelled && !alreadyLoaded) setErrorSeriesId(series.id);
+          return;
+        }
+        const details = await fetchSeriesDetails(
+          creds,
+          playlist.id,
+          series.id,
+          xtreamSeriesId,
+          { signal: controller.signal }
+        );
+        if (cancelled) return;
+        setSeriesDetails(series.id, details);
+        setFetchedSeriesId(series.id);
+        setErrorSeriesId((current) => (current === series.id ? null : current));
+      } catch (err) {
+        if (cancelled || toSourceErrorKind(err) === 'aborted') return;
+        if (!alreadyLoaded) setErrorSeriesId(series.id);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+    // `allEpisodes` est volontairement hors dépendances : l'écrire ici
+    // relancerait l'effet après chaque enregistrement, en boucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    series?.id,
+    xtreamSeriesId,
+    series?.playlistId,
+    playlist,
+    retryNonce,
+    setSeriesDetails,
+  ]);
 
   /**
    * Episode a lancer par le bouton principal.
@@ -116,8 +182,20 @@ export function SeriesDetailPage({ seriesId }: { seriesId: string }) {
                 </div>
               )}
               {series.year && <span className="text-sm text-white/40">{series.year}</span>}
-              {seasons.length > 0 && <span className="text-sm text-white/40">{seasons.length} saison{seasons.length > 1 ? 's' : ''}</span>}
-              {series.episodeCount && <span className="text-sm text-white/40">{series.episodeCount} épisodes</span>}
+              {seasons.length > 0 && (
+                <span className="text-sm text-white/40">
+                  {t(seasons.length > 1 ? 'series.seasonCountPlural' : 'series.seasonCount', {
+                    count: seasons.length,
+                  })}
+                </span>
+              )}
+              {(series.episodeCount || allEpisodes.filter((e) => e.seriesId === seriesId).length > 0) && (
+                <span className="text-sm text-white/40">
+                  {t('series.episodeCount', {
+                    count: series.episodeCount || allEpisodes.filter((e) => e.seriesId === seriesId).length,
+                  })}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -162,14 +240,35 @@ export function SeriesDetailPage({ seriesId }: { seriesId: string }) {
         {/* Seasons & Episodes */}
         <div className="space-y-3">
           <h2 className="text-lg font-bold text-white">{t('series.episodes')}</h2>
-          {seasons.length === 0 ? (
+          {canFetchEpisodes && !hasCachedEpisodes && !episodesError && !episodesFetched ? (
+            <p className="text-sm text-white/50 py-6 text-center" role="status" aria-live="polite">
+              {t('series.loadingEpisodes')}
+            </p>
+          ) : episodesError && !hasCachedEpisodes ? (
+            <EmptyState
+              emoji="📋"
+              title={t('series.episodesLoadError')}
+              size="sm"
+              action={{
+                label: t('common.retry'),
+                onClick: () => {
+                  setErrorSeriesId(null);
+                  setFetchedSeriesId(null);
+                  setRetryNonce((n) => n + 1);
+                },
+              }}
+            />
+          ) : seasons.length === 0 ? (
             <EmptyState emoji="📋" title={t('series.noEpisodes')} size="sm" />
           ) : (
             seasons.map((season) => (
               <SeasonAccordion
                 key={season.id}
                 season={season}
-                episodes={allEpisodes.filter((e) => e.seasonId === season.id)}
+                episodes={allEpisodes
+                  .filter((e) => e.seasonId === season.id)
+                  .slice()
+                  .sort((a, b) => a.episodeNumber - b.episodeNumber)}
                 isExpanded={expandedSeason === season.id}
                 onToggle={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)}
                 seriesId={seriesId}
@@ -197,8 +296,10 @@ function SeasonAccordion({ season, episodes, isExpanded, onToggle, seriesId }: {
         className="w-full flex items-center justify-between px-4 py-4 hover:bg-white/3 rounded-xl transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-white">{season.name}</span>
-          <span className="text-sm text-white/40">{season.episodeCount} épisodes</span>
+          <span className="font-semibold text-white">
+            {season.name.trim() || t('series.season', { number: season.seasonNumber })}
+          </span>
+          <span className="text-sm text-white/40">{t('series.episodeCount', { count: season.episodeCount })}</span>
           {season.airDate && <span className="text-xs text-white/30">{new Date(season.airDate).getFullYear()}</span>}
         </div>
         {isExpanded ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}

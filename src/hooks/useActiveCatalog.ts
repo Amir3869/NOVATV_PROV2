@@ -15,12 +15,23 @@ import type { EPGProgram, LiveCategory, LiveChannel, Movie, Series } from '@/typ
  * Filtrer à la lecture, et non à l'écriture, laisse la page Sources
  * continuer d'agir sur *sa* source (guide, catégories, suppression).
  */
-export function ofActivePlaylist<T extends { playlistId: string }>(
+export function ofActivePlaylist<T extends { id?: string; playlistId?: string }>(
   items: T[],
   activePlaylistId: string | null
 ): T[] {
   if (!activePlaylistId) return [];
-  return items.filter((item) => item.playlistId === activePlaylistId);
+  const prefix = `${activePlaylistId}:`;
+  return items.filter((item) => {
+    // Les identifiants sont préfixés à la création (`source:live:…`,
+    // `source:m3u:…`). Ce préfixe est plus fiable que `playlistId` :
+    // un catalogue relu d'IndexedDB peut avoir un champ `playlistId`
+    // manquant ou recopié sur la mauvaise source, alors que l'id, lui,
+    // n'est jamais réécrit.
+    if (typeof item.id === 'string' && item.id.includes(':')) {
+      return item.id.startsWith(prefix);
+    }
+    return item.playlistId === activePlaylistId;
+  });
 }
 
 /**
@@ -47,6 +58,10 @@ export interface ActiveCatalog {
 }
 
 export function useActiveCatalog(): ActiveCatalog {
+  // Zustand + React 19 : le sélecteur doit renvoyer la **même
+  // référence** tant que le store n'a pas changé. Filtrer ici
+  // (`ofActivePlaylist(...)`) créait un tableau neuf à chaque appel
+  // et déclenchait « getServerSnapshot should be cached ».
   const activePlaylistId = useAppStore((s) => s.activePlaylistId);
   const channels = useAppStore((s) => s.channels);
   const liveCategories = useAppStore((s) => s.liveCategories);

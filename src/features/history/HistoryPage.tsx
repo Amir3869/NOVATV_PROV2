@@ -7,12 +7,13 @@ import { cn } from '@/utils/cn';
 import { ProgressBar } from '@/design-system/components/ProgressBar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { formatTimeAgo } from '@/utils/cn';
 import { useTranslation } from '@/i18n';
-import type { Episode } from '@/types';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
+import { historyEntryHref, historyEpisodeSeriesId, historyProfileId } from './historyLinks';
 
 export function HistoryPage() {
   const { t } = useTranslation();
@@ -20,8 +21,25 @@ export function HistoryPage() {
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const removeFromHistory = useAppStore((s) => s.removeFromHistory);
   const clearHistory = useAppStore((s) => s.clearHistory);
+  const { channels, movies, series } = useActiveCatalog();
 
-  const profileHistory = watchHistory.filter((h) => h.profileId === activeProfileId);
+  const catalogIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    channels.forEach((c) => ids.add(c.id));
+    movies.forEach((m) => ids.add(m.id));
+    series.forEach((s) => ids.add(s.id));
+    return ids;
+  }, [channels, movies, series]);
+
+  const profileId = historyProfileId(activeProfileId);
+  const profileHistory = watchHistory.filter((h) => {
+    if (h.profileId !== profileId) return false;
+    if (h.mediaType === 'episode') {
+      const seriesId = historyEpisodeSeriesId(h);
+      return Boolean(seriesId && catalogIds.has(seriesId));
+    }
+    return catalogIds.has(h.mediaId);
+  });
   const continueWatching = profileHistory.filter((h) => h.percent > 0 && h.percent < 100);
   const completed = profileHistory.filter((h) => h.percent >= 100);
   const other = profileHistory.filter((h) => h.percent === 0);
@@ -115,22 +133,8 @@ function HistoryItem({ entry, onRemove, completed = false }: {
 }) {
   const { t } = useTranslation();
   // Un épisode renvoie vers sa série, pas vers lui-même : il n'existe pas
-  // d'écran par épisode. `seriesId` est porté par `mediaData`, rempli à
-  // l'enregistrement dans l'historique.
-  //
-  // Le lien pointait auparavant vers `/series/series-2` en dur — un
-  // vestige des données de démonstration, qui menait tout épisode vers
-  // une série inexistante.
-  const episodeSeriesId =
-    entry.mediaType === 'episode'
-      ? (entry.mediaData as Partial<Episode> | undefined)?.seriesId
-      : undefined;
-
-  const href = entry.mediaType === 'movie' ? `/movies?id=${encodeURIComponent(entry.mediaId)}`
-    : entry.mediaType === 'episode'
-      ? (episodeSeriesId ? `/series?id=${encodeURIComponent(episodeSeriesId)}` : '/series')
-    : entry.mediaType === 'live' ? `/live?id=${encodeURIComponent(entry.mediaId)}`
-    : `/`;
+  // d'écran par épisode. `seriesId` est porté par `mediaData`.
+  const href = historyEntryHref(entry);
 
   return (
     <div className="group flex items-center gap-4 p-3 rounded-xl bg-white/3 hover:bg-white/5 border border-white/5 hover:border-white/8 transition-all">

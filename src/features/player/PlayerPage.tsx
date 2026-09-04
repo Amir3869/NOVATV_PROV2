@@ -2,12 +2,14 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize,
   SkipBack, SkipForward, ArrowLeft, Radio, AlertTriangle, RotateCcw,
-  ChevronLeft, ChevronRight, Settings, List, Ratio, Captions
+  ChevronLeft, ChevronRight, Settings, List, Ratio, Captions, RotateCw,
+  Heart, Lock, LockOpen, Timer, Gauge
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Badge } from '@/design-system/components/Badge';
@@ -20,6 +22,11 @@ import { videoFitClassName } from '@/services/player/videoFit';
 import { SubtitleOverlay, type SubtitleAppearance } from './SubtitleOverlay';
 import { AudioSubtitleMenu } from './AudioSubtitleMenu';
 import { ChannelBrowser } from './ChannelBrowser';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { usePlayerLandscapeLock } from '@/hooks/usePlayerLandscapeLock';
+import { useWakeLock } from '@/hooks/useWakeLock';
+import { SleepMenu, SpeedMenu } from './PlayerExtraMenus';
+import { qualityLabel } from '@/services/player/qualityLadder';
 import { findNextEpisode, shouldAutoAdvance, episodeCode } from '@/services/player/episodeQueue';
 import { Slider } from './Slider';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
@@ -82,12 +89,27 @@ const AUTO_NEXT_DELAY_SECONDS = 10;
 
 function PlayerContent() {
   const { t, locale } = useTranslation();
-  const allChannels = useAppStore((s) => s.channels);
-  const allLiveCategories = useAppStore((s) => s.liveCategories);
+  const { isTV, orientation, isReady, hasTouch, height } = useDeviceType();
+  /**
+   * Téléphone et tablette (tactile, hors TV) : le lecteur est paysage.
+   * On verrouille l'orientation côté système, et si le navigateur refuse
+   * (Safari iOS), l'écran « Tournez l'appareil » recouvre tout.
+   * PC souris et Firestick : pas de verrou, pas d'écran.
+   */
+  const lockLandscape = isReady && hasTouch && !isTV;
+  usePlayerLandscapeLock(lockLandscape);
+  const showRotate = lockLandscape && orientation === 'portrait';
+  /** Hauteur paysage téléphone (~390–430) : le gros play central chevauche les barres. */
+  const compactChrome = isReady && height > 0 && height < 500;
+  const {
+    channels: allChannels,
+    liveCategories: allLiveCategories,
+    movies: allMovies,
+    epgPrograms: allPrograms,
+  } = useActiveCatalog();
   const allEpisodes = useAppStore((s) => s.episodes);
-  const allMovies = useAppStore((s) => s.movies);
-  const allPrograms = useAppStore((s) => s.epgPrograms);
   const updateProgress = useAppStore((s) => s.updateProgress);
+  const addToHistory = useAppStore((s) => s.addToHistory);
   const playbackProgress = useAppStore((s) => s.playbackProgress);
   const defaultAudioLanguage = useAppStore((s) => s.preferences.defaultAudioLanguage);
   const subtitlesEnabled = useAppStore((s) => s.preferences.subtitlesEnabled);
@@ -100,6 +122,9 @@ function PlayerContent() {
   const subtitleBackground = useAppStore((s) => s.preferences.subtitleBackground);
   const subtitleFont = useAppStore((s) => s.preferences.subtitleFont);
   const updatePreferences = useAppStore((s) => s.updatePreferences);
+  const toggleFavorite = useAppStore((s) => s.toggleFavorite);
+  const favorites = useAppStore((s) => s.favorites);
+  const activeProfileId = useAppStore((s) => s.activeProfileId);
   const searchParams = useSearchParams();
   const router = useRouter();
   const type = searchParams.get('type') as 'live' | 'movie' | 'episode' | null;
@@ -157,6 +182,11 @@ function PlayerContent() {
   >(null);
 
   const isLive = type === 'live';
+  const favoriteType =
+    type === 'live' ? 'channel' : type === 'movie' ? 'movie' : type === 'episode' ? 'episode' : null;
+  const isFav = Boolean(
+    id && favorites.some((f) => f.mediaId === id && f.profileId === (activeProfileId ?? 'profile-1'))
+  );
 
   // Résolution du média : titre, URL du flux et format annoncé.
   //
@@ -183,17 +213,43 @@ function PlayerContent() {
   const handleProgress = useCallback(
     (position: number, duration: number) => {
       if (!id || !type || isLive) return;
+      const percent = duration > 0 ? Math.round((position / duration) * 100) : 0;
+      const updatedAt = new Date().toISOString();
+      const mediaType = type === 'movie' ? 'movie' : 'episode';
       updateProgress({
         id: `${type}:${id}`,
         mediaId: id,
-        mediaType: type === 'movie' ? 'movie' : 'episode',
+        mediaType,
         position,
         duration,
-        percent: duration > 0 ? Math.round((position / duration) * 100) : 0,
-        updatedAt: new Date().toISOString(),
+        percent,
+        updatedAt,
+      });
+      const title = movie?.name ?? episode?.title;
+      if (!title) return;
+      const profileId = activeProfileId ?? 'profile-1';
+      addToHistory({
+        id: `${profileId}:${mediaType}:${id}`,
+        profileId,
+        mediaId: id,
+        mediaType,
+        title,
+        thumbnail: movie?.logo ?? episode?.image,
+        position,
+        duration,
+        percent,
+        watchedAt: updatedAt,
+        mediaData:
+          mediaType === 'episode' && episode
+            ? {
+                seriesId: episode.seriesId,
+                seasonNumber: episode.seasonNumber,
+                episodeNumber: episode.episodeNumber,
+              }
+            : undefined,
       });
     },
-    [id, type, isLive, updateProgress]
+    [id, type, isLive, updateProgress, addToHistory, movie, episode, activeProfileId]
   );
 
   /**
@@ -352,6 +408,20 @@ function PlayerContent() {
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [fitMenuOpen, setFitMenuOpen] = useState(false);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const [sleepMenuOpen, setSleepMenuOpen] = useState(false);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const [controlsLocked, setControlsLocked] = useState(false);
+  const [showUnlockHint, setShowUnlockHint] = useState(false);
+  const [sleepUntil, setSleepUntil] = useState<number | null>(null);
+  const [sleepRemainingSeconds, setSleepRemainingSeconds] = useState<number | null>(null);
+  const mediaId = id ?? '';
+  const [rateMediaId, setRateMediaId] = useState(mediaId);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  if (rateMediaId !== mediaId) {
+    setRateMediaId(mediaId);
+    setPlaybackRate(1);
+  }
+  const lastTapRef = useRef<{ t: number; x: number } | null>(null);
 
   /**
    * Réglages d'apparence des sous-titres, lus depuis les préférences.
@@ -501,6 +571,75 @@ function PlayerContent() {
     return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
   }, []);
 
+  useWakeLock(player.isPlaying && !showRotate && !player.error);
+
+  useEffect(() => {
+    const node = videoRef.current;
+    if (node) node.playbackRate = playbackRate;
+  }, [videoEl, playbackRate]);
+
+  useEffect(() => {
+    if (sleepUntil === null) return;
+    const timer = setInterval(() => {
+      const left = Math.max(0, Math.ceil((sleepUntil - Date.now()) / 1000));
+      if (left <= 0) {
+        setSleepUntil(null);
+        setSleepRemainingSeconds(null);
+        videoRef.current?.pause();
+        setShowControls(true);
+      } else {
+        setSleepRemainingSeconds(left);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sleepUntil]);
+
+  useEffect(() => {
+    if (!showUnlockHint) return;
+    const timer = setTimeout(() => setShowUnlockHint(false), 3000);
+    return () => clearTimeout(timer);
+  }, [showUnlockHint]);
+
+  const currentQualityLabel = (() => {
+    const q = player.quality;
+    if (!q || q.levels.length === 0) return null;
+    const index = q.currentLevel >= 0 ? q.currentLevel : 0;
+    const level = q.levels[index];
+    if (!level) return null;
+    return qualityLabel(level, index);
+  })();
+
+  const handleSurfaceClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (controlsLocked) {
+      setShowUnlockHint(true);
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, a, [role="slider"], [role="dialog"]')) {
+      resetControlsTimer();
+      return;
+    }
+
+    if (!isLive && streamUrl) {
+      const now = Date.now();
+      const x = event.clientX;
+      const last = lastTapRef.current;
+      if (last && now - last.t < 300 && Math.abs(x - last.x) < 120) {
+        lastTapRef.current = null;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect && rect.width > 0) {
+          const rel = (x - rect.left) / rect.width;
+          if (rel < 0.4) player.seekBy(-10);
+          else if (rel > 0.6) player.seekBy(10);
+        }
+        return;
+      }
+      lastTapRef.current = { t: now, x };
+    }
+    resetControlsTimer();
+  };
+
+
   /**
    * Position affichee pendant un glissement.
    *
@@ -633,7 +772,7 @@ function PlayerContent() {
 
   if (!hydrated) {
     return (
-      <div className="cinema min-h-screen bg-black flex items-center justify-center">
+      <div className="cinema min-h-dvh bg-black flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-2 border-accent border-t-transparent animate-spin" />
       </div>
     );
@@ -644,14 +783,14 @@ function PlayerContent() {
       ref={containerRef}
       className={cn(
         'cinema relative bg-black flex items-center justify-center overflow-hidden select-none',
-        isFullscreen ? 'fixed inset-0 z-[100]' : 'min-h-screen w-full'
+        isFullscreen ? 'fixed inset-0 z-[100]' : 'min-h-dvh w-full'
       )}
-      onMouseMove={resetControlsTimer}
-      onClick={resetControlsTimer}
+      onMouseMove={() => { if (!controlsLocked) resetControlsTimer(); }}
+      onClick={handleSurfaceClick}
       // Sur mobile et tablette il n'y a pas de survol : sans ce
       // gestionnaire, les contrôles — masqués au démarrage — seraient
       // impossibles à faire réapparaître.
-      onTouchStart={resetControlsTimer}
+      onTouchStart={() => { if (!controlsLocked) resetControlsTimer(); }}
     >
       {/* Balise vidéo réelle.
           Elle est toujours montée, même sans URL : le hook a besoin de
@@ -778,7 +917,9 @@ function PlayerContent() {
 
       {/* Controls overlay */}
       <div className={cn(
-        'absolute inset-0 flex flex-col justify-between p-4 md:p-6 transition-opacity duration-300',
+        'absolute inset-0 flex flex-col justify-between transition-opacity duration-300',
+        'pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        'ps-[max(0.75rem,env(safe-area-inset-left))] pe-[max(0.75rem,env(safe-area-inset-right))]',
         showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
       )}>
         {/* Top bar */}
@@ -846,6 +987,18 @@ function PlayerContent() {
             bord : ajustement, qualite, pistes.
           */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {id && favoriteType && (
+              <button
+                type="button"
+                onClick={() => toggleFavorite(id, favoriteType)}
+                aria-label={isFav ? t('common.removeFromFavorites') : t('common.addToFavorites')}
+                aria-pressed={isFav}
+                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                <Heart className={cn('w-4 h-4', isFav && 'fill-accent text-accent')} />
+              </button>
+            )}
+
             {/* Toujours present, contrairement aux deux autres :
                 l'ajustement ne depend pas de ce que le flux publie, il y
                 a donc toujours trois modes a offrir. */}
@@ -866,11 +1019,16 @@ function PlayerContent() {
               <button
                 type="button"
                 onClick={() => setQualityMenuOpen(true)}
-                aria-label={t('player.qualityTitle')}
+                aria-label={currentQualityLabel
+                  ? `${t('player.qualityTitle')} ${currentQualityLabel}`
+                  : t('player.qualityTitle')}
                 aria-haspopup="dialog"
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="h-9 flex-shrink-0 px-2.5 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1.5 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 <Settings className="w-4 h-4" />
+                {currentQualityLabel && (
+                  <span className="text-[11px] font-semibold tabular-nums">{currentQualityLabel}</span>
+                )}
               </button>
             )}
 
@@ -894,8 +1052,12 @@ function PlayerContent() {
           </div>
         </div>
 
-        {/* Center play/pause */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {/* Center play/pause — masqué en paysage téléphone : les ±10 s
+            tiennent alors à côté du play du bas. */}
+        <div className={cn(
+          'absolute inset-0 flex items-center justify-center pointer-events-none',
+          compactChrome && 'hidden'
+        )}>
           <div className="flex items-center gap-8">
             {!isLive && (
               <button
@@ -1036,6 +1198,18 @@ function PlayerContent() {
           */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
+              {!isLive && (
+                <button
+                  onClick={() => player.seekBy(-10)}
+                  disabled={!streamUrl}
+                  type="button"
+                  aria-label={t('player.rewind')}
+                  className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                >
+                  <SkipBack className="w-4 h-4" />
+                </button>
+              )}
+
               {/* Play/Pause compact */}
               <button
                 onClick={player.togglePlay}
@@ -1046,6 +1220,18 @@ function PlayerContent() {
               >
                 {player.isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
               </button>
+
+              {!isLive && (
+                <button
+                  onClick={() => player.seekBy(10)}
+                  disabled={!streamUrl}
+                  type="button"
+                  aria-label={t('player.forward')}
+                  className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                >
+                  <SkipForward className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Bloc zapping : precedente, liste, suivante.
                   Separe de la lecture par un trait, car changer de
@@ -1167,11 +1353,51 @@ function PlayerContent() {
 
               <span aria-hidden="true" className="w-px h-5 bg-white/15 flex-shrink-0 mx-0.5" />
 
-              {/* Le bouton « Sous-titres » a ete retire pour la meme raison
-                  que « Reglages » : les pistes de sous-titres sont
-                  declarees par le flux, et leur enumeration n'est pas
-                  encore lue. Afficher un bouton grise laisserait croire
-                  que la source n'en propose aucun, ce qui serait faux. */}
+              {!isLive && (
+                <button
+                  type="button"
+                  onClick={() => setSpeedMenuOpen(true)}
+                  aria-label={t('player.speedTitle')}
+                  aria-haspopup="dialog"
+                  className="h-9 flex-shrink-0 px-2.5 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                >
+                  <Gauge className="w-4 h-4" />
+                  <span className="text-[11px] font-semibold tabular-nums">
+                    {t('player.speedValue', { rate: String(playbackRate).replace('.', ',') })}
+                  </span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSleepMenuOpen(true)}
+                aria-label={t('player.sleepTitle')}
+                aria-haspopup="dialog"
+                className={cn(
+                  'h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                  sleepRemainingSeconds !== null ? 'px-2.5' : 'w-9'
+                )}
+              >
+                <Timer className="w-4 h-4" />
+                {sleepRemainingSeconds !== null && (
+                  <span className="text-[11px] font-semibold tabular-nums">
+                    {formatTime(sleepRemainingSeconds)}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setControlsLocked(true);
+                  setShowControls(false);
+                  setShowUnlockHint(true);
+                }}
+                aria-label={t('player.lockControls')}
+                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
 
               {/* Fullscreen */}
               <button
@@ -1264,6 +1490,73 @@ function PlayerContent() {
           onClose={() => setBrowserOpen(false)}
         />
       )}
+
+      {controlsLocked && (
+        <div className="absolute inset-0 z-[110]">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label={t('player.unlockControls')}
+            onClick={() => setShowUnlockHint(true)}
+          />
+          {showUnlockHint && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setControlsLocked(false);
+                setShowUnlockHint(false);
+                resetControlsTimer();
+              }}
+              aria-label={t('player.unlockControls')}
+              className="absolute top-1/2 left-1/2 z-[111] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white border border-white/15"
+            >
+              <LockOpen className="w-7 h-7" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {sleepMenuOpen && (
+        <SleepMenu
+          remainingSeconds={sleepRemainingSeconds}
+          onSelectMinutes={(minutes) => {
+            if (minutes === null) {
+              setSleepUntil(null);
+              setSleepRemainingSeconds(null);
+            } else {
+              setSleepUntil(Date.now() + minutes * 60_000);
+              setSleepRemainingSeconds(minutes * 60);
+            }
+          }}
+          onClose={() => setSleepMenuOpen(false)}
+        />
+      )}
+
+      {speedMenuOpen && (
+        <SpeedMenu
+          current={playbackRate}
+          onSelect={setPlaybackRate}
+          onClose={() => setSpeedMenuOpen(false)}
+        />
+      )}
+
+      {showRotate && (
+        <div
+          className="cinema fixed inset-0 z-[400] flex flex-col items-center justify-center bg-black px-8 text-center"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="player-rotate-title"
+        >
+          <RotateCw className="w-12 h-12 text-white/80 mb-4" aria-hidden="true" />
+          <p id="player-rotate-title" className="text-white font-semibold text-lg">
+            {t('player.rotateTitle')}
+          </p>
+          <p className="text-white/60 text-sm mt-2 max-w-xs">
+            {t('player.rotateHint')}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1271,7 +1564,7 @@ function PlayerContent() {
 export function PlayerPage() {
   return (
     <Suspense fallback={
-      <div className="cinema min-h-screen bg-black flex items-center justify-center">
+      <div className="cinema min-h-dvh bg-black flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-2 border-accent border-t-transparent animate-spin" />
       </div>
     }>

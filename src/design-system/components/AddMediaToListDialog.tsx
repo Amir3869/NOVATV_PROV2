@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Check, Search } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/useAppStore';
@@ -17,7 +17,16 @@ interface Props {
 
 type Family = Favorite['mediaType'];
 
-export function AddMediaToListDialog({ open, listId, onClose }: Props) {
+function idsOf(items: { mediaType: Family; mediaId: string }[] | undefined, family: Family): Set<string> {
+  return new Set(items?.filter((i) => i.mediaType === family).map((i) => i.mediaId) ?? []);
+}
+
+/**
+ * Le corps est recréé à chaque ouverture / changement de liste
+ * (`key` sur le parent) : plus besoin d'effets pour remettre les
+ * filtres et la sélection à zéro.
+ */
+function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
   const { t } = useTranslation();
   const channels = useAppStore((s) => s.channels);
   const movies = useAppStore((s) => s.movies);
@@ -29,24 +38,12 @@ export function AddMediaToListDialog({ open, listId, onClose }: Props) {
   const [family, setFamily] = useState<Family>('channel');
   const [category, setCategory] = useState('__all__');
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => idsOf(current?.items, 'channel'));
 
   const existingIds = useMemo(
-    () => new Set(current?.items.filter((i) => i.mediaType === family).map((i) => i.mediaId) ?? []),
+    () => idsOf(current?.items, family),
     [current, family],
   );
-
-  useEffect(() => {
-    if (!open) return;
-    setFamily('channel');
-    setCategory('__all__');
-    setQuery('');
-  }, [open, listId]);
-
-  useEffect(() => {
-    if (!open) return;
-    setSelected(new Set(existingIds));
-  }, [open, listId, family, existingIds]);
 
   const source = family === 'channel' ? channels : family === 'movie' ? movies : series;
   const categories = useMemo(
@@ -84,7 +81,7 @@ export function AddMediaToListDialog({ open, listId, onClose }: Props) {
 
   return (
     <AppDialog
-      open={open}
+      open
       onClose={onClose}
       title={t('lists.addContent')}
       size="lg"
@@ -119,6 +116,7 @@ export function AddMediaToListDialog({ open, listId, onClose }: Props) {
             onClick={() => {
               setFamily(type);
               setCategory('__all__');
+              setSelected(idsOf(current?.items, type));
             }}
             className={cn(
               'flex-1 min-h-11 rounded-xl px-3 py-2 text-sm font-medium',
@@ -197,4 +195,16 @@ export function AddMediaToListDialog({ open, listId, onClose }: Props) {
       )}
     </AppDialog>
   );
+}
+
+export function AddMediaToListDialog({ open, listId, onClose }: Props) {
+  if (!open) {
+    return (
+      <AppDialog open={false} onClose={onClose} title="" size="lg">
+        {null}
+      </AppDialog>
+    );
+  }
+
+  return <AddMediaToListBody key={listId} listId={listId} onClose={onClose} />;
 }

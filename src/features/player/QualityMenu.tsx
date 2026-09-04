@@ -97,7 +97,7 @@ export function QualityMenu({ quality, onSelect, onClose }: QualityMenuProps) {
 
   return createPortal(
     <div
-      className="cinema fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="cinema fixed inset-0 z-[300] flex items-center justify-center bg-black/70 px-3"
       onClick={onClose}
     >
       <div
@@ -106,10 +106,10 @@ export function QualityMenu({ quality, onSelect, onClose }: QualityMenuProps) {
         aria-modal="true"
         aria-label={t('player.qualityTitle')}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:w-80 max-h-[80vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-surface-1 border border-line shadow-2xl"
+        className="w-full max-w-sm rounded-2xl bg-black border border-white/10 shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-line sticky top-0 bg-surface-1">
-          <h2 className="font-bold text-white">{t('player.qualityTitle')}</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <h2 className="font-bold text-white text-sm">{t('player.qualityTitle')}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -120,12 +120,12 @@ export function QualityMenu({ quality, onSelect, onClose }: QualityMenuProps) {
           </button>
         </div>
 
-        <ul className="px-5 py-4 space-y-1">
+        <ul className="px-3 py-2 grid grid-cols-2 gap-0.5">
           {/* « Auto » en tête : c'est le choix recommandé et le plus
               fréquent, il doit être atteignable en un cran de
               télécommande. Il indique la variante réellement diffusée
               pour que l'utilisateur sache ce qu'il regarde. */}
-          <li>
+          <li className="col-span-2">
             <QualityRow
               label={t('player.qualityAuto')}
               hint={
@@ -180,7 +180,7 @@ function QualityRow({
       // seulement le libellé.
       aria-pressed={selected}
       className={cn(
-        'w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors',
+        'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-sm text-left transition-colors',
         'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1',
         selected
           ? 'bg-accent/15 text-white font-medium'

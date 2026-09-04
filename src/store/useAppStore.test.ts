@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useAppStore, migratePersistedState } from './useAppStore';
+import { useAppStore, migratePersistedState, mergeCatalogLists } from './useAppStore';
 import type { EPGProgram, LiveChannel, Movie, Playlist, Profile, Series } from '@/types';
 
 /**
@@ -78,15 +78,20 @@ describe('addPlaylist', () => {
 
   it('la première source devient automatiquement active', () => {
     useAppStore.getState().addPlaylist(makePlaylist('a'));
-    expect(useAppStore.getState().activePlaylistId).toBe('a');
+    const after = useAppStore.getState();
+    expect(after.activePlaylistId).toBe('a');
+    expect(after.playlists[0]?.isActive).toBe(true);
   });
 
   it("la seconde source ne vole pas la place de l'active", () => {
     const s = useAppStore.getState();
     s.addPlaylist(makePlaylist('a'));
     s.addPlaylist(makePlaylist('b'));
-    expect(useAppStore.getState().activePlaylistId).toBe('a');
-    expect(useAppStore.getState().playlists).toHaveLength(2);
+    const after = useAppStore.getState();
+    expect(after.activePlaylistId).toBe('a');
+    expect(after.playlists).toHaveLength(2);
+    expect(after.playlists.find((p) => p.id === 'a')?.isActive).toBe(true);
+    expect(after.playlists.find((p) => p.id === 'b')?.isActive).toBe(false);
   });
 });
 
@@ -161,7 +166,9 @@ describe('deletePlaylist', () => {
     s.addPlaylist(makePlaylist('a'));
     s.addPlaylist(makePlaylist('b'));
     s.deletePlaylist('a');
-    expect(useAppStore.getState().activePlaylistId).toBe('b');
+    const after = useAppStore.getState();
+    expect(after.activePlaylistId).toBe('b');
+    expect(after.playlists.find((p) => p.id === 'b')?.isActive).toBe(true);
   });
 
   it('remet activePlaylistId à null quand il ne reste rien', () => {
@@ -241,6 +248,11 @@ describe('setCatalog', () => {
     s.setCatalog('a', { channels: [makeChannel('c1', 'a')] });
     s.setCatalog('b', { channels: [makeChannel('c2', 'b')] });
     expect(useAppStore.getState().channels).toHaveLength(2);
+  });
+
+  it('rattache au playlistId fourni les chaînes mal étiquetées', () => {
+    useAppStore.getState().setCatalog('a', { channels: [makeChannel('c1', 'autre')] });
+    expect(useAppStore.getState().channels[0].playlistId).toBe('a');
   });
 
   it('un champ absent laisse la liste correspondante intacte', () => {
@@ -487,6 +499,26 @@ describe('verrouillage parental (store)', () => {
     // Changer de profil relève le verrou : le code est propre au profil.
     useAppStore.getState().setActiveProfile('p2');
     expect(useAppStore.getState().sessionUnlocked).toBe(false);
+  });
+});
+
+describe('mergeCatalogLists', () => {
+  it('garde le disque quand la mémoire est vide', () => {
+    const stored = [makeChannel('c1', 'a')];
+    expect(mergeCatalogLists(stored, [])).toEqual(stored);
+  });
+
+  it("complète la mémoire avec les sources que le disque a et pas la RAM", () => {
+    const stored = [makeChannel('c1', 'a')];
+    const memory = [makeChannel('c2', 'b')];
+    const out = mergeCatalogLists(stored, memory);
+    expect(out.map((c) => c.id).sort()).toEqual(['c1', 'c2']);
+  });
+
+  it("la mémoire l'emporte pour une source présente des deux côtés", () => {
+    const stored = [makeChannel('c1-old', 'a')];
+    const memory = [makeChannel('c1-new', 'a')];
+    expect(mergeCatalogLists(stored, memory)).toEqual(memory);
   });
 });
 

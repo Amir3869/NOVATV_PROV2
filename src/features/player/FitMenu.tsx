@@ -113,7 +113,7 @@ export function FitMenu({ current, onSelect, onClose }: FitMenuProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="cinema fixed inset-0 z-[300] flex items-center justify-center bg-black/70 px-3"
       onClick={onClose}
     >
       <div
@@ -122,10 +122,10 @@ export function FitMenu({ current, onSelect, onClose }: FitMenuProps) {
         aria-modal="true"
         aria-label={t('player.fitTitle')}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:w-80 max-h-[80vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-surface-1 border border-line shadow-2xl"
+        className="w-full max-w-sm rounded-2xl bg-black border border-white/10 shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-line sticky top-0 bg-surface-1">
-          <h2 className="font-bold text-white">{t('player.fitTitle')}</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <h2 className="font-bold text-white text-sm">{t('player.fitTitle')}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -136,7 +136,7 @@ export function FitMenu({ current, onSelect, onClose }: FitMenuProps) {
           </button>
         </div>
 
-        <ul className="px-5 py-4 space-y-1">
+        <ul className="px-3 py-2 space-y-0.5">
           {VIDEO_FIT_MODES.map((mode) => (
             <li key={mode}>
               <FitRow

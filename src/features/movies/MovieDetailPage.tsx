@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Play, Heart, Star, Clock, User, Film, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -11,22 +11,57 @@ import { ProgressBar } from '@/design-system/components/ProgressBar';
 import { MovieCard } from '@/design-system/components/MediaCard';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { DetailSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { AddToListDialog } from '@/design-system/components/AddToListDialog';
 import { formatDuration } from '@/utils/cn';
 import { useTranslation } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
+import { getPlaylistXtreamCredentials } from '@/services/xtream/xtreamCredentials';
+import { fetchVodDetails, toSourceErrorKind } from '@/services/xtream/xtreamSync';
 
 export function MovieDetailPage({ movieId }: { movieId: string }) {
   const { t } = useTranslation();
-  const allMovies = useAppStore((s) => s.movies);
+  const { movies: allMovies } = useActiveCatalog();
   const router = useRouter();
   const [imgError, setImgError] = useState(false);
   const [showAddToList, setShowAddToList] = useState(false);
   const movie = allMovies.find((m) => m.id === movieId);
+  const playlists = useAppStore((s) => s.playlists);
+  const updateMovieDetails = useAppStore((s) => s.updateMovieDetails);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(movieId));
+
+  useEffect(() => {
+    if (!movie || typeof movie.streamId !== 'number') return;
+    // La liste `get_vod_streams` n'embarque pas le synopsis. S'il est
+    // déjà là, un passage précédent a déjà interrogé le serveur.
+    if (movie.plot) return;
+    const playlist = playlists.find((p) => p.id === movie.playlistId);
+    if (!playlist || playlist.type !== 'xtream') return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const creds = await getPlaylistXtreamCredentials(playlist.id);
+        if (!creds || cancelled) return;
+        const patch = await fetchVodDetails(creds, movie, { signal: controller.signal });
+        if (cancelled || Object.keys(patch).length === 0) return;
+        updateMovieDetails(movie.id, patch);
+      } catch (err) {
+        if (cancelled || toSourceErrorKind(err) === 'aborted') return;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movie?.id, movie?.streamId, movie?.playlistId, movie?.plot, playlists, updateMovieDetails]);
 
   // Voir useHydrated : le catalogue est vide tant que les données
   // enregistrées ne sont pas relues. Sans ce garde, la page annonce

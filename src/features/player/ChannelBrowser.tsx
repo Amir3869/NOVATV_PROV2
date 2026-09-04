@@ -302,7 +302,7 @@ export function ChannelBrowser({
       role="dialog"
       aria-modal="true"
       aria-label={t('player.channelListTitle')}
-      className="absolute inset-0 z-[120] flex"
+      className="cinema absolute inset-0 z-[120] flex"
     >
       {/*
         Le panneau est écrit AVANT le voile.
@@ -316,7 +316,7 @@ export function ChannelBrowser({
         En arabe, `flex` suit le sens d'écriture et inverse de lui-même
         les deux enfants : le panneau repasse à droite sans code en plus.
       */}
-      <div className="w-full sm:w-[38rem] max-w-full h-full bg-surface-0/95 backdrop-blur-xl border-e border-white/10 flex flex-col shadow-2xl">
+      <div className="w-full sm:w-[min(38rem,55vw)] max-w-full h-full bg-black/95 backdrop-blur-xl border-e border-white/10 flex flex-col shadow-2xl ps-[env(safe-area-inset-left)]">
         <header className="flex items-center justify-between px-5 py-4 border-b border-white/8 flex-shrink-0">
           <h2 className="font-bold text-white">{t('player.channelListTitle')}</h2>
           <button

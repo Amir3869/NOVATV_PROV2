@@ -139,6 +139,17 @@ interface AppState {
   searchQuery: string;
   isOnboarded: boolean;
 
+  /**
+   * Le catalogue IndexedDB a-t-il fini d'être relu ?
+   *
+   * Distinct de `useHydrated` (localStorage). Les chaînes n'y sont
+   * pas : sans ce drapeau, TV en direct afficherait un catalogue
+   * incomplet — ou l'ancienne source — le temps qu'IndexedDB réponde.
+   * Volontairement hors persistance : il redevient `false` à chaque
+   * ouverture.
+   */
+  catalogReady: boolean;
+
   // Actions - Profiles
   setActiveProfile: (profileId: string) => void;
   addProfile: (profile: Profile) => void;
@@ -154,6 +165,20 @@ interface AppState {
   // Actions - Catalogue
   setCatalog: (playlistId: string, catalog: CatalogPayload) => void;
   clearCatalog: (playlistId: string) => void;
+  /**
+   * Remplace saisons et épisodes d'une série, et éventuellement
+   * enrichit sa fiche (synopsis, affiche) après `get_series_info`.
+   */
+  setSeriesDetails: (
+    seriesId: string,
+    details: {
+      seasons: Season[];
+      episodes: Episode[];
+      seriesPatch?: Partial<Series>;
+    }
+  ) => void;
+  /** Enrichit un film après `get_vod_info`, sans toucher aux autres. */
+  updateMovieDetails: (movieId: string, patch: Partial<Movie>) => void;
   /**
    * Remplace le guide des programmes d'une source.
    *
@@ -546,6 +571,20 @@ export function migratePersistedState(
  */
 let pendingSave = false;
 
+/** Saisons et épisodes rattachés aux séries d'une source. */
+function dropSeasonsOfPlaylist(
+  series: Series[],
+  seasons: Season[],
+  episodes: Episode[],
+  playlistId: string
+): { seasons: Season[]; episodes: Episode[] } {
+  const ids = new Set(series.filter((s) => s.playlistId === playlistId).map((s) => s.id));
+  return {
+    seasons: seasons.filter((s) => !ids.has(s.seriesId)),
+    episodes: episodes.filter((e) => !ids.has(e.seriesId)),
+  };
+}
+
 function scheduleCatalogSave(get: () => AppState): void {
   if (pendingSave) return;
   pendingSave = true;
@@ -592,6 +631,7 @@ export const useAppStore = create<AppState>()(
       sidebarOpen: false,
       searchQuery: '',
       isOnboarded: false,
+      catalogReady: false,
 
       // Profile actions
       // Changer de profil relève le verrou de session : le code PIN est
@@ -664,6 +704,12 @@ export const useAppStore = create<AppState>()(
             state.activePlaylistId === playlistId
               ? remaining[0]?.id ?? null
               : state.activePlaylistId;
+          const dropped = dropSeasonsOfPlaylist(
+            state.series,
+            state.seasons,
+            state.episodes,
+            playlistId
+          );
           return {
             playlists: remaining.map((p) => ({
               ...p,
@@ -676,6 +722,8 @@ export const useAppStore = create<AppState>()(
             ),
             movies: state.movies.filter((m) => m.playlistId !== playlistId),
             series: state.series.filter((s) => s.playlistId !== playlistId),
+            seasons: dropped.seasons,
+            episodes: dropped.episodes,
             // Le guide suit la source qui l'a fourni : le laisser
             // afficherait des programmes rattaches a des chaines
             // disparues.
@@ -734,19 +782,27 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const other = <T extends { playlistId: string }>(list: T[]) =>
             list.filter((item) => item.playlistId !== playlistId);
+          // Tout ce qui entre ici appartient à `playlistId`. On
+          // recopie le champ s'il manque ou s'il pointe ailleurs :
+          // sinon le filtre d'affichage rangerait ces chaînes dans
+          // une autre source, ou nulle part.
+          const stamp = <T extends { playlistId: string }>(list: T[]): T[] =>
+            list.map((item) =>
+              item.playlistId === playlistId ? item : { ...item, playlistId }
+            );
 
           return {
             channels: catalog.channels
-              ? [...other(state.channels), ...catalog.channels]
+              ? [...other(state.channels), ...stamp(catalog.channels)]
               : state.channels,
             liveCategories: catalog.liveCategories
-              ? [...other(state.liveCategories), ...catalog.liveCategories]
+              ? [...other(state.liveCategories), ...stamp(catalog.liveCategories)]
               : state.liveCategories,
             movies: catalog.movies
-              ? [...other(state.movies), ...catalog.movies]
+              ? [...other(state.movies), ...stamp(catalog.movies)]
               : state.movies,
             series: catalog.series
-              ? [...other(state.series), ...catalog.series]
+              ? [...other(state.series), ...stamp(catalog.series)]
               : state.series,
             // Saisons et épisodes ne portent pas de `playlistId` : ils
             // sont rattachés à une série. On les ajoute sans filtrer,
@@ -778,17 +834,71 @@ export const useAppStore = create<AppState>()(
       },
 
       clearCatalog: (playlistId) => {
+        set((state) => {
+          const dropped = dropSeasonsOfPlaylist(
+            state.series,
+            state.seasons,
+            state.episodes,
+            playlistId
+          );
+          return {
+            channels: state.channels.filter((c) => c.playlistId !== playlistId),
+            liveCategories: state.liveCategories.filter(
+              (c) => c.playlistId !== playlistId
+            ),
+            movies: state.movies.filter((m) => m.playlistId !== playlistId),
+            series: state.series.filter((s) => s.playlistId !== playlistId),
+            seasons: dropped.seasons,
+            episodes: dropped.episodes,
+            // Sans cela, supprimer une source laisserait sa grille de
+            // programmes affichée, rattachée à des chaînes disparues.
+            epgPrograms: state.epgPrograms.filter(
+              (p) => !p.id.startsWith(`${playlistId}:epg:`)
+            ),
+          };
+        });
+        scheduleCatalogSave(get);
+      },
+
+      setSeriesDetails: (seriesId, details) => {
         set((state) => ({
-          channels: state.channels.filter((c) => c.playlistId !== playlistId),
-          liveCategories: state.liveCategories.filter(
-            (c) => c.playlistId !== playlistId
-          ),
-          movies: state.movies.filter((m) => m.playlistId !== playlistId),
-          series: state.series.filter((s) => s.playlistId !== playlistId),
-          // Sans cela, supprimer une source laisserait sa grille de
-          // programmes affichée, rattachée à des chaînes disparues.
-          epgPrograms: state.epgPrograms.filter(
-            (p) => !p.id.startsWith(`${playlistId}:epg:`)
+          seasons: [
+            ...state.seasons.filter((s) => s.seriesId !== seriesId),
+            ...details.seasons,
+          ],
+          episodes: [
+            ...state.episodes.filter((e) => e.seriesId !== seriesId),
+            ...details.episodes,
+          ],
+          series: details.seriesPatch
+            ? state.series.map((item) =>
+                item.id === seriesId
+                  ? {
+                      ...item,
+                      ...Object.fromEntries(
+                        Object.entries(details.seriesPatch!).filter(
+                          ([, value]) => value !== undefined && value !== ''
+                        )
+                      ),
+                    }
+                  : item
+              )
+            : state.series,
+        }));
+        scheduleCatalogSave(get);
+      },
+
+      updateMovieDetails: (movieId, patch) => {
+        set((state) => ({
+          movies: state.movies.map((movie) =>
+            movie.id === movieId
+              ? {
+                  ...movie,
+                  ...Object.fromEntries(
+                    Object.entries(patch).filter(([, value]) => value !== undefined && value !== '')
+                  ),
+                }
+              : movie
           ),
         }));
         scheduleCatalogSave(get);
@@ -873,12 +983,23 @@ export const useAppStore = create<AppState>()(
 
       // History
       addToHistory: (entry) =>
-        set((state) => ({
-          watchHistory: [
-            entry,
-            ...state.watchHistory.filter((h) => h.mediaId !== entry.mediaId),
-          ].slice(0, 100),
-        })),
+        set((state) => {
+          // Même média + même profil : on met à jour l'entrée plutôt
+          // que d'en créer une nouvelle à chaque enregistrement de
+          // progression (toutes les cinq secondes pendant la lecture).
+          const existing = state.watchHistory.find(
+            (h) => h.mediaId === entry.mediaId && h.profileId === entry.profileId
+          );
+          const next = { ...entry, id: existing?.id ?? entry.id };
+          return {
+            watchHistory: [
+              next,
+              ...state.watchHistory.filter(
+                (h) => !(h.mediaId === entry.mediaId && h.profileId === entry.profileId)
+              ),
+            ].slice(0, 100),
+          };
+        }),
 
       removeFromHistory: (entryId) =>
         set((state) => ({
@@ -1046,24 +1167,80 @@ export const useAppStore = create<AppState>()(
  */
 let catalogRestored = false;
 
+/**
+ * Fusionne un catalogue relu du disque avec celui déjà en mémoire.
+ *
+ * La mémoire l'emporte pour toute source qu'elle connaît déjà : un
+ * import M3U pendant l'`await loadCatalog()` aurait sinon disparu
+ * (le snapshot IndexedDB date d'avant l'import). Le disque complète
+ * seulement les sources absentes de la mémoire.
+ */
+export function mergeCatalogLists<T extends { playlistId: string }>(
+  stored: T[],
+  memory: T[]
+): T[] {
+  if (memory.length === 0) return stored;
+  const memorySources = new Set(memory.map((item) => item.playlistId));
+  const fromDisk = stored.filter((item) => !memorySources.has(item.playlistId));
+  return fromDisk.length === 0 ? memory : [...fromDisk, ...memory];
+}
+
+function mergeEpgPrograms(stored: EPGProgram[], memory: EPGProgram[]): EPGProgram[] {
+  if (memory.length === 0) return stored;
+  const memorySources = new Set(
+    memory.map((program) => {
+      const sep = program.id.indexOf(':epg:');
+      return sep === -1 ? '' : program.id.slice(0, sep);
+    })
+  );
+  const fromDisk = stored.filter((program) => {
+    const sep = program.id.indexOf(':epg:');
+    const source = sep === -1 ? '' : program.id.slice(0, sep);
+    return !memorySources.has(source);
+  });
+  return fromDisk.length === 0 ? memory : [...fromDisk, ...memory];
+}
+
 export async function restoreCatalog(): Promise<boolean> {
   if (catalogRestored) return false;
   catalogRestored = true;
 
-  const stored = await loadCatalog();
-  if (!hasCatalogContent(stored)) return false;
+  try {
+    const stored = await loadCatalog();
+    if (!hasCatalogContent(stored)) return false;
 
-  useAppStore.setState({
-    channels: stored!.channels,
-    liveCategories: stored!.liveCategories,
-    movies: stored!.movies,
-    series: stored!.series,
-    seasons: stored!.seasons,
-    episodes: stored!.episodes,
-    epgPrograms: stored!.epgPrograms,
-  });
+    const current = useAppStore.getState();
+    const hasMemory =
+      current.channels.length > 0 ||
+      current.movies.length > 0 ||
+      current.series.length > 0;
 
-  return true;
+    if (!hasMemory) {
+      useAppStore.setState({
+        channels: stored!.channels,
+        liveCategories: stored!.liveCategories,
+        movies: stored!.movies,
+        series: stored!.series,
+        seasons: stored!.seasons,
+        episodes: stored!.episodes,
+        epgPrograms: stored!.epgPrograms,
+      });
+      return true;
+    }
+
+    useAppStore.setState({
+      channels: mergeCatalogLists(stored!.channels, current.channels),
+      liveCategories: mergeCatalogLists(stored!.liveCategories, current.liveCategories),
+      movies: mergeCatalogLists(stored!.movies, current.movies),
+      series: mergeCatalogLists(stored!.series, current.series),
+      seasons: dedupeById([...stored!.seasons, ...current.seasons]),
+      episodes: dedupeById([...stored!.episodes, ...current.episodes]),
+      epgPrograms: mergeEpgPrograms(stored!.epgPrograms, current.epgPrograms),
+    });
+    return true;
+  } finally {
+    useAppStore.setState({ catalogReady: true });
+  }
 }
 
 /**
@@ -1084,6 +1261,7 @@ export async function forgetStoredCatalog(): Promise<void> {
  */
 export function __resetCatalogRestoreFlag(): void {
   catalogRestored = false;
+  useAppStore.setState({ catalogReady: false });
 }
 
 export const useActiveProfile = () => {

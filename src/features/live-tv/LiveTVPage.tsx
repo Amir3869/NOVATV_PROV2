@@ -6,6 +6,7 @@ import { ChannelCard } from '@/design-system/components/MediaCard';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, ChannelCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
@@ -16,11 +17,10 @@ import { useTranslation } from '@/i18n';
 
 export function LiveTVPage() {
   const { t } = useTranslation();
-  const allChannels = useAppStore((s) => s.channels);
-  const allPrograms = useAppStore((s) => s.epgPrograms);
-  const allCategories = useAppStore((s) => s.liveCategories);
+  const { channels: allChannels, epgPrograms: allPrograms, liveCategories: allCategories } = useActiveCatalog();
   const categoryRenames = useAppStore((s) => s.categoryRenames);
   const channelRenames = useAppStore((s) => s.channelRenames);
+  const catalogReady = useAppStore((s) => s.catalogReady);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [showCategories, setShowCategories] = useState(false);
   const [search, setSearch] = useState('');
@@ -72,7 +72,7 @@ export function LiveTVPage() {
   const favoriteChannels = enrichedChannels.filter((ch) => favoriteChannelIds.includes(ch.id));
   const recentChannels = enrichedChannels.filter((ch) => ch.isRecent);
 
-  if (!hydrated) {
+  if (!hydrated || !catalogReady) {
     return (
       <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
         <Skeleton className="h-8 w-48" />
@@ -180,7 +180,7 @@ export function LiveTVPage() {
           title={
             search || activeCategory
               ? t('common.results', { count: filtered.length })
-              : t('liveTV.allChannels')
+              : t('liveTV.channelCount', { count: filtered.length })
           }
           accent
           className="mb-3"

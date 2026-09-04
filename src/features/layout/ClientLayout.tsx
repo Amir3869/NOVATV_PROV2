@@ -105,7 +105,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           <main
             id="contenu-principal"
             tabIndex={-1}
-            className="flex-1 overflow-y-auto overflow-x-hidden pb-28 lg:pb-0"
+            className={
+              isImmersive
+                ? 'flex-1 overflow-hidden'
+                : 'flex-1 overflow-y-auto overflow-x-hidden pb-28 lg:pb-0'
+            }
           >
             {children}
           </main>

@@ -6,6 +6,7 @@ import {
   levelForPolicy,
   qualityLabel,
   sortLevelsDescending,
+  startLevelForAuto,
   type QualityLevel,
 } from './qualityLadder';
 
@@ -113,6 +114,21 @@ describe('levelForPolicy', () => {
 
   it('rend auto pour une liste vide', () => {
     expect(levelForPolicy([], 'best')).toBe(AUTO_LEVEL);
+  });
+});
+
+describe('startLevelForAuto', () => {
+  it('prend le plus haut du flux reel, sans verrouiller', () => {
+    expect(startLevelForAuto(REAL_STREAM)).toBe(0);
+  });
+
+  it('trouve le plus haut meme declare en dernier', () => {
+    expect(startLevelForAuto([{ height: 240 }, { height: 1080 }])).toBe(1);
+  });
+
+  it('rend auto s il n y a rien a choisir', () => {
+    expect(startLevelForAuto([{ height: 720 }])).toBe(AUTO_LEVEL);
+    expect(startLevelForAuto([])).toBe(AUTO_LEVEL);
   });
 });
 

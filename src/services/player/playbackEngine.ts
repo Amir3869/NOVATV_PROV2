@@ -34,6 +34,7 @@ import {
   AUTO_LEVEL,
   levelClosestToHeight,
   levelForPolicy,
+  startLevelForAuto,
   type QualityLevel,
   type QualityPolicy,
 } from './qualityLadder';
@@ -356,7 +357,12 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
         preferredHeight && preferredHeight > 0
           ? levelClosestToHeight(levels, preferredHeight)
           : levelForPolicy(levels, qualityPolicy);
-      if (wanted !== AUTO_LEVEL) hls.currentLevel = wanted;
+      if (wanted !== AUTO_LEVEL) {
+        hls.currentLevel = wanted;
+      } else if (qualityPolicy === 'auto') {
+        const start = startLevelForAuto(levels);
+        if (start !== AUTO_LEVEL) hls.startLevel = start;
+      }
       onReady?.();
     });
 

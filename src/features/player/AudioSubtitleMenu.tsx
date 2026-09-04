@@ -128,9 +128,83 @@ export function AudioSubtitleMenu({
     { value: 'mono', letter: 'Tä', font: 'Courier' },
   ];
 
+  const appearanceBlock = hasSubtitles ? (
+    <div className="flex flex-col gap-2 min-w-0">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <SettingCell label={t('player.subtitleSize')}>
+          <Segmented<SubtitleSize>
+            value={appearance.size}
+            onChange={onSize}
+            options={[
+              { value: 'small', label: 'S' },
+              { value: 'medium', label: 'M' },
+              { value: 'large', label: 'L' },
+            ]}
+          />
+        </SettingCell>
+        <SettingCell label={t('player.subtitlePosition')}>
+          <Segmented<SubtitlePosition>
+            value={appearance.position}
+            onChange={onPosition}
+            options={[
+              { value: 'bottom', label: t('player.positionBottom') },
+              { value: 'middle', label: t('player.positionMiddle') },
+              { value: 'top', label: t('player.positionTop') },
+            ]}
+            compact
+          />
+        </SettingCell>
+        <SettingCell label={t('player.subtitleBackground')}>
+          <Segmented<SubtitleBackground>
+            value={appearance.background}
+            onChange={onBackground}
+            options={[
+              { value: 'none', label: t('player.backgroundNone') },
+              { value: 'translucent', label: t('player.backgroundTranslucent') },
+              { value: 'opaque', label: t('player.backgroundOpaque') },
+            ]}
+            compact
+          />
+        </SettingCell>
+        <SettingCell label={t('player.subtitleFont')}>
+          <Segmented<SubtitleFont>
+            value={appearance.font}
+            onChange={onFont}
+            options={fontOptions.map(({ value, letter }) => ({ value, label: letter }))}
+            optionFont={(value) => subtitleFontStack(value)}
+          />
+        </SettingCell>
+      </div>
+      <div className="flex items-center min-h-8">
+        <span
+          style={{
+            color: '#fff',
+            fontFamily: subtitleFontStack(appearance.font),
+            fontSize: Math.min(subtitleFontSize(appearance.size), 20),
+            fontWeight: 500,
+            lineHeight: 1.3,
+            textAlign: 'left',
+            display: '-webkit-box',
+            WebkitLineClamp: 1,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            whiteSpace: 'normal',
+            textShadow:
+              appearance.background === 'none' ? '0 2px 4px rgba(0,0,0,0.85)' : 'none',
+            backgroundColor: subtitleBackgroundCss(appearance.background),
+            borderRadius: appearance.background === 'none' ? 0 : 4,
+            padding: appearance.background === 'none' ? 0 : '2px 8px',
+          }}
+        >
+          {t('player.subtitlePreviewText')}
+        </span>
+      </div>
+    </div>
+  ) : null;
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="cinema fixed inset-0 z-[300] flex items-center justify-center bg-black/70 px-3"
       onClick={onClose}
     >
       <div
@@ -139,170 +213,82 @@ export function AudioSubtitleMenu({
         aria-modal="true"
         aria-label={t('player.tracksTitle')}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:w-[320px] rounded-2xl bg-black/65 backdrop-blur-xl border border-white/10 shadow-2xl px-6 pt-5 pb-6 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-xl rounded-2xl bg-black border border-white/10 shadow-2xl px-4 py-3 text-white overflow-hidden"
       >
-        {/* Titre seul, en haut à gauche — pas de barre d'en-tête. */}
-        <h2 className="text-xl font-bold tracking-tight text-white">{t('player.tracksTitle')}</h2>
-
-        <div className="mt-4 flex flex-col gap-4">
-          {/* Interrupteur principal des sous-titres. */}
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold tracking-tight text-white">{t('player.tracksTitle')}</h2>
           {hasSubtitles && (
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-medium text-white/90">{t('player.subtitleToggle')}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enabled}
-                aria-label={t('player.subtitleToggle')}
-                onClick={() =>
-                  onSelectTrack(enabled ? null : defaultTrackId(subtitleTracks, activeSubtitleId))
-                }
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enabled}
+              aria-label={t('player.subtitleToggle')}
+              onClick={() =>
+                onSelectTrack(enabled ? null : defaultTrackId(subtitleTracks, activeSubtitleId))
+              }
+              className={cn(
+                'relative w-11 h-6 rounded-full transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                enabled ? 'bg-accent' : 'bg-white/20'
+              )}
+            >
+              <span
                 className={cn(
-                  'relative w-11 h-6 rounded-full transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                  enabled ? 'bg-accent' : 'bg-white/20'
+                  'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-[#ffffff] transition-transform',
+                  enabled && 'translate-x-5'
                 )}
-              >
-                <span
-                  className={cn(
-                    'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-                    enabled && 'translate-x-5'
-                  )}
-                />
-              </button>
+              />
+            </button>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            'mt-3 grid gap-3',
+            hasSubtitles && (hasMultipleAudio || hasMultipleSubtitleTracks)
+              ? 'grid-cols-1 min-[560px]:grid-cols-2'
+              : 'grid-cols-1'
+          )}
+        >
+          {(hasMultipleAudio || (hasSubtitles && hasMultipleSubtitleTracks)) && (
+            <div className="flex flex-col gap-2 min-w-0">
+              {hasMultipleAudio && (
+                <section>
+                  <RowLabel>{t('player.audioTracks')}</RowLabel>
+                  <div className="flex flex-col gap-0.5">
+                    {audioTracks.map((track) => (
+                      <TrackRow
+                        key={track.id}
+                        label={track.label}
+                        selected={activeAudioId === track.id}
+                        onSelect={() => onSelectAudio(track.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {hasSubtitles && hasMultipleSubtitleTracks && (
+                <section>
+                  <RowLabel>{t('player.subtitleTracks')}</RowLabel>
+                  <div className="flex flex-col gap-0.5">
+                    <TrackRow
+                      label={t('player.subtitlesOff')}
+                      selected={activeSubtitleId === null}
+                      onSelect={() => onSelectTrack(null)}
+                    />
+                    {subtitleTracks.map((track) => (
+                      <TrackRow
+                        key={track.id}
+                        label={track.label}
+                        selected={activeSubtitleId === track.id}
+                        onSelect={() => onSelectTrack(track.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
-
-          {/* Sélecteurs de pistes : une liste de BOUTONS focusables (pas
-              de <select> natif). La télécommande navigue de bouton en
-              bouton avec les flèches et sélectionne avec OK — un menu
-              déroulant navigateur n'est pas pilotable ainsi. Rangées
-              compactes pour ne pas allonger le panneau. */}
-          {hasMultipleAudio && (
-            <section>
-              <RowLabel>{t('player.audioTracks')}</RowLabel>
-              <div className="flex flex-col gap-1">
-                {audioTracks.map((track) => (
-                  <TrackRow
-                    key={track.id}
-                    label={track.label}
-                    selected={activeAudioId === track.id}
-                    onSelect={() => onSelectAudio(track.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {hasSubtitles && hasMultipleSubtitleTracks && (
-            <section>
-              <RowLabel>{t('player.subtitleTracks')}</RowLabel>
-              <div className="flex flex-col gap-1">
-                <TrackRow
-                  label={t('player.subtitlesOff')}
-                  selected={activeSubtitleId === null}
-                  onSelect={() => onSelectTrack(null)}
-                />
-                {subtitleTracks.map((track) => (
-                  <TrackRow
-                    key={track.id}
-                    label={track.label}
-                    selected={activeSubtitleId === track.id}
-                    onSelect={() => onSelectTrack(track.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Grille 2×2 regroupant les quatre réglages segmentés : ça
-              raccourcit le panneau et le rend quasi carré. Chaque cellule
-              a le même gabarit (libellé au-dessus, contrôle pleine
-              largeur) pour un alignement net et premium. */}
-          {hasSubtitles && (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <SettingCell label={t('player.subtitleSize')}>
-                <Segmented<SubtitleSize>
-                  value={appearance.size}
-                  onChange={onSize}
-                  options={[
-                    { value: 'small', label: 'S' },
-                    { value: 'medium', label: 'M' },
-                    { value: 'large', label: 'L' },
-                  ]}
-                />
-              </SettingCell>
-
-              <SettingCell label={t('player.subtitlePosition')}>
-                <Segmented<SubtitlePosition>
-                  value={appearance.position}
-                  onChange={onPosition}
-                  options={[
-                    { value: 'bottom', label: t('player.positionBottom') },
-                    { value: 'middle', label: t('player.positionMiddle') },
-                    { value: 'top', label: t('player.positionTop') },
-                  ]}
-                  compact
-                />
-              </SettingCell>
-
-              <SettingCell label={t('player.subtitleBackground')}>
-                <Segmented<SubtitleBackground>
-                  value={appearance.background}
-                  onChange={onBackground}
-                  options={[
-                    { value: 'none', label: t('player.backgroundNone') },
-                    { value: 'translucent', label: t('player.backgroundTranslucent') },
-                    { value: 'opaque', label: t('player.backgroundOpaque') },
-                  ]}
-                  compact
-                />
-              </SettingCell>
-
-              <SettingCell label={t('player.subtitleFont')}>
-                <Segmented<SubtitleFont>
-                  value={appearance.font}
-                  onChange={onFont}
-                  options={fontOptions.map(({ value, letter }) => ({ value, label: letter }))}
-                  optionFont={(value) => subtitleFontStack(value)}
-                />
-              </SettingCell>
-            </div>
-          )}
-
-          {/* Aperçu réel de l'apparence, compact pour tenir dans un
-              panneau carré. Reproduit exactement le rendu du calque :
-              fond selon le réglage, ombre si aucun fond. */}
-          {hasSubtitles && (
-            <section>
-              <RowLabel>{t('player.subtitlePreview')}</RowLabel>
-              <div className="flex items-center">
-                <span
-                  style={{
-                    color: '#fff',
-                    fontFamily: subtitleFontStack(appearance.font),
-                    fontSize: subtitleFontSize(appearance.size),
-                    fontWeight: 500,
-                    lineHeight: 1.3,
-                    textAlign: 'left',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    whiteSpace: 'normal',
-                    textShadow:
-                      appearance.background === 'none'
-                        ? '0 2px 4px rgba(0,0,0,0.85)'
-                        : 'none',
-                    backgroundColor: subtitleBackgroundCss(appearance.background),
-                    borderRadius: appearance.background === 'none' ? 0 : 4,
-                    padding: appearance.background === 'none' ? 0 : '2px 8px',
-                  }}
-                >
-                  {t('player.subtitlePreviewText')}
-                </span>
-              </div>
-            </section>
-          )}
+          {appearanceBlock}
         </div>
       </div>
     </div>,
@@ -312,14 +298,14 @@ export function AudioSubtitleMenu({
 
 /** Libellé de section (taille normale, minuscules, à gauche). */
 function RowLabel({ children }: { children: React.ReactNode }) {
-  return <span className="block text-sm font-medium text-white/85 mb-1.5">{children}</span>;
+  return <span className="block text-xs font-medium text-white/85 mb-1">{children}</span>;
 }
 
 /** Cellule de grille : libellé au-dessus du contrôle segmenté. */
 function SettingCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <span className="block text-sm font-medium text-white/85 mb-1.5 truncate">{label}</span>
+      <span className="block text-xs font-medium text-white/85 mb-1 truncate">{label}</span>
       {children}
     </div>
   );
@@ -391,7 +377,7 @@ function TrackRow({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        'w-full flex items-center justify-between gap-3 rounded-lg px-3 h-9 text-sm text-left transition-colors',
+        'w-full flex items-center justify-between gap-3 rounded-lg px-3 h-8 text-sm text-left transition-colors',
         'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
         selected ? 'bg-accent/20 text-white' : 'bg-white/5 text-white/75 hover:bg-white/10 hover:text-white'
       )}
