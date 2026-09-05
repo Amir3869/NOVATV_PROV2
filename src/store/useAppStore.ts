@@ -20,6 +20,12 @@ import {
   clearStoredCatalog,
   hasCatalogContent,
 } from '@/lib/catalogStore';
+import {
+  MAX_PINNED_CATEGORIES,
+  dropIdsWithPrefix,
+  layoutCategories,
+  moveIdInList,
+} from '@/services/catalog/categoryLayout';
 import type {
   Profile,
   LiveChannel,
@@ -113,6 +119,21 @@ interface AppState {
    * migration de stockage à écrire.
    */
   channelRenames: Record<string, string>;
+
+  /**
+   * Catégories épinglées, par profil.
+   *
+   * Hors catalogue : une synchro ne doit pas les effacer. Quatre au
+   * plus, pour que la barre Live reste lisible sur téléphone.
+   */
+  categoryPins: Record<string, string[]>;
+  /**
+   * Ordre des catégories non épinglées, par profil.
+   *
+   * Les ids absents du catalogue sont ignorés à l'affichage ; les
+   * nouveaux se placent en fin.
+   */
+  categoryOrder: Record<string, string[]>;
 
   /**
    * Éléments mis sous verrou parental (clés de `channelLockKey` /
@@ -230,6 +251,11 @@ interface AppState {
   // Actions - Renommages
   renameCategory: (categoryId: string, name: string) => void;
   renameChannel: (channelId: string, name: string) => void;
+
+  /** Épingle ou retire une catégorie (max 4 par profil). */
+  toggleCategoryPin: (categoryId: string) => void;
+  /** Déplace une catégorie d'un cran dans son groupe (épingles ou reste). */
+  moveCategory: (categoryId: string, delta: -1 | 1) => void;
 }
 
 /**
@@ -292,6 +318,8 @@ type PersistedState = Pick<
   | 'preferences'
   | 'categoryRenames'
   | 'channelRenames'
+  | 'categoryPins'
+  | 'categoryOrder'
   | 'lockedItems'
   | 'isOnboarded'
 >;
@@ -337,6 +365,8 @@ export function migratePersistedState(
       preferences: defaultPreferences,
       categoryRenames: {},
       channelRenames: {},
+      categoryPins: {},
+      categoryOrder: {},
       lockedItems: [],
       isOnboarded: false,
     };
@@ -533,6 +563,15 @@ export function migratePersistedState(
     };
   }
 
+  // Version 12 : épinglage et ordre des catégories Live, hors catalogue.
+  if (version < 13) {
+    state = {
+      ...state,
+      categoryPins: state.categoryPins ?? {},
+      categoryOrder: state.categoryOrder ?? {},
+    };
+  }
+
   return state;
 }
 
@@ -626,6 +665,8 @@ export const useAppStore = create<AppState>()(
       preferences: defaultPreferences,
       categoryRenames: {},
       channelRenames: {},
+      categoryPins: {},
+      categoryOrder: {},
       lockedItems: [],
       sessionUnlocked: false,
       sidebarOpen: false,
@@ -650,13 +691,21 @@ export const useAppStore = create<AppState>()(
         })),
 
       deleteProfile: (profileId) =>
-        set((state) => ({
-          profiles: state.profiles.filter((p) => p.id !== profileId),
-          activeProfileId:
-            state.activeProfileId === profileId
-              ? state.profiles[0]?.id ?? null
-              : state.activeProfileId,
-        })),
+        set((state) => {
+          const categoryPins = { ...state.categoryPins };
+          const categoryOrder = { ...state.categoryOrder };
+          delete categoryPins[profileId];
+          delete categoryOrder[profileId];
+          return {
+            profiles: state.profiles.filter((p) => p.id !== profileId),
+            activeProfileId:
+              state.activeProfileId === profileId
+                ? state.profiles[0]?.id ?? null
+                : state.activeProfileId,
+            categoryPins,
+            categoryOrder,
+          };
+        }),
 
       // Playlists (sources)
       addPlaylist: (playlist) =>
@@ -744,6 +793,8 @@ export const useAppStore = create<AppState>()(
                 ([id]) => !id.startsWith(`${playlistId}:`)
               )
             ),
+            categoryPins: dropIdsWithPrefix(state.categoryPins, `${playlistId}:`),
+            categoryOrder: dropIdsWithPrefix(state.categoryOrder, `${playlistId}:`),
           };
         });
 
@@ -1090,6 +1141,47 @@ export const useAppStore = create<AppState>()(
           }
           return { channelRenames: renames };
         }),
+
+      toggleCategoryPin: (categoryId) =>
+        set((state) => {
+          const profileId = state.activeProfileId ?? 'profile-1';
+          const current = state.categoryPins[profileId] ?? [];
+          const next = current.includes(categoryId)
+            ? current.filter((id) => id !== categoryId)
+            : current.length >= MAX_PINNED_CATEGORIES
+              ? current
+              : [...current, categoryId];
+          return { categoryPins: { ...state.categoryPins, [profileId]: next } };
+        }),
+
+      moveCategory: (categoryId, delta) =>
+        set((state) => {
+          const profileId = state.activeProfileId ?? 'profile-1';
+          const pins = state.categoryPins[profileId] ?? [];
+          if (pins.includes(categoryId)) {
+            return {
+              categoryPins: {
+                ...state.categoryPins,
+                [profileId]: moveIdInList(pins, categoryId, delta),
+              },
+            };
+          }
+          const playlistId = state.activePlaylistId;
+          const cats = playlistId
+            ? state.liveCategories.filter((c) => c.playlistId === playlistId)
+            : state.liveCategories;
+          const { rest } = layoutCategories(cats, pins, state.categoryOrder[profileId] ?? []);
+          return {
+            categoryOrder: {
+              ...state.categoryOrder,
+              [profileId]: moveIdInList(
+                rest.map((c) => c.id),
+                categoryId,
+                delta
+              ),
+            },
+          };
+        }),
     }),
     {
       name: 'novatv-storage',
@@ -1105,7 +1197,7 @@ export const useAppStore = create<AppState>()(
        * À chaque incrément, Zustand appelle `migrate` ci-dessous pour
        * convertir les données déjà enregistrées au nouveau format.
        */
-      version: 12,
+      version: 13,
       migrate: migratePersistedState,
       partialize: (state) => ({
         profiles: state.profiles,

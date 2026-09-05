@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import Link from 'next/link';
@@ -14,17 +14,21 @@ import { EmptyState } from '@/design-system/components/EmptyState';
 import { formatEPGTime, getProgramProgress } from '@/utils/cn';
 import { useTranslation, type MessageKey } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
+import { useAppStore } from '@/store/useAppStore';
+import { channelDisplayName } from '@/lib/displayNames';
 
 const DAY_KEYS = ['epg.yesterday', 'epg.today', 'epg.tomorrow'] as const satisfies ReadonlyArray<MessageKey>;
 
 export function EPGPage() {
   const { t } = useTranslation();
-  const allChannels = useAppStore((s) => s.channels);
-  const allPrograms = useAppStore((s) => s.epgPrograms);
+  const { channels: allChannels, epgPrograms: allPrograms } = useActiveCatalog();
+  const channelRenames = useAppStore((s) => s.channelRenames);
   const [dayOffset, setDayOffset] = useState(0); // 0 = today, -1 = yesterday, +1 = tomorrow
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 
   const channels = allChannels;
+  const channelLabel = (ch: { id: string; name: string }) =>
+    channelDisplayName(ch.id, ch.name, channelRenames);
 
   const filteredPrograms = useMemo(() => {
     const targetDate = new Date();
@@ -115,12 +119,12 @@ export function EPGPage() {
             >
               <ImageWithFallback
                 src={ch.logo}
-                alt={ch.name}
+                alt={channelLabel(ch)}
                 className="w-8 h-5 object-contain"
                 fallbackClassName="w-8 h-5 flex-shrink-0"
                 fallback={<Radio className="w-4 h-4" />}
               />
-              <span className="truncate">{ch.name}</span>
+              <span className="truncate">{channelLabel(ch)}</span>
             </button>
           ))}
         </div>
@@ -141,7 +145,7 @@ export function EPGPage() {
                 onClick={() => setSelectedChannelId(ch.id === selectedChannelId ? null : ch.id)}
                 className={cn('flex-shrink-0 px-3 py-1.5 rounded-full text-sm transition-all', ch.id === selectedChannelId ? 'bg-accent text-white' : 'bg-white/5 text-white/50')}
               >
-                {ch.name}
+                {channelLabel(ch)}
               </button>
             ))}
           </div>
@@ -170,7 +174,7 @@ export function EPGPage() {
                       {!selectedChannelId && channel && (
                         <ImageWithFallback
                           src={channel.logo}
-                          alt={channel.name}
+                          alt={channelLabel(channel)}
                           className="w-10 h-6 object-contain flex-shrink-0 mt-1"
                           fallbackClassName="w-10 h-6 flex-shrink-0 mt-1"
                           fallback={<Radio className="w-4 h-4 text-white/20" />}
@@ -198,7 +202,7 @@ export function EPGPage() {
                         <p className={cn('font-semibold text-white', isPast && 'text-white/60')}>{prog.title}</p>
 
                         {!selectedChannelId && channel && (
-                          <p className="text-xs text-white/30 mt-0.5">{channel.name}</p>
+                          <p className="text-xs text-white/30 mt-0.5">{channelLabel(channel)}</p>
                         )}
 
                         {prog.description && (

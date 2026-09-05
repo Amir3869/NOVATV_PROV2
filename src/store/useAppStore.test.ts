@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAppStore, migratePersistedState, mergeCatalogLists } from './useAppStore';
-import type { EPGProgram, LiveChannel, Movie, Playlist, Profile, Series } from '@/types';
+import type { EPGProgram, LiveCategory, LiveChannel, Movie, Playlist, Profile, Series } from '@/types';
 
 /**
  * Le store est un singleton : sans remise à zéro, l'état laissé par un
@@ -20,8 +20,11 @@ function reset() {
     epgPrograms: [],
     categoryRenames: {},
     channelRenames: {},
+    categoryPins: {},
+    categoryOrder: {},
     lockedItems: [],
     sessionUnlocked: false,
+    watchHistory: [],
   });
 }
 
@@ -220,6 +223,83 @@ describe('renameCategory / renameChannel', () => {
   });
 });
 
+function makeLiveCategory(id: string, playlistId: string): LiveCategory {
+  return { id, name: id, playlistId, channelCount: 1 };
+}
+
+describe('toggleCategoryPin / moveCategory', () => {
+  it('épingle puis retire, par profil, sans dépasser 4', () => {
+    useAppStore.setState({ activeProfileId: 'p1' });
+    const s = useAppStore.getState();
+    s.toggleCategoryPin('a:livecat:1');
+    s.toggleCategoryPin('a:livecat:2');
+    s.toggleCategoryPin('a:livecat:3');
+    s.toggleCategoryPin('a:livecat:4');
+    s.toggleCategoryPin('a:livecat:5');
+    expect(useAppStore.getState().categoryPins.p1).toEqual([
+      'a:livecat:1',
+      'a:livecat:2',
+      'a:livecat:3',
+      'a:livecat:4',
+    ]);
+    s.toggleCategoryPin('a:livecat:2');
+    expect(useAppStore.getState().categoryPins.p1).toEqual([
+      'a:livecat:1',
+      'a:livecat:3',
+      'a:livecat:4',
+    ]);
+  });
+
+  it('sépare les profils', () => {
+    useAppStore.setState({ activeProfileId: 'p1' });
+    useAppStore.getState().toggleCategoryPin('a:livecat:1');
+    useAppStore.setState({ activeProfileId: 'p2' });
+    useAppStore.getState().toggleCategoryPin('a:livecat:9');
+    const after = useAppStore.getState();
+    expect(after.categoryPins.p1).toEqual(['a:livecat:1']);
+    expect(after.categoryPins.p2).toEqual(['a:livecat:9']);
+  });
+
+  it('déplace une épingle dans son groupe', () => {
+    useAppStore.setState({ activeProfileId: 'p1' });
+    const s = useAppStore.getState();
+    s.toggleCategoryPin('a:livecat:1');
+    s.toggleCategoryPin('a:livecat:2');
+    s.moveCategory('a:livecat:2', -1);
+    expect(useAppStore.getState().categoryPins.p1).toEqual(['a:livecat:2', 'a:livecat:1']);
+  });
+
+  it('déplace le reste selon le catalogue de la source active', () => {
+    useAppStore.setState({
+      activeProfileId: 'p1',
+      activePlaylistId: 'a',
+      liveCategories: [
+        makeLiveCategory('a:livecat:1', 'a'),
+        makeLiveCategory('a:livecat:2', 'a'),
+        makeLiveCategory('a:livecat:3', 'a'),
+      ],
+    });
+    useAppStore.getState().moveCategory('a:livecat:2', -1);
+    expect(useAppStore.getState().categoryOrder.p1).toEqual([
+      'a:livecat:2',
+      'a:livecat:1',
+      'a:livecat:3',
+    ]);
+  });
+
+  it('retire les ids de la source supprimée', () => {
+    useAppStore.setState({ activeProfileId: 'p1' });
+    const s = useAppStore.getState();
+    s.addPlaylist(makePlaylist('a'));
+    s.addPlaylist(makePlaylist('b'));
+    s.toggleCategoryPin('a:livecat:1');
+    s.toggleCategoryPin('b:livecat:1');
+    s.deletePlaylist('a');
+    const after = useAppStore.getState();
+    expect(after.categoryPins.p1).toEqual(['b:livecat:1']);
+  });
+});
+
 describe('setActivePlaylist', () => {
   it('met à jour isActive sur toutes les sources', () => {
     const s = useAppStore.getState();
@@ -289,6 +369,131 @@ describe('clearCatalog', () => {
     s.clearCatalog('a');
     expect(useAppStore.getState().channels).toHaveLength(0);
     expect(useAppStore.getState().playlists).toHaveLength(1);
+  });
+});
+
+describe('setSeriesDetails / updateMovieDetails', () => {
+  it('remplace saisons et épisodes d’une série sans toucher aux autres', () => {
+    const s = useAppStore.getState();
+    s.setCatalog('a', { series: [makeSeries('s1', 'a'), makeSeries('s2', 'a')] });
+    s.setSeriesDetails('s1', {
+      seasons: [{ id: 's1:season:1', seriesId: 's1', seasonNumber: 1, name: 'S1', episodeCount: 1 }],
+      episodes: [
+        {
+          id: 's1:episode:1',
+          seriesId: 's1',
+          seasonId: 's1:season:1',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          title: 'Pilote',
+          streamUrl: 'http://exemple/1',
+          isWatched: false,
+        },
+      ],
+      seriesPatch: { plot: 'Un synopsis.' },
+    });
+    s.setSeriesDetails('s2', {
+      seasons: [{ id: 's2:season:1', seriesId: 's2', seasonNumber: 1, name: 'S1', episodeCount: 0 }],
+      episodes: [],
+    });
+    s.setSeriesDetails('s1', {
+      seasons: [{ id: 's1:season:1', seriesId: 's1', seasonNumber: 1, name: 'Saison 1', episodeCount: 0 }],
+      episodes: [],
+      seriesPatch: { plot: 'Mis à jour.' },
+    });
+    const after = useAppStore.getState();
+    expect(after.seasons.filter((x) => x.seriesId === 's1')).toHaveLength(1);
+    expect(after.seasons.find((x) => x.seriesId === 's1')?.name).toBe('Saison 1');
+    expect(after.episodes.filter((x) => x.seriesId === 's1')).toHaveLength(0);
+    expect(after.seasons.filter((x) => x.seriesId === 's2')).toHaveLength(1);
+    expect(after.series.find((x) => x.id === 's1')?.plot).toBe('Mis à jour.');
+  });
+
+  it('enrichit un film sans toucher aux autres', () => {
+    const s = useAppStore.getState();
+    s.setCatalog('a', { movies: [makeMovie('m1', 'a'), makeMovie('m2', 'a')] });
+    s.updateMovieDetails('m1', { plot: 'Un film.', duration: 120 });
+    const after = useAppStore.getState();
+    expect(after.movies.find((m) => m.id === 'm1')?.plot).toBe('Un film.');
+    expect(after.movies.find((m) => m.id === 'm2')?.plot).toBeUndefined();
+  });
+
+  it('retire saisons et épisodes avec la source', () => {
+    const s = useAppStore.getState();
+    s.addPlaylist(makePlaylist('a'));
+    s.addPlaylist(makePlaylist('b'));
+    s.setCatalog('a', { series: [makeSeries('s1', 'a')] });
+    s.setSeriesDetails('s1', {
+      seasons: [{ id: 's1:season:1', seriesId: 's1', seasonNumber: 1, name: 'S1', episodeCount: 0 }],
+      episodes: [],
+    });
+    s.setCatalog('b', { series: [makeSeries('s2', 'b')] });
+    s.setSeriesDetails('s2', {
+      seasons: [{ id: 's2:season:1', seriesId: 's2', seasonNumber: 1, name: 'S1', episodeCount: 0 }],
+      episodes: [],
+    });
+    s.deletePlaylist('a');
+    const after = useAppStore.getState();
+    expect(after.seasons.map((x) => x.seriesId)).toEqual(['s2']);
+  });
+});
+
+describe('addToHistory', () => {
+  it('met à jour la même entrée pour un média et un profil', () => {
+    const s = useAppStore.getState();
+    s.addToHistory({
+      id: 'h1',
+      profileId: 'p1',
+      mediaId: 'm1',
+      mediaType: 'movie',
+      title: 'Film',
+      position: 10,
+      duration: 100,
+      percent: 10,
+      watchedAt: '2026-01-01T00:00:00.000Z',
+    });
+    s.addToHistory({
+      id: 'h2',
+      profileId: 'p1',
+      mediaId: 'm1',
+      mediaType: 'movie',
+      title: 'Film',
+      position: 40,
+      duration: 100,
+      percent: 40,
+      watchedAt: '2026-01-01T00:05:00.000Z',
+    });
+    const history = useAppStore.getState().watchHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0].id).toBe('h1');
+    expect(history[0].percent).toBe(40);
+  });
+
+  it('sépare les profils', () => {
+    const s = useAppStore.getState();
+    s.addToHistory({
+      id: 'h1',
+      profileId: 'p1',
+      mediaId: 'm1',
+      mediaType: 'movie',
+      title: 'Film',
+      position: 10,
+      duration: 100,
+      percent: 10,
+      watchedAt: '2026-01-01T00:00:00.000Z',
+    });
+    s.addToHistory({
+      id: 'h2',
+      profileId: 'p2',
+      mediaId: 'm1',
+      mediaType: 'movie',
+      title: 'Film',
+      position: 20,
+      duration: 100,
+      percent: 20,
+      watchedAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(useAppStore.getState().watchHistory).toHaveLength(2);
   });
 });
 

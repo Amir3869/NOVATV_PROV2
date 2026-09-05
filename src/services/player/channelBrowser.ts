@@ -22,6 +22,17 @@ import type { LiveCategory, LiveChannel } from '@/types';
  */
 export const ALL_CATEGORIES = '__all__';
 
+/** Préfixe des rubriques « liste perso », distinct des id Xtream. */
+export const LIST_CATEGORY_PREFIX = 'list:';
+
+export function listCategoryId(listId: string): string {
+  return `${LIST_CATEGORY_PREFIX}${listId}`;
+}
+
+export function isListCategoryId(categoryId: string): boolean {
+  return categoryId.startsWith(LIST_CATEGORY_PREFIX);
+}
+
 /** Une rubrique de la colonne de gauche. */
 export interface BrowserCategory {
   /** `ALL_CATEGORIES` ou l'identifiant réel de la catégorie. */
@@ -46,7 +57,8 @@ export interface BrowserCategory {
 export function buildCategoryList(
   channels: LiveChannel[],
   categories: LiveCategory[],
-  allLabel: string
+  allLabel: string,
+  pinned?: BrowserCategory[]
 ): BrowserCategory[] {
   const counts = new Map<string, number>();
   for (const channel of channels) {
@@ -75,6 +87,7 @@ export function buildCategoryList(
   ).length;
 
   const list: BrowserCategory[] = [
+    ...(pinned ?? []).filter((category) => category.count > 0),
     { id: ALL_CATEGORIES, name: allLabel, count: channels.length },
     ...known,
   ];
@@ -102,12 +115,21 @@ export const UNCATEGORIZED = '__uncategorized__';
 export function filterChannels(
   channels: LiveChannel[],
   categoryId: string,
-  query: string
+  query: string,
+  listChannelIds?: readonly string[]
 ): LiveChannel[] {
   const trimmed = query.trim().toLowerCase();
 
   if (trimmed) {
     return channels.filter((channel) => channel.name.toLowerCase().includes(trimmed));
+  }
+
+  if (isListCategoryId(categoryId)) {
+    if (!listChannelIds || listChannelIds.length === 0) return [];
+    const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    return listChannelIds
+      .map((id) => byId.get(id))
+      .filter((channel): channel is LiveChannel => Boolean(channel));
   }
 
   if (categoryId === ALL_CATEGORIES) return channels;
@@ -133,8 +155,12 @@ export function filterChannels(
  */
 export function initialCategory(
   currentChannel: LiveChannel | undefined,
-  categories: BrowserCategory[]
+  categories: BrowserCategory[],
+  preferredId?: string
 ): string {
+  if (preferredId && categories.some((c) => c.id === preferredId)) {
+    return preferredId;
+  }
   const categoryId = currentChannel?.categoryId;
   if (categoryId && categories.some((c) => c.id === categoryId)) {
     return categoryId;

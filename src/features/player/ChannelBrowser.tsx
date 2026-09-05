@@ -37,11 +37,11 @@ import { ImageWithFallback } from '@/design-system/components/ImageWithFallback'
 import type { LiveCategory, LiveChannel } from '@/types';
 import type { ChannelEpgSummary } from '@/services/player/playerEpg';
 import {
-  ALL_CATEGORIES,
   UNCATEGORIZED,
   buildCategoryList,
   filterChannels,
   initialCategory,
+  type BrowserCategory,
 } from '@/services/player/channelBrowser';
 
 /**
@@ -67,6 +67,13 @@ const PLAYER_KEYS = new Set([
 interface ChannelBrowserProps {
   channels: LiveChannel[];
   categories: LiveCategory[];
+  /**
+   * Rubriques à coller en tête (liste perso).
+   * Absentes hors de ce cas : le catalogue seul, comme avant.
+   */
+  pinnedCategories?: BrowserCategory[];
+  /** Ordre des chaînes d'une liste perso, pour la colonne de droite. */
+  listChannelIds?: readonly string[];
   /** Chaîne actuellement à l'antenne, mise en évidence dans la liste. */
   currentChannelId: string | null;
   /**
@@ -85,6 +92,8 @@ interface ChannelBrowserProps {
 export function ChannelBrowser({
   channels,
   categories,
+  pinnedCategories,
+  listChannelIds,
   currentChannelId,
   epgByChannel,
   onSelect,
@@ -102,18 +111,18 @@ export function ChannelBrowser({
   );
 
   const categoryList = useMemo(
-    () => buildCategoryList(channels, categories, t('player.channelListAll')),
-    [channels, categories, t]
+    () => buildCategoryList(channels, categories, t('player.channelListAll'), pinnedCategories),
+    [channels, categories, t, pinnedCategories]
   );
 
   const [activeCategory, setActiveCategory] = useState(() =>
-    initialCategory(currentChannel, categoryList)
+    initialCategory(currentChannel, categoryList, pinnedCategories?.[0]?.id)
   );
   const [query, setQuery] = useState('');
 
   const visibleChannels = useMemo(
-    () => filterChannels(channels, activeCategory, query),
-    [channels, activeCategory, query]
+    () => filterChannels(channels, activeCategory, query, listChannelIds),
+    [channels, activeCategory, query, listChannelIds]
   );
 
   /**

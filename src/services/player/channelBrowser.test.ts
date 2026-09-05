@@ -6,6 +6,7 @@ import {
   buildCategoryList,
   filterChannels,
   initialCategory,
+  listCategoryId,
 } from './channelBrowser';
 import type { LiveCategory, LiveChannel } from '@/types';
 
@@ -93,6 +94,22 @@ describe('buildCategoryList', () => {
       { id: ALL_CATEGORIES, name: 'Toutes', count: 0 },
     ]);
   });
+
+  it('place une liste perso en tête, avant « Toutes »', () => {
+    const channels = [channel('1', 'A', 'c1'), channel('2', 'B', 'c1')];
+    const pinned = [{ id: listCategoryId('mine'), name: 'Soirée foot', count: 1 }];
+    const list = buildCategoryList(channels, [category('c1', 'Sport')], 'Toutes', pinned);
+
+    expect(list.map((c) => c.id)).toEqual([listCategoryId('mine'), ALL_CATEGORIES, 'c1']);
+  });
+
+  it('ignore une liste perso vide', () => {
+    const channels = [channel('1', 'A', 'c1')];
+    const list = buildCategoryList(channels, [category('c1', 'Sport')], 'Toutes', [
+      { id: listCategoryId('vide'), name: 'Vide', count: 0 },
+    ]);
+    expect(list[0].id).toBe(ALL_CATEGORIES);
+  });
 });
 
 describe('filterChannels', () => {
@@ -127,6 +144,16 @@ describe('filterChannels', () => {
   it('le fourre-tout ne rend que les chaînes non classées', () => {
     expect(filterChannels(channels, UNCATEGORIZED, '').map((c) => c.id)).toEqual(['3']);
   });
+
+  it('une liste perso suit l’ordre des identifiants, pas celui du catalogue', () => {
+    const found = filterChannels(channels, listCategoryId('mine'), '', ['3', '1']);
+    expect(found.map((c) => c.id)).toEqual(['3', '1']);
+  });
+
+  it('écarte de la liste perso une chaîne absente du catalogue', () => {
+    const found = filterChannels(channels, listCategoryId('mine'), '', ['1', 'disparue']);
+    expect(found.map((c) => c.id)).toEqual(['1']);
+  });
 });
 
 describe('initialCategory', () => {
@@ -149,5 +176,15 @@ describe('initialCategory', () => {
 
   it('se replie sur « Toutes » pour une chaîne non classée', () => {
     expect(initialCategory(channel('1', 'A'), categories)).toBe(ALL_CATEGORIES);
+  });
+
+  it('ouvre la liste perso quand elle est demandée', () => {
+    const withList = [
+      { id: listCategoryId('mine'), name: 'Soirée foot', count: 2 },
+      ...categories,
+    ];
+    expect(initialCategory(channel('1', 'A', 'c1'), withList, listCategoryId('mine'))).toBe(
+      listCategoryId('mine')
+    );
   });
 });

@@ -1,11 +1,47 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LayoutGrid, List, Lock, Pencil, Search } from 'lucide-react';
+import { LayoutGrid, List, Lock, Pencil, Search, Star } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { SearchBar } from '@/design-system/components/SearchBar';
 
 export type CatalogView = 'list' | 'grid';
+
+export type CatalogToolbarCategory = {
+  id: string;
+  label: string;
+  blocked?: boolean;
+  /** Épingle collée à gauche (Live, option B). */
+  pinned?: boolean;
+};
+
+function CategoryChip({
+  cat,
+  active,
+  onSelect,
+}: {
+  cat: CatalogToolbarCategory;
+  active: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(cat.id)}
+      className={cn(
+        'flex h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        active
+          ? 'bg-accent text-white'
+          : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white',
+        cat.blocked && 'opacity-70'
+      )}
+    >
+      {cat.pinned && <Star className="me-1.5 h-3 w-3 fill-current" aria-hidden />}
+      {cat.blocked && <Lock className="me-1.5 h-3 w-3" />}
+      {cat.label}
+    </button>
+  );
+}
 
 export function CatalogToolbar({
   allLabel,
@@ -24,7 +60,7 @@ export function CatalogToolbar({
   gridLabel,
 }: {
   allLabel: string;
-  categories: ReadonlyArray<{ id: string; label: string; blocked?: boolean }>;
+  categories: ReadonlyArray<CatalogToolbarCategory>;
   /** `null` = puce « Toutes ». */
   activeId: string | null;
   onSelect: (id: string | null) => void;
@@ -42,6 +78,8 @@ export function CatalogToolbar({
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const showField = searchOpen || search.length > 0;
+  const pinned = categories.filter((cat) => cat.pinned);
+  const rest = categories.filter((cat) => !cat.pinned);
 
   return (
     <div className="flex items-center gap-2">
@@ -65,37 +103,45 @@ export function CatalogToolbar({
           className="min-w-0 flex-1"
         />
       ) : (
-        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto scrollbar-none">
-          <button
-            type="button"
-            onClick={() => onSelect(null)}
-            className={cn(
-              'h-11 shrink-0 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              activeId === null
-                ? 'bg-accent text-white'
-                : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white'
-            )}
-          >
-            {allLabel}
-          </button>
-          {categories.map((cat) => (
+        <>
+          {pinned.length > 0 && (
+            <>
+              <div className="flex shrink-0 gap-2">
+                {pinned.map((cat) => (
+                  <CategoryChip
+                    key={cat.id}
+                    cat={cat}
+                    active={cat.id === activeId}
+                    onSelect={(id) => onSelect(id)}
+                  />
+                ))}
+              </div>
+              <span aria-hidden="true" className="h-6 w-px shrink-0 bg-line" />
+            </>
+          )}
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto scrollbar-none">
             <button
-              key={cat.id}
               type="button"
-              onClick={() => onSelect(cat.id)}
+              onClick={() => onSelect(null)}
               className={cn(
-                'flex h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                cat.id === activeId
+                'h-11 shrink-0 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                activeId === null
                   ? 'bg-accent text-white'
-                  : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white',
-                cat.blocked && 'opacity-70'
+                  : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white'
               )}
             >
-              {cat.blocked && <Lock className="mr-1.5 h-3 w-3" />}
-              {cat.label}
+              {allLabel}
             </button>
-          ))}
-        </div>
+            {rest.map((cat) => (
+              <CategoryChip
+                key={cat.id}
+                cat={cat}
+                active={cat.id === activeId}
+                onSelect={(id) => onSelect(id)}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       <div className="flex shrink-0 items-center gap-1">

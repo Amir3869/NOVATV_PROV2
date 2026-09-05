@@ -66,14 +66,14 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
 
     /**
-     * Désactive le débogage à distance de la WebView depuis Chrome.
+     * Active le débogage à distance de la WebView depuis Chrome
+     * (`chrome://inspect` sur le PC).
      *
-     * Passer à `true` temporairement permet d'inspecter la console de
-     * l'application depuis `chrome://inspect` sur le PC — très utile
-     * pour diagnostiquer un flux qui refuse de se lancer sur la
-     * Firestick. À laisser sur `false` pour toute version distribuée.
+     * Indispensable pour le premier APK de test : sans ça, un flux
+     * qui refuse de démarrer sur Firestick ne laisse aucune trace.
+     * À repasser à `false` avant une version distribuée.
      */
-    webContentsDebuggingEnabled: false,
+    webContentsDebuggingEnabled: true,
   },
 
   server: {
@@ -87,6 +87,20 @@ const config: CapacitorConfig = {
      * l'application.
      */
     androidScheme: 'https',
+
+    /**
+     * Autorise le HTTP non chiffré (`http://`) côté Android.
+     *
+     * `allowMixedContent` ne concerne que la WebView. CapacitorHttp
+     * (OkHttp natif) et Android 9+ bloquent le cleartext tant que
+     * ce flag n'est pas à `true`. Sans lui, une source Xtream en
+     * `http://` se synchronise dans le vide.
+     *
+     * `cap sync` recopie ce flag dans AndroidManifest
+     * (`usesCleartextTraffic`). Le manifeste du dépôt le pose aussi
+     * en dur, pour ne pas dépendre d'une régénération.
+     */
+    cleartext: true,
   },
 
   plugins: {

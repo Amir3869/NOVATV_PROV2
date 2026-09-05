@@ -7,6 +7,7 @@ import { cn } from '@/utils/cn';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { ChannelCard } from '@/design-system/components/MediaCard';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
@@ -23,9 +24,7 @@ type ListMedia =
 
 export function CustomListsPage() {
   const { t } = useTranslation();
-  const allMovies = useAppStore((s) => s.movies);
-  const allSeries = useAppStore((s) => s.series);
-  const allChannels = useAppStore((s) => s.channels);
+  const { movies: allMovies, series: allSeries, channels: allChannels } = useActiveCatalog();
   const customLists = useAppStore((s) => s.customLists);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const updateCustomList = useAppStore((s) => s.updateCustomList);
@@ -199,6 +198,7 @@ export function CustomListsPage() {
                                 channel={item.data}
                                 variant="list"
                                 className="rounded-none border-0"
+                                listId={list.id}
                               />
                             );
                           }

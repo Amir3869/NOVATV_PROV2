@@ -14,6 +14,10 @@ import { CategoryRenamePanel } from '@/features/categories/CategoryRenamePanel';
 import { AppDialog } from '@/design-system/components/AppDialog';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { useTranslation } from '@/i18n';
+import {
+  EMPTY_CATEGORY_IDS,
+  layoutCategories,
+} from '@/services/catalog/categoryLayout';
 
 export function LiveTVPage() {
   const { t } = useTranslation();
@@ -27,6 +31,9 @@ export function LiveTVPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const favorites = useAppStore((s) => s.favorites);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
+  const profileId = activeProfileId ?? 'profile-1';
+  const categoryPins = useAppStore((s) => s.categoryPins[profileId] ?? EMPTY_CATEGORY_IDS);
+  const categoryOrder = useAppStore((s) => s.categoryOrder[profileId] ?? EMPTY_CATEGORY_IDS);
   // Verrou parental des catégories : une catégorie sous cadenas ne
   // s'ouvre pas tant que le code n'a pas été saisi (session).
   const { isCategoryBlocked, ensureUnlocked } = useParental();
@@ -69,6 +76,12 @@ export function LiveTVPage() {
   // catalogue a disparu.
   const hydrated = useHydrated();
 
+  const laidOutCategories = useMemo(() => {
+    const { pinned, rest } = layoutCategories(allCategories, categoryPins, categoryOrder);
+    return [...pinned, ...rest];
+  }, [allCategories, categoryPins, categoryOrder]);
+  const pinnedIds = useMemo(() => new Set(categoryPins), [categoryPins]);
+
   const favoriteChannels = enrichedChannels.filter((ch) => favoriteChannelIds.includes(ch.id));
   const recentChannels = enrichedChannels.filter((ch) => ch.isRecent);
 
@@ -95,7 +108,7 @@ export function LiveTVPage() {
         size="lg"
       >
         <CategoryRenamePanel
-          categories={allCategories}
+          categories={laidOutCategories}
           title={t('liveTV.myCategories')}
           hint={t('liveTV.myCategoriesHint')}
         />
@@ -103,10 +116,11 @@ export function LiveTVPage() {
 
       <CatalogToolbar
         allLabel={t('liveTV.allCategories')}
-        categories={allCategories.map((cat) => ({
+        categories={laidOutCategories.map((cat) => ({
           id: cat.id,
           label: categoryDisplayName(cat.id, cat.name, categoryRenames),
           blocked: isCategoryBlocked(cat),
+          pinned: pinnedIds.has(cat.id),
         }))}
         activeId={activeCategory}
         onSelect={(id) => {

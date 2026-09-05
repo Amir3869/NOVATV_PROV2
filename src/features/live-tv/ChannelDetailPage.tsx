@@ -11,6 +11,7 @@ import { GlassCard } from '@/design-system/components/GlassCard';
 import { ProgressBar } from '@/design-system/components/ProgressBar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { DetailSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { formatEPGTime, getProgramProgress } from '@/utils/cn';
@@ -22,8 +23,7 @@ interface Props { channelId: string; }
 
 export function ChannelDetailPage({ channelId }: Props) {
   const { t } = useTranslation();
-  const allChannels = useAppStore((s) => s.channels);
-  const allPrograms = useAppStore((s) => s.epgPrograms);
+  const { channels: allChannels, epgPrograms: allPrograms } = useActiveCatalog();
   const router = useRouter();
   const [imgError, setImgError] = useState(false);
   const channel = allChannels.find((c) => c.id === channelId);
@@ -89,7 +89,7 @@ export function ChannelDetailPage({ channelId }: Props) {
         {/* Channel logo centered */}
         <div className="absolute inset-0 flex items-center justify-center">
           {channel.logo && !imgError ? (
-            <img src={channel.logo} alt={channel.name} className="max-h-24 max-w-48 object-contain filter drop-shadow-2xl" onError={() => setImgError(true)} />
+            <img src={channel.logo} alt={displayName} className="max-h-24 max-w-48 object-contain filter drop-shadow-2xl" onError={() => setImgError(true)} />
           ) : (
             <div className="w-24 h-16 rounded-xl bg-white/5 flex items-center justify-center">
               <Radio className="w-8 h-8 text-white/30" />
@@ -191,7 +191,7 @@ export function ChannelDetailPage({ channelId }: Props) {
 
       {renameOpen && (
         <ChannelRenameDialog
-          initialName={channel.name}
+          initialName={displayName}
           onSubmit={handleRename}
           onClose={() => setRenameOpen(false)}
         />

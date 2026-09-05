@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { Search, Clock, X, Tv, Film, BookOpen, Radio } from 'lucide-react';
@@ -12,6 +12,8 @@ import { EmptyState } from '@/design-system/components/EmptyState';
 import { Badge } from '@/design-system/components/Badge';
 import Link from 'next/link';
 import { useTranslation, type MessageKey } from '@/i18n';
+import { useAppStore } from '@/store/useAppStore';
+import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
 
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -25,10 +27,9 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function SearchPage() {
   const { t } = useTranslation();
-  const allChannels = useAppStore((s) => s.channels);
-  const allPrograms = useAppStore((s) => s.epgPrograms);
-  const allMovies = useAppStore((s) => s.movies);
-  const allSeries = useAppStore((s) => s.series);
+  const { channels: allChannels, epgPrograms: allPrograms, movies: allMovies, series: allSeries } = useActiveCatalog();
+  const channelRenames = useAppStore((s) => s.channelRenames);
+  const categoryRenames = useAppStore((s) => s.categoryRenames);
 
   // Suggestions tirées des catégories réellement présentes dans le
   // catalogue : proposer un genre absent mènerait à zéro résultat.
@@ -48,12 +49,21 @@ export function SearchPage() {
     const q = debouncedQuery.toLowerCase();
 
     return {
-      channels: allChannels.filter((c) => c.name.toLowerCase().includes(q) || c.categoryName?.toLowerCase().includes(q)).slice(0, 6),
+      channels: allChannels
+        .filter((c) => {
+          const name = channelDisplayName(c.id, c.name, channelRenames);
+          const cat =
+            c.categoryId && c.categoryName
+              ? categoryDisplayName(c.categoryId, c.categoryName, categoryRenames)
+              : c.categoryName;
+          return name.toLowerCase().includes(q) || Boolean(cat?.toLowerCase().includes(q));
+        })
+        .slice(0, 6),
       movies: allMovies.filter((m) => m.name.toLowerCase().includes(q) || m.genre?.toLowerCase().includes(q) || m.cast?.toLowerCase().includes(q) || m.director?.toLowerCase().includes(q)).slice(0, 8),
       series: allSeries.filter((s) => s.name.toLowerCase().includes(q) || s.genre?.toLowerCase().includes(q) || s.cast?.toLowerCase().includes(q)).slice(0, 6),
       programs: allPrograms.filter((p) => p.title.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)).slice(0, 6),
     };
-  }, [debouncedQuery, allChannels, allMovies, allSeries, allPrograms]);
+  }, [debouncedQuery, allChannels, allMovies, allSeries, allPrograms, channelRenames, categoryRenames]);
 
   const totalResults = results ? results.channels.length + results.movies.length + results.series.length + results.programs.length : 0;
 

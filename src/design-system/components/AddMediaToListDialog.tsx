@@ -5,6 +5,7 @@ import { Check, Search } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/useAppStore';
 import { useTranslation } from '@/i18n';
+import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
 import toast from 'react-hot-toast';
 import type { Favorite } from '@/types';
 import { AppDialog } from './AppDialog';
@@ -31,6 +32,8 @@ function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
   const channels = useAppStore((s) => s.channels);
   const movies = useAppStore((s) => s.movies);
   const series = useAppStore((s) => s.series);
+  const channelRenames = useAppStore((s) => s.channelRenames);
+  const categoryRenames = useAppStore((s) => s.categoryRenames);
   const customLists = useAppStore((s) => s.customLists);
   const addToList = useAppStore((s) => s.addToList);
   const removeFromList = useAppStore((s) => s.removeFromList);
@@ -51,7 +54,15 @@ function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
     [source],
   );
   const visible = source.filter((item) => {
-    const text = `${item.name} ${item.categoryName ?? ''}`.toLowerCase();
+    const displayed =
+      family === 'channel'
+        ? channelDisplayName(item.id, item.name, channelRenames)
+        : item.name;
+    const cat =
+      family === 'channel' && 'categoryId' in item && item.categoryId && item.categoryName
+        ? categoryDisplayName(item.categoryId, item.categoryName, categoryRenames)
+        : (item.categoryName ?? '');
+    const text = `${displayed} ${item.name} ${cat}`.toLowerCase();
     return (!query || text.includes(query.toLowerCase())) && (category === '__all__' || item.categoryName === category);
   });
 
@@ -186,7 +197,11 @@ function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
                 >
                   <Check className="h-3.5 w-3.5" />
                 </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-white">{item.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-white">
+                  {family === 'channel'
+                    ? channelDisplayName(item.id, item.name, channelRenames)
+                    : item.name}
+                </span>
                 <span className="text-xs text-white/40">{item.categoryName ?? ''}</span>
               </button>
             );

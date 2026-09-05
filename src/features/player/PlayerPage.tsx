@@ -22,6 +22,12 @@ import { videoFitClassName } from '@/services/player/videoFit';
 import { SubtitleOverlay, type SubtitleAppearance } from './SubtitleOverlay';
 import { AudioSubtitleMenu } from './AudioSubtitleMenu';
 import { ChannelBrowser } from './ChannelBrowser';
+import { listCategoryId } from '@/services/player/channelBrowser';
+import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
+import {
+  EMPTY_CATEGORY_IDS,
+  layoutCategories,
+} from '@/services/catalog/categoryLayout';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePlayerLandscapeLock } from '@/hooks/usePlayerLandscapeLock';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -129,6 +135,16 @@ function PlayerContent() {
   const router = useRouter();
   const type = searchParams.get('type') as 'live' | 'movie' | 'episode' | null;
   const id = searchParams.get('id');
+  const listId = searchParams.get('listId');
+  const customLists = useAppStore((s) => s.customLists);
+  const categoryRenames = useAppStore((s) => s.categoryRenames);
+  const channelRenames = useAppStore((s) => s.channelRenames);
+  const categoryPins = useAppStore(
+    (s) => s.categoryPins[activeProfileId ?? 'profile-1'] ?? EMPTY_CATEGORY_IDS
+  );
+  const categoryOrder = useAppStore(
+    (s) => s.categoryOrder[activeProfileId ?? 'profile-1'] ?? EMPTY_CATEGORY_IDS
+  );
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   /**
@@ -197,7 +213,9 @@ function PlayerContent() {
   const movie = type === 'movie' && id ? allMovies.find((m) => m.id === id) : undefined;
   const episode = type === 'episode' && id ? allEpisodes.find((e) => e.id === id) : undefined;
 
-  const mediaTitle = channel?.name ?? movie?.name ?? episode?.title;
+  const mediaTitle = channel
+    ? channelDisplayName(channel.id, channel.name, channelRenames)
+    : movie?.name ?? episode?.title;
   const streamUrl = channel?.streamUrl ?? movie?.streamUrl ?? episode?.streamUrl ?? null;
   const streamType = channel?.streamType;
 
@@ -450,6 +468,43 @@ function PlayerContent() {
     continue pendant qu'on parcourt la liste.
   */
   const [browserOpen, setBrowserOpen] = useState(false);
+  const sourceList = useMemo(() => {
+    if (!listId) return undefined;
+    const profileId = activeProfileId ?? 'profile-1';
+    return customLists.find((l) => l.id === listId && l.profileId === profileId);
+  }, [listId, customLists, activeProfileId]);
+  const listChannelIds = useMemo(() => {
+    if (!sourceList) return undefined;
+    return sourceList.items
+      .filter((item) => item.mediaType === 'channel')
+      .map((item) => item.mediaId);
+  }, [sourceList]);
+  const pinnedCategories = useMemo(() => {
+    if (!sourceList || !listChannelIds) return undefined;
+    const present = new Set(allChannels.map((c) => c.id));
+    const count = listChannelIds.filter((channelId) => present.has(channelId)).length;
+    if (count === 0) return undefined;
+    return [{ id: listCategoryId(sourceList.id), name: sourceList.name, count }];
+  }, [sourceList, listChannelIds, allChannels]);
+  const liveCategoriesForBrowser = useMemo(() => {
+    const { pinned, rest } = layoutCategories(
+      allLiveCategories,
+      categoryPins,
+      categoryOrder
+    );
+    return [...pinned, ...rest].map((category) => ({
+      ...category,
+      name: categoryDisplayName(category.id, category.name, categoryRenames),
+    }));
+  }, [allLiveCategories, categoryPins, categoryOrder, categoryRenames]);
+  const channelsForBrowser = useMemo(
+    () =>
+      allChannels.map((ch) => ({
+        ...ch,
+        name: channelDisplayName(ch.id, ch.name, channelRenames),
+      })),
+    [allChannels, channelRenames]
+  );
   const canBrowseChannels = isLive && allChannels.length > 0;
   const showChannelBrowser = browserOpen && canBrowseChannels;
 
@@ -538,7 +593,8 @@ function PlayerContent() {
     // `replace` et non `push` : sans cela, zapper quinze fois empilerait
     // quinze entrees dans l'historique, et le bouton Retour obligerait a
     // les remonter une par une avant de sortir du lecteur.
-    router.replace(`/player?type=live&id=${encodeURIComponent(next.id)}`);
+    const href = `/player?type=live&id=${encodeURIComponent(next.id)}`;
+    router.replace(listId ? `${href}&listId=${encodeURIComponent(listId)}` : href);
   };
 
   /*
@@ -555,7 +611,8 @@ function PlayerContent() {
   const handleSelectChannel = (next: LiveChannel) => {
     setBrowserOpen(false);
     if (next.id === id) return;
-    router.replace(`/player?type=live&id=${encodeURIComponent(next.id)}`);
+    const href = `/player?type=live&id=${encodeURIComponent(next.id)}`;
+    router.replace(listId ? `${href}&listId=${encodeURIComponent(listId)}` : href);
   };
 
   // Auto-hide controls
@@ -1482,8 +1539,11 @@ function PlayerContent() {
 
       {showChannelBrowser && (
         <ChannelBrowser
-          channels={allChannels}
-          categories={allLiveCategories}
+          key={pinnedCategories?.[0]?.id ?? 'catalog'}
+          channels={channelsForBrowser}
+          categories={liveCategoriesForBrowser}
+          pinnedCategories={pinnedCategories}
+          listChannelIds={listChannelIds}
           currentChannelId={id}
           epgByChannel={channelEpgMap}
           onSelect={handleSelectChannel}
