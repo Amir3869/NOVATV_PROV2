@@ -81,6 +81,8 @@ export const ar: Messages = {
     favorites: 'المفضلة',
     synopsis: 'الملخّص',
     cast: 'طاقم التمثيل',
+    showPassword: 'إظهار كلمة المرور',
+    hidePassword: 'إخفاء كلمة المرور',
   },
 
   home: {
@@ -203,6 +205,8 @@ export const ar: Messages = {
     subtitle: 'جدول البرامج',
     allChannels: 'الكل',
     onNow: 'يُبثّ الآن',
+    loadFailed: 'تعذّر تحميل الدليل.',
+    loadFailedDescription: 'فشل التنزيل أو تعذّر ربط أي قناة. أعد المحاولة.',
   },
 
   favorites: {
@@ -428,6 +432,11 @@ export const ar: Messages = {
     deleted: 'تم حذف المصدر',
     setActive: 'استخدام هذا المصدر',
     activated: 'المصدر النشط: {name}',
+    passwordKeepHint: 'اترك الحقل فارغًا للاحتفاظ بكلمة المرور المحفوظة.',
+    savedCredentials: 'تم حفظ بيانات الدخول',
+    fileRenameOnly: 'يمكن تغيير اسم مصدر الملف هذا فقط.',
+    editCredentialsHint: 'نفس المصدر: المعرّف لا يتغير. يلزم اختبار ناجح قبل الحفظ.',
+    reimportFileHint: 'لتغيير الملف، احذف هذا المصدر ثم استورد ملفًا آخر.',
   },
 
   profiles: {
@@ -483,6 +492,8 @@ export const ar: Messages = {
   settings: {
     title: 'الإعدادات',
     profile: 'الملف الشخصي',
+    sources: 'المصادر',
+    sourcesDescription: 'حسابات Xtream وقوائم M3U',
     appearance: 'المظهر',
     playback: 'التشغيل',
     language: 'اللغة',

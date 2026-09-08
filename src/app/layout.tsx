@@ -99,8 +99,16 @@ const themeInitScript = `
     // refermerait le gabarit JavaScript qui contient ce script.)
     var isTvAgent = /\\b(AFT[A-Z0-9]{1,5}|Android\\s?TV|GoogleTV|SMART-TV|SmartTV|Tizen|Web0S|WebOS|BRAVIA|HbbTV|NetCast|VIDAA|Roku)\\b/i.test(navigator.userAgent);
 
-    if (glass === null) glass = !isTvAgent;
+    var isAndroidPhone = /Android/i.test(navigator.userAgent) && !isTvAgent;
+    if (glass === null) glass = !isTvAgent && !isAndroidPhone;
     if (!glass) root.setAttribute('data-glass', 'off');
+
+    // Barres système Samsung : la WebView passe dessous (SDK 36).
+    // Classe lue par globals.css (--safe-top / --safe-bottom).
+    // Aligné sur isAndroidPhoneAgent() dans src/lib/safeArea.ts.
+    if (/Android/i.test(navigator.userAgent) && !isTvAgent) {
+      root.classList.add('android-phone');
+    }
 
     // Animations : même parade anti-clignotement. Sans cette ligne, les
     // transitions joueraient pendant le premier affichage avant d'être

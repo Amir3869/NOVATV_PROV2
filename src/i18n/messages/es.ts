@@ -72,6 +72,8 @@ export const es: Messages = {
     favorites: 'Favoritos',
     synopsis: 'Sinopsis',
     cast: 'Reparto',
+    showPassword: 'Mostrar contraseña',
+    hidePassword: 'Ocultar contraseña',
   },
 
   home: {
@@ -194,6 +196,8 @@ export const es: Messages = {
     subtitle: 'Programación',
     allChannels: 'Todas',
     onNow: 'EN EMISIÓN',
+    loadFailed: 'No se pudo cargar la guía.',
+    loadFailedDescription: 'La descarga falló o no se pudo asociar ninguna cadena. Inténtalo de nuevo.',
   },
 
   favorites: {
@@ -419,6 +423,11 @@ export const es: Messages = {
     deleted: 'Fuente eliminada',
     setActive: 'Usar esta fuente',
     activated: 'Fuente activa: {name}',
+    passwordKeepHint: 'Deje vacío para conservar la contraseña guardada.',
+    savedCredentials: 'Credenciales guardadas',
+    fileRenameOnly: 'Solo se puede cambiar el nombre de esta fuente de archivo.',
+    editCredentialsHint: 'Misma fuente: el identificador no cambia. Se exige una prueba correcta antes de guardar.',
+    reimportFileHint: 'Para cambiar el archivo, elimine esta fuente e importe otra.',
   },
 
   profiles: {
@@ -474,6 +483,8 @@ export const es: Messages = {
   settings: {
     title: 'Ajustes',
     profile: 'Perfil',
+    sources: 'Fuentes',
+    sourcesDescription: 'Cuentas Xtream y listas M3U',
     appearance: 'Apariencia',
     playback: 'Reproducción',
     language: 'Idioma',

@@ -56,10 +56,10 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // Applique le thème choisi (clair, sombre, ou suivi du système).
   useTheme();
 
-  // Applique l'effet de verre dépoli. Sans choix explicite de
-  // l'utilisateur, il est actif partout sauf sur téléviseur, où le flou
-  // coûte trop cher en fluidité. `isReady` évite d'agir avant que la
-  // détection d'appareil ait réellement eu lieu.
+  // Applique l'effet de verre dépoli. Sans choix explicite, il est
+  // coupé sur téléviseur et téléphone Android (le flou des barres
+  // faisait saccader les onglets). `isReady` évite d'agir avant la
+  // détection d'appareil.
   useGlass(isTV, isReady);
 
   // Applique le réglage des animations. Sans choix explicite, il suit le

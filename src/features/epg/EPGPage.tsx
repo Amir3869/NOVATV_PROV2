@@ -16,12 +16,15 @@ import { useTranslation, type MessageKey } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 import { useAppStore } from '@/store/useAppStore';
 import { channelDisplayName } from '@/lib/displayNames';
+import { runPlaylistEpg } from '@/features/playlists/runPlaylistEpg';
+import toast from 'react-hot-toast';
 
 const DAY_KEYS = ['epg.yesterday', 'epg.today', 'epg.tomorrow'] as const satisfies ReadonlyArray<MessageKey>;
 
 export function EPGPage() {
   const { t } = useTranslation();
-  const { channels: allChannels, epgPrograms: allPrograms } = useActiveCatalog();
+  const { channels: allChannels, epgPrograms: allPrograms, activePlaylistId } = useActiveCatalog();
+  const [epgBusy, setEpgBusy] = useState(false);
   const channelRenames = useAppStore((s) => s.channelRenames);
   const [dayOffset, setDayOffset] = useState(0); // 0 = today, -1 = yesterday, +1 = tomorrow
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
@@ -50,6 +53,32 @@ export function EPGPage() {
   }, [filteredPrograms, selectedChannelId]);
 
   const now = new Date();
+
+  const handleRetryEpg = async () => {
+    if (!activePlaylistId || epgBusy) return;
+    setEpgBusy(true);
+    try {
+      const result = await runPlaylistEpg(activePlaylistId);
+      if (!result) {
+        toast.error(t('epg.loadFailed'));
+        return;
+      }
+      if (result.programs.length === 0) {
+        toast.error(t('playlists.epgNoMatch'));
+        return;
+      }
+      toast.success(
+        t('playlists.epgSummary', {
+          programs: result.programs.length,
+          channels: result.matchedChannels,
+        })
+      );
+    } catch {
+      toast.error(t('epg.loadFailed'));
+    } finally {
+      setEpgBusy(false);
+    }
+  };
 
   // Voir useHydrated : ne rien conclure tant que les données
   // enregistrées ne sont pas relues.
@@ -151,7 +180,23 @@ export function EPGPage() {
           </div>
 
           {channelPrograms.length === 0 ? (
-            <EmptyState emoji="📅" title={t('epg.noPrograms')} description={t('epg.noProgramsDescription')} />
+            <EmptyState
+              emoji="📅"
+              title={allPrograms.length === 0 && allChannels.length > 0 ? t('epg.loadFailed') : t('epg.noPrograms')}
+              description={
+                allPrograms.length === 0 && allChannels.length > 0
+                  ? t('epg.loadFailedDescription')
+                  : t('epg.noProgramsDescription')
+              }
+              action={
+                allPrograms.length === 0 && allChannels.length > 0 && activePlaylistId
+                  ? {
+                      label: epgBusy ? t('common.loading') : t('common.retry'),
+                      onClick: handleRetryEpg,
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <div className="space-y-2">
               {channelPrograms.map((prog) => {

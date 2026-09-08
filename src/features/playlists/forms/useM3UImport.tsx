@@ -24,6 +24,7 @@ import {
 import type { Playlist } from '@/types';
 import { useTranslation } from '@/i18n';
 import { ERROR_KEYS } from '../syncMessages';
+import { schedulePlaylistEpg } from '../runPlaylistEpg';
 
 /**
  * Logique commune aux deux imports M3U.
@@ -43,7 +44,6 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
 
   const addPlaylist = useAppStore((s) => s.addPlaylist);
   const setCatalog = useAppStore((s) => s.setCatalog);
-  const setActivePlaylist = useAppStore((s) => s.setActivePlaylist);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -91,7 +91,9 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
 
       addPlaylist(playlist);
       setCatalog(id, result.catalog);
-      setActivePlaylist(id);
+      schedulePlaylistEpg(id);
+      // La première source s'active dans `addPlaylist`. Une suivante
+      // reste en réserve jusqu'au bouton « Utiliser cette source ».
 
       const summary = t('playlists.importSummary', { channels: result.counts.channels });
       const extra =

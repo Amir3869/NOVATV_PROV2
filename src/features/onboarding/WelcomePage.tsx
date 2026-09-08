@@ -111,6 +111,7 @@ export function WelcomePage() {
   const { t } = useTranslation();
   const setLocale = useSetLocale();
   const addProfile = useAppStore((s) => s.addProfile);
+  const setActiveProfile = useAppStore((s) => s.setActiveProfile);
   const profiles = useAppStore((s) => s.profiles);
   const setOnboarded = useAppStore((s) => s.setOnboarded);
   const playlistCount = useAppStore((s) => s.playlists.length);
@@ -223,6 +224,15 @@ export function WelcomePage() {
         updatedAt: now,
       };
       addProfile(profile);
+      // addProfile active déjà si null ; on le dit aussi ici pour
+      // qu'un rejeu d'onboarding ne laisse pas l'ancien actif absent.
+      setActiveProfile(id);
+    } else {
+      const existing =
+        profiles.find(
+          (p) => normalizeProfileName(p.name).toLowerCase() === name.toLowerCase()
+        ) ?? profiles[0];
+      if (existing) setActiveProfile(existing.id);
     }
 
     setOnboarded(true);
@@ -233,7 +243,7 @@ export function WelcomePage() {
       // Sans conséquence : `isOnboarded` fait foi.
     }
     router.replace('/');
-  }, [state.draft, profiles, addProfile, setOnboarded, router]);
+  }, [state.draft, profiles, addProfile, setActiveProfile, setOnboarded, router]);
 
   const handleNext = useCallback(() => {
     // On avance sur l'état enrichi d'une source préexistante, sinon la
@@ -289,7 +299,7 @@ export function WelcomePage() {
       />
 
       {/* En-tête : marque et progression. */}
-      <header className="relative z-10 flex items-center gap-4 px-6 pt-6 md:px-12 md:pt-8">
+      <header className="relative z-10 flex items-center gap-4 px-6 pt-[max(1.5rem,calc(var(--safe-top)+0.5rem))] md:px-12 md:pt-[max(2rem,calc(var(--safe-top)+0.75rem))]">
         <span className="text-sm font-extrabold tracking-[0.14em] text-white">
           NOVA<span className="text-accent">TV</span>
         </span>
@@ -354,7 +364,7 @@ export function WelcomePage() {
           étapes suivantes, où « Retour » et « Suivant » forment une
           paire attendue en bas. */}
       {step !== 'welcome' && (
-      <footer className="relative z-10 flex items-center justify-between px-6 pb-8 md:px-12 md:pb-10">
+      <footer className="relative z-10 flex items-center justify-between px-6 pb-[max(2rem,calc(var(--safe-bottom)+0.75rem))] md:px-12 md:pb-[max(2.5rem,calc(var(--safe-bottom)+1rem))]">
         {/* Masqué et non désactivé sur le premier écran : un bouton
             visible mais inerte se fait essayer à la télécommande et
             laisse croire à un blocage. */}

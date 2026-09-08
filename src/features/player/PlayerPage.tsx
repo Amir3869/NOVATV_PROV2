@@ -30,6 +30,7 @@ import {
 } from '@/services/catalog/categoryLayout';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePlayerLandscapeLock } from '@/hooks/usePlayerLandscapeLock';
+import { usePlayerImmersive } from '@/hooks/usePlayerImmersive';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { SleepMenu, SpeedMenu } from './PlayerExtraMenus';
 import { qualityLabel } from '@/services/player/qualityLadder';
@@ -104,6 +105,7 @@ function PlayerContent() {
    */
   const lockLandscape = isReady && hasTouch && !isTV;
   usePlayerLandscapeLock(lockLandscape);
+  usePlayerImmersive(isReady);
   const showRotate = lockLandscape && orientation === 'portrait';
   /** Hauteur paysage téléphone (~390–430) : le gros play central chevauche les barres. */
   const compactChrome = isReady && height > 0 && height < 500;
@@ -440,6 +442,8 @@ function PlayerContent() {
     setPlaybackRate(1);
   }
   const lastTapRef = useRef<{ t: number; x: number } | null>(null);
+  /** Un tactile synthétise souvent un `mousemove` : sans ça, cacher le chrome le ferait réapparaître. */
+  const lastTouchAtRef = useRef(0);
 
   /**
    * Réglages d'apparence des sous-titres, lus depuis les préférences.
@@ -693,6 +697,12 @@ function PlayerContent() {
       }
       lastTapRef.current = { t: now, x };
     }
+
+    if (showControls) {
+      if (controlsTimer.current) clearTimeout(controlsTimer.current);
+      setShowControls(false);
+      return;
+    }
     resetControlsTimer();
   };
 
@@ -839,15 +849,19 @@ function PlayerContent() {
     <div
       ref={containerRef}
       className={cn(
-        'cinema relative bg-black flex items-center justify-center overflow-hidden select-none',
+        'cinema relative flex items-center justify-center overflow-hidden select-none',
+        player.usesNativeSurface ? 'bg-transparent' : 'bg-black',
         isFullscreen ? 'fixed inset-0 z-[100]' : 'min-h-dvh w-full'
       )}
-      onMouseMove={() => { if (!controlsLocked) resetControlsTimer(); }}
+      onMouseMove={() => {
+        if (controlsLocked) return;
+        if (Date.now() - lastTouchAtRef.current < 800) return;
+        resetControlsTimer();
+      }}
       onClick={handleSurfaceClick}
-      // Sur mobile et tablette il n'y a pas de survol : sans ce
-      // gestionnaire, les contrôles — masqués au démarrage — seraient
-      // impossibles à faire réapparaître.
-      onTouchStart={() => { if (!controlsLocked) resetControlsTimer(); }}
+      onTouchStart={() => {
+        lastTouchAtRef.current = Date.now();
+      }}
     >
       {/* Balise vidéo réelle.
           Elle est toujours montée, même sans URL : le hook a besoin de
@@ -857,9 +871,8 @@ function PlayerContent() {
       <video
         ref={attachVideo}
         className={cn(
-          'absolute inset-0 w-full h-full bg-black',
-          // Un flux audio seul ou une erreur laissent une zone noire ;
-          // on garde la balise en place mais on montre le message.
+          'absolute inset-0 w-full h-full',
+          player.usesNativeSurface ? 'invisible bg-transparent' : 'bg-black',
           streamUrl ? videoFitClassName(videoFit) : 'hidden'
         )}
         playsInline
@@ -911,9 +924,9 @@ function PlayerContent() {
         </div>
       )}
 
-      {/* Chargement du flux. */}
+      {/* Chargement du flux : calque noir, pas le blanc du WebView. */}
       {streamUrl && player.isLoading && !player.error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
+        <div className="absolute inset-0 bg-black flex flex-col items-center justify-center gap-4 pointer-events-none">
           <div className="w-12 h-12 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           <p className="text-white/60 text-sm" role="status" aria-live="polite">
             {t('player.loading')}
@@ -924,8 +937,8 @@ function PlayerContent() {
       {/* Mémoire tampon en cours de lecture : plus discret qu'une
           erreur, la lecture va reprendre toute seule. */}
       {streamUrl && !player.isLoading && player.isBuffering && !player.error && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-black/60 backdrop-blur-sm">
+        <div className="absolute inset-0 bg-black flex items-center justify-center pointer-events-none">
+          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-black/80">
             <div className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
             <span className="text-white/80 text-xs" role="status" aria-live="polite">
               {t('player.buffering')}
@@ -1615,6 +1628,16 @@ function PlayerContent() {
           <p className="text-white/60 text-sm mt-2 max-w-xs">
             {t('player.rotateHint')}
           </p>
+          {/* Sortir sans relocker l'orientation : le lecteur reste
+              paysage-only, ce bouton quitte la page. */}
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-8 inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm font-semibold hover:bg-white/15"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {t('common.back')}
+          </button>
         </div>
       )}
     </div>

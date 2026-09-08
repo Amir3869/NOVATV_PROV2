@@ -229,9 +229,9 @@ export function BottomNav() {
   return (
     <nav
       aria-label={t('nav.mainMenu')}
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-surface-1/90 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl safe-area-pb lg:hidden"
+      className="fixed inset-x-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-surface-1/90 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl lg:hidden bottom-[max(0.5rem,var(--safe-bottom))]"
     >
-      <div className="flex items-center justify-around gap-1 px-2 py-2">
+      <div className="flex items-center justify-around gap-1 px-1.5 py-1.5">
         {items.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
@@ -268,7 +268,6 @@ export function TopBar() {
   const secondaryItems = [
     { href: '/epg', label: t('nav.epg'), icon: CalendarDays },
     { href: '/history', label: t('nav.history'), icon: History },
-    { href: '/playlists', label: t('nav.playlists'), icon: Radio },
   ];
   // TV / Films / Séries ont déjà une loupe de filtre dans la rangée.
   // La loupe du bandeau ouvre /search (autre écran) : deux portes pour
@@ -279,7 +278,7 @@ export function TopBar() {
     pathname.startsWith('/series');
 
   return (
-    <header className="sticky top-0 z-40 px-3 pt-3 sm:px-5 lg:px-6">
+    <header className="sticky top-0 z-40 px-3 pt-[max(0.75rem,var(--safe-top))] sm:px-5 lg:px-6">
       <nav aria-label={t('nav.mainMenu')} className="relative mx-auto flex min-h-16 max-w-[1500px] flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/10 bg-surface-1/75 px-3 py-2 shadow-[0_16px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
         <NovaLogo variant="compact" size="xs" className="mx-2 shrink-0" />
         <div className="hidden h-7 w-px shrink-0 bg-white/10 lg:block" />

@@ -575,6 +575,41 @@ describe('clearCatalog et guide', () => {
  * qui aurait ensuite empêché le réglage système d'accessibilité et le
  * comportement par défaut sur téléviseur de s'appliquer.
  */
+describe('addProfile', () => {
+  it('active le premier profil créé', () => {
+    useAppStore.setState({ profiles: [], activeProfileId: null });
+    useAppStore.getState().addProfile(makeProfile('p-new'));
+    expect(useAppStore.getState().activeProfileId).toBe('p-new');
+    expect(useAppStore.getState().profiles).toHaveLength(1);
+  });
+
+  it('ne vole pas un profil déjà actif', () => {
+    useAppStore.setState({ profiles: [makeProfile('p1')], activeProfileId: 'p1' });
+    useAppStore.getState().addProfile(makeProfile('p2'));
+    expect(useAppStore.getState().activeProfileId).toBe('p1');
+    expect(useAppStore.getState().profiles).toHaveLength(2);
+  });
+
+  it('rattache les listes orphelines profile-1 au premier profil réel', () => {
+    useAppStore.setState({
+      profiles: [],
+      activeProfileId: null,
+      customLists: [
+        {
+          id: 'l1',
+          profileId: 'profile-1',
+          name: 'Sport',
+          items: [],
+          createdAt: '2026-01-01',
+          updatedAt: '2026-01-01',
+        },
+      ],
+    });
+    useAppStore.getState().addProfile(makeProfile('p-real'));
+    expect(useAppStore.getState().customLists[0].profileId).toBe('p-real');
+  });
+});
+
 describe('migratePersistedState', () => {
   const stockageV3 = () => ({
     profiles: [],
@@ -673,6 +708,27 @@ describe('migratePersistedState', () => {
     const s = { ...stockageV3(), lockedItems: ['ch:a:m3u:1'] };
     const r = migratePersistedState(s, 10);
     expect(r.lockedItems).toEqual(['ch:a:m3u:1']);
+  });
+
+  it('rattache les listes profile-1 et active le premier profil (v14)', () => {
+    const s = {
+      ...stockageV3(),
+      profiles: [makeProfile('profile-abc')],
+      customLists: [
+        {
+          id: 'l1',
+          profileId: 'profile-1',
+          name: 'Sport',
+          items: [],
+          createdAt: '2026-01-01',
+          updatedAt: '2026-01-01',
+        },
+      ],
+      activeProfileId: null,
+    };
+    const r = migratePersistedState(s, 13);
+    expect(r.activeProfileId).toBe('profile-abc');
+    expect(r.customLists[0].profileId).toBe('profile-abc');
   });
 });
 

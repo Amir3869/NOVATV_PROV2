@@ -32,7 +32,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
-    <div className={cn('group relative flex-shrink-0', widthClass, className)}>
+    <div className={cn('catalog-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/movies?id=${encodeURIComponent(movie.id)}`}>
         <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
           {movie.logo && !imgError ? (
@@ -123,7 +123,7 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
-    <div className={cn('group relative flex-shrink-0', widthClass, className)}>
+    <div className={cn('catalog-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/series?id=${encodeURIComponent(series.id)}`}>
         <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
           {series.cover && !imgError ? (
@@ -228,7 +228,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
 
   if (variant === 'grid') {
     return (
-      <div className={cn('group relative', className)}>
+      <div className={cn('catalog-card group relative', className)}>
         <Link
           href={playHref}
           className="block"
@@ -290,7 +290,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
   // imbriqué dans un <a> est du HTML invalide et se comporte de façon
   // imprévisible à la télécommande.
   return (
-    <div className={cn('group flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all duration-200 border border-transparent hover:border-white/5', className)}>
+    <div className={cn('catalog-card group flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all duration-200 border border-transparent hover:border-white/5', className)}>
       <Link
         href={playHref}
         className="flex items-center gap-3 flex-1 min-w-0"

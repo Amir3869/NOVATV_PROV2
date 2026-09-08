@@ -193,7 +193,8 @@ export function extensionOf(url: string): string {
  */
 export function pickEngine(
   url: string,
-  streamType?: LiveChannel['streamType']
+  streamType?: LiveChannel['streamType'],
+  isLive = false
 ): EngineKind {
   if (streamType === 'hls') return 'hlsjs';
 
@@ -202,10 +203,99 @@ export function pickEngine(
   if (ext === 'ts' || ext === 'mpegts') return 'mpegts';
   if (NATIVE_EXTENSIONS.includes(ext)) return 'native';
 
-  // Sans extension exploitable, on parie sur MPEG-TS : les portails
-  // Xtream servent souvent le direct sur une URL nue, et c'est leur
-  // format par défaut.
-  return streamType === 'other' ? 'mpegts' : 'native';
+  // URL nue : le direct Xtream est du MPEG-TS. Un film sans extension
+  // reste natif (souvent du MP4 mal nommé).
+  if (streamType === 'other' || isLive) return 'mpegts';
+  return 'native';
+}
+
+/**
+ * Les Web Workers de hls.js / mpegts.js cassent souvent dans la
+ * WebView Capacitor (blob: / scheme https local). Sans worker, le
+ * démuxage reste sur le fil principal — plus lourd, mais ça lit.
+ */
+export function mediaWorkersAllowed(): boolean {
+  if (typeof window === 'undefined') return true;
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
+  if (typeof cap?.isNativePlatform === 'function' && cap.isNativePlatform()) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * XMLHttpRequest non patché par CapacitorHttp.
+ *
+ * CapacitorHttp, activé pour contourner le CORS des API Xtream,
+ * remplace aussi `XMLHttpRequest`. hls.js et mpegts.js s'en servent
+ * pour télécharger le flux *en continu*. Le pont natif tamponne la
+ * réponse entière : un direct n'a pas de fin, le manifeste n'arrive
+ * jamais, et aucune chaîne ne démarre. La balise `<video src>` des
+ * films n'emprunte pas XHR — d'où « les films passent, le direct non ».
+ *
+ * Un iframe caché expose le constructeur d'origine, hors patch.
+ * `null` hors navigateur, ou si l'iframe refuse de s'ouvrir.
+ */
+let nativeXhrCtor: typeof XMLHttpRequest | null | undefined;
+
+export function nativeXMLHttpRequest(): typeof XMLHttpRequest | null {
+  if (nativeXhrCtor !== undefined) return nativeXhrCtor;
+  if (typeof document === 'undefined') {
+    nativeXhrCtor = null;
+    return null;
+  }
+  try {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('hidden', '');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.display = 'none';
+    document.documentElement.appendChild(frame);
+    // `contentWindow` est typé `Window`, et `XMLHttpRequest` n'y figure
+    // pas : c'est une propriété de `typeof globalThis`, pas de l'interface
+    // DOM. On lit donc le constructeur sans prétendre que TypeScript le
+    // connaît.
+    const view = frame.contentWindow as (Window & {
+      XMLHttpRequest?: typeof XMLHttpRequest;
+    }) | null;
+    const ctor = view?.XMLHttpRequest ?? null;
+    if (typeof ctor !== 'function') {
+      frame.remove();
+      nativeXhrCtor = null;
+      return null;
+    }
+    nativeXhrCtor = ctor;
+    return ctor;
+  } catch {
+    nativeXhrCtor = null;
+    return null;
+  }
+}
+
+/**
+ * Pose le XHR d'origine le temps de la lecture, le rend à destroy.
+ *
+ * Les chargeurs de hls.js / mpegts.js font `new XMLHttpRequest()` au
+ * moment du téléchargement, pas à la construction : il faut laisser
+ * le constructeur en place jusqu'à la fin de l'attachement.
+ */
+function installNativeXHR(): { restore: () => void } {
+  const noop = { restore: () => {} };
+  if (typeof window === 'undefined') return noop;
+  const native = nativeXMLHttpRequest();
+  const previous = window.XMLHttpRequest;
+  if (!native || native === previous) return noop;
+  window.XMLHttpRequest = native;
+  let restored = false;
+  return {
+    restore: () => {
+      if (restored) return;
+      restored = true;
+      if (window.XMLHttpRequest === native) {
+        window.XMLHttpRequest = previous;
+      }
+    },
+  };
 }
 
 /** Traduit un code HTTP en cause de panne. */
@@ -264,7 +354,8 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
     qualityPolicy = 'auto',
     preferredHeight = null,
   } = options;
-  const engine = pickEngine(url, streamType);
+  const engine = pickEngine(url, streamType, isLive);
+  const workers = mediaWorkersAllowed();
 
   // Garde-fou : `destroy` peut être appelé avant la fin du chargement
   // de la bibliothèque, si l'utilisateur quitte l'écran aussitôt.
@@ -327,6 +418,7 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
       return { engine, tracks: null, quality: null, subtitles: null, destroy: () => {} };
     }
 
+    const xhrSwap = installNativeXHR();
     const hls = new Hls({
       // Réglages pensés pour une connexion lente et un appareil modeste.
       // Les valeurs par défaut de hls.js visent le poste de bureau.
@@ -337,7 +429,7 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
       // habituel.
       liveSyncDurationCount: 3,
       // Un Firestick n'a pas la puissance de recalculer sans cesse.
-      enableWorker: true,
+      enableWorker: workers,
       lowLatencyMode: false,
       // Rendre soi-même les sous-titres. Par défaut hls.js confie le
       // rendu au navigateur, qui affiche les répliques à sa façon :
@@ -425,6 +517,7 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
       destroy: () => {
         destroyed = true;
         hls.destroy();
+        xhrSwap.restore();
       },
     };
   }
@@ -438,6 +531,7 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
       return { engine, tracks: null, quality: null, subtitles: null, destroy: () => {} };
     }
 
+    const xhrSwap = installNativeXHR();
     const player = mpegts.createPlayer(
       {
         type: 'mpegts',
@@ -453,7 +547,10 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
         liveBufferLatencyChasing: isLive,
         liveBufferLatencyMaxLatency: 5,
         liveBufferLatencyMinRemain: 1,
-        enableWorker: true,
+        enableWorker: workers,
+        enableStashBuffer: true,
+        stashInitialSize: isLive ? 128 * 1024 : 384 * 1024,
+        autoCleanupSourceBuffer: true,
         // Le mode différé économise la mémoire, précieuse sur clé TV.
         lazyLoad: !isLive,
       }
@@ -500,6 +597,7 @@ export async function attachPlayer(options: AttachOptions): Promise<Attachment> 
         } catch {
           // Un lecteur déjà détruit lève ; sans conséquence ici.
         }
+        xhrSwap.restore();
       },
     };
   }

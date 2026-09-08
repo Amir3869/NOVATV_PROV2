@@ -57,6 +57,8 @@ interface CategoryPickerProps {
   onCancel: () => void;
   /** Grise l'ensemble pendant que la synchronisation tourne. */
   busy?: boolean;
+  /** Masqué si le titre est déjà porté par `AppDialog`. */
+  showHeader?: boolean;
 }
 
 export function CategoryPicker({
@@ -67,6 +69,7 @@ export function CategoryPicker({
   onSubmit,
   onCancel,
   busy = false,
+  showHeader = true,
 }: CategoryPickerProps) {
   const { t } = useTranslation();
   const [activeKind, setActiveKind] = useState<CategoryKind>('live');
@@ -111,6 +114,7 @@ export function CategoryPicker({
 
   return (
     <div className="flex flex-col gap-4">
+      {showHeader && (
       <header>
         <h2 className="font-bold text-white flex items-center gap-2">
           <Layers className="w-4 h-4 text-accent" />
@@ -120,6 +124,7 @@ export function CategoryPicker({
           {t('playlists.categoriesSubtitle')}
         </p>
       </header>
+      )}
 
       {/*
         Onglets des trois familles.

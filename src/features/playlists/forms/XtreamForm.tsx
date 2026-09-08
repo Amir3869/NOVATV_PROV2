@@ -15,9 +15,9 @@
 
 import React, { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Server, X, Check, AlertCircle, Wifi, Layers, Plus } from 'lucide-react';
+import { Check, AlertCircle, Wifi, Plus } from 'lucide-react';
 import { cn, generateId } from '@/utils/cn';
-import { GlassCard } from '@/design-system/components/GlassCard';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { useAppStore } from '@/store/useAppStore';
 import { secureStore } from '@/lib/secureStore';
 import { xtreamService, normalizeServerUrl } from '@/services/xtream/xtreamService';
@@ -30,15 +30,16 @@ import {
 import {
   emptyCatalog,
   emptySelection,
-  normalizeSelection,
   type CategoryCatalog,
   type CategorySelection,
 } from '@/services/xtream/categorySelection';
-import { CategoryPicker, CategoryPickerHeader } from '../CategoryPicker';
-import { syncEPG, buildXtreamEPGUrl, toEPGErrorKind } from '@/services/epg/epgSync';
-import type { Playlist, XtreamConnection } from '@/types';
+import { CategoryPicker } from '../CategoryPicker';
+import { SyncProgress } from '../SyncProgress';
+import type { Playlist } from '@/types';
 import { useTranslation, type MessageKey } from '@/i18n';
-import { ERROR_KEYS, STEP_KEYS } from '../syncMessages';
+import { ERROR_KEYS } from '../syncMessages';
+import { PasswordField } from '@/design-system/components/PasswordField';
+import { schedulePlaylistEpg } from '../runPlaylistEpg';
 
 export function XtreamForm({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
@@ -70,7 +71,6 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
   const addPlaylist = useAppStore((s) => s.addPlaylist);
   const updatePlaylist = useAppStore((s) => s.updatePlaylist);
   const setCatalog = useAppStore((s) => s.setCatalog);
-  const setActivePlaylist = useAppStore((s) => s.setActivePlaylist);
 
   /**
    * `AbortController` : l'objet qui permet d'interrompre une requête en
@@ -217,11 +217,17 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       // sous une clé bien connue.
       await secureStore.setPlaylistPassword(id, password);
       setCatalog(id, result.catalog);
-      setActivePlaylist(id);
+      // Pas de `setActivePlaylist` : la première source le devient
+      // toute seule, une suivante resterait en réserve. Forcer
+      // l'activation ici volerait le catalogue affiché.
       updatePlaylist(id, { updatedAt: new Date().toISOString() });
 
       toast.success(t('playlists.syncSummary', result.counts));
+      schedulePlaylistEpg(id);
+      setStep('done');
+      await new Promise((r) => window.setTimeout(r, 900));
       onClose();
+      return;
     } catch (err) {
       const kind = toSourceErrorKind(err);
       setTestResult('error');
@@ -230,82 +236,61 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       );
       if (kind !== 'aborted') toast.error(t(ERROR_KEYS[kind]));
     } finally {
-      setAdding(false);
-      setStep(null);
       abortRef.current = null;
     }
+    setAdding(false);
+    setStep(null);
   };
 
   const busy = testing || adding || loadingCategories;
   const canSubmit = Boolean(name && serverUrl && username && password);
 
-  /*
-    Étape 2 : choix des catégories.
-    Le formulaire d'identifiants reste monté dans l'état du composant,
-    donc revenir en arrière ne perd aucune saisie.
-  */
-  if (phase === 'categories') {
-    return (
-      <GlassCard variant="glass" padding="lg">
-        <CategoryPickerHeader
-          title={t('playlists.addXtreamTitle')}
-          onClose={onClose}
-          closeLabel={t('common.close')}
-        />
-
-        <CategoryPicker
-          catalog={categoryCatalog}
-          selection={selection}
-          onChange={setSelection}
-          submitLabel={adding ? t('playlists.adding') : t('playlists.categoriesImport')}
-          onSubmit={handleAdd}
-          onCancel={() => setPhase('credentials')}
-          busy={adding}
-        />
-
-        {adding && step && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5 mt-4 rounded-xl bg-white/5 border border-white/8">
-            <p className="text-sm text-white/70" role="status" aria-live="polite">
-              {t(STEP_KEYS[step])}
-            </p>
-            <button
-              type="button"
-              onClick={() => abortRef.current?.abort()}
-              className="text-xs text-white/50 hover:text-white underline underline-offset-2 transition-colors"
-            >
-              {t('common.cancel')}
-            </button>
-          </div>
-        )}
-
-        {testResult === 'error' && testMessage && (
-          <div className="flex items-start gap-2 px-4 py-2.5 mt-4 rounded-xl bg-red-500/10 border border-red-500/20" role="alert">
-            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-400">{testMessage}</p>
-          </div>
-        )}
-      </GlassCard>
-    );
-  }
+  const dialogTitle = adding
+    ? t('playlists.syncing')
+    : phase === 'categories'
+      ? t('playlists.categoriesTitle')
+      : t('playlists.addXtreamTitle');
 
   return (
-    <GlassCard variant="glass" padding="lg">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-bold text-white flex items-center gap-2">
-          <Server className="w-4 h-4 text-accent" />
-          {t('playlists.addXtreamTitle')}
-        </h2>
-        <button type="button" onClick={onClose} aria-label={t('common.close')} className="text-white/40 hover:text-white transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
+    <AppDialog
+      open
+      onClose={onClose}
+      title={dialogTitle}
+      description={
+        phase === 'categories' && !adding ? t('playlists.categoriesSubtitle') : undefined
+      }
+      size={phase === 'categories' && !adding ? 'lg' : 'md'}
+      busy={adding}
+      closeOnOverlay={!busy}
+      showClose={!adding}
+    >
+      {adding ? (
+        <SyncProgress step={step} selection={selection} />
+      ) : phase === 'categories' ? (
+        <>
+          <CategoryPicker
+            catalog={categoryCatalog}
+            selection={selection}
+            onChange={setSelection}
+            submitLabel={t('playlists.categoriesImport')}
+            onSubmit={handleAdd}
+            onCancel={() => setPhase('credentials')}
+            busy={adding}
+            showHeader={false}
+          />
+          {testResult === 'error' && testMessage && (
+            <div className="flex items-start gap-2 px-4 py-2.5 mt-4 rounded-xl bg-red-500/10 border border-red-500/20" role="alert">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-400">{testMessage}</p>
+            </div>
+          )}
+        </>
+      ) : (
       <div className="space-y-4">
         {[
           { labelKey: 'playlists.playlistName', value: name, onChange: setName, placeholder: t('playlists.defaultXtreamName'), type: 'text' },
           { labelKey: 'playlists.serverUrl', value: serverUrl, onChange: setServerUrl, placeholder: 'http://exemple.com:8080', type: 'url' },
           { labelKey: 'playlists.username', value: username, onChange: setUsername, placeholder: 'username', type: 'text' },
-          { labelKey: 'playlists.password', value: password, onChange: setPassword, placeholder: '••••••••', type: 'password' },
         ].map((field) => (
           <div key={field.labelKey}>
             <label className="text-xs text-white/50 font-medium uppercase tracking-wider block mb-1.5">{t(field.labelKey as MessageKey)}</label>
@@ -319,6 +304,10 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
             />
           </div>
         ))}
+        <div>
+          <label className="text-xs text-white/50 font-medium uppercase tracking-wider block mb-1.5">{t('playlists.password')}</label>
+          <PasswordField value={password} onChange={setPassword} placeholder="••••••••" disabled={busy} />
+        </div>
 
         {testResult === 'success' && (
           <div className="flex items-start gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20" role="status" aria-live="polite">
@@ -378,6 +367,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-    </GlassCard>
+      )}
+    </AppDialog>
   );
 }

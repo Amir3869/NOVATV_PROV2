@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, MediaCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { Star, Film } from 'lucide-react';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { MovieCard } from '@/design-system/components/MediaCard';
+import { VirtualGrid } from '@/design-system/components/VirtualGrid';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import Link from 'next/link';
@@ -19,7 +20,7 @@ const ALL_CATEGORY = '__all__';
 
 export function MoviesPage() {
   const { t } = useTranslation();
-  const allMovies = useAppStore((s) => s.movies);
+  const { movies: allMovies } = useActiveCatalog();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [category, setCategory] = useState(ALL_CATEGORY);
@@ -35,15 +36,21 @@ export function MoviesPage() {
   }, [allMovies]);
 
   const filtered = useMemo(() => {
-    let movies = [...allMovies];
-    if (category !== ALL_CATEGORY) {
-      movies = movies.filter((m) => m.categoryName === category || m.genre?.includes(category));
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      movies = movies.filter((m) => m.name.toLowerCase().includes(q) || m.director?.toLowerCase().includes(q) || m.cast?.toLowerCase().includes(q));
-    }
-    return movies;
+    const q = search.toLowerCase();
+    return allMovies.filter((m) => {
+      if (category !== ALL_CATEGORY && m.categoryName !== category && !m.genre?.includes(category)) {
+        return false;
+      }
+      if (
+        search &&
+        !m.name.toLowerCase().includes(q) &&
+        !m.director?.toLowerCase().includes(q) &&
+        !m.cast?.toLowerCase().includes(q)
+      ) {
+        return false;
+      }
+      return true;
+    });
   }, [search, category, allMovies]);
 
   // Voir useHydrated : ne pas annoncer « aucun film » avant d'avoir lu
@@ -96,15 +103,18 @@ export function MoviesPage() {
         {filtered.length === 0 ? (
           <EmptyState emoji="🎬" title={t('movies.noResults')} description={t('movies.noResultsDescription')} />
         ) : view === 'grid' ? (
-          <div className="grid grid-cols-3 gap-x-3 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 md:gap-x-4 md:gap-y-10">
-            {filtered.map((movie) => (
-              <MovieCard key={movie.id} movie={movie} size="md" />
-            ))}
-          </div>
+          <VirtualGrid
+            items={filtered}
+            getKey={(movie) => movie.id}
+            renderItem={(movie) => <MovieCard movie={movie} size="md" className="w-full" />}
+          />
         ) : (
-          <div className="space-y-3">
-            {filtered.map((movie) => (
-              <Link key={movie.id} href={`/movies?id=${encodeURIComponent(movie.id)}`} className="flex gap-4 p-3 rounded-xl hover:bg-white/4 transition-colors group">
+          <VirtualGrid
+            items={filtered}
+            layout="list"
+            getKey={(movie) => movie.id}
+            renderItem={(movie) => (
+              <Link href={`/movies?id=${encodeURIComponent(movie.id)}`} className="flex gap-4 p-3 rounded-xl hover:bg-white/4 transition-colors group">
                 <ImageWithFallback
                   src={movie.logo}
                   alt={movie.name}
@@ -126,8 +136,8 @@ export function MoviesPage() {
                   </div>
                 </div>
               </Link>
-            ))}
-          </div>
+            )}
+          />
         )}
       </section>
     </div>

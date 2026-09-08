@@ -6,6 +6,8 @@ import { cn } from '@/utils/cn';
 import { MovieCard, SeriesCard, ChannelCard } from '@/design-system/components/MediaCard';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { resolveProfileId } from '@/lib/profileScope';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { GridPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { useRouter } from 'next/navigation';
@@ -15,15 +17,15 @@ type Tab = 'all' | 'channels' | 'movies' | 'series';
 
 export function FavoritesPage() {
   const { t } = useTranslation();
-  const allChannels = useAppStore((s) => s.channels);
-  const allMovies = useAppStore((s) => s.movies);
-  const allSeries = useAppStore((s) => s.series);
+  const { channels: allChannels, movies: allMovies, series: allSeries } = useActiveCatalog();
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const favorites = useAppStore((s) => s.favorites);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
+  const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
   const router = useRouter();
 
-  const profileFavorites = favorites.filter((f) => f.profileId === activeProfileId);
+  const profileId = resolveProfileId(activeProfileId, firstProfileId);
+  const profileFavorites = favorites.filter((f) => f.profileId === profileId);
   const favChannelIds = profileFavorites.filter((f) => f.mediaType === 'channel').map((f) => f.mediaId);
   const favMovieIds = profileFavorites.filter((f) => f.mediaType === 'movie').map((f) => f.mediaId);
   const favSeriesIds = profileFavorites.filter((f) => f.mediaType === 'series').map((f) => f.mediaId);

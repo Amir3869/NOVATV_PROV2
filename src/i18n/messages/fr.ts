@@ -87,6 +87,8 @@ export const fr = {
     favorites: 'Favoris',
     synopsis: 'Synopsis',
     cast: 'Distribution',
+    showPassword: 'Afficher le mot de passe',
+    hidePassword: 'Masquer le mot de passe',
   },
 
   // ── Accueil ──
@@ -214,6 +216,8 @@ export const fr = {
     subtitle: 'Programme des émissions',
     allChannels: 'Toutes',
     onNow: 'EN COURS',
+    loadFailed: 'Le guide n’a pas pu être chargé.',
+    loadFailedDescription: 'Le téléchargement a échoué ou aucune chaîne n’a pu être associée. Réessayez.',
   },
 
   // ── Favoris, historique, listes ──
@@ -443,6 +447,11 @@ export const fr = {
     deleted: 'Source supprimée',
     setActive: 'Utiliser cette source',
     activated: 'Source active : {name}',
+    passwordKeepHint: 'Laissez vide pour conserver le mot de passe enregistré.',
+    savedCredentials: 'Identifiants enregistrés',
+    fileRenameOnly: 'Seul le nom de cette source fichier peut être modifié.',
+    editCredentialsHint: 'Même source : l’identifiant ne change pas. Un test réussi est exigé avant l’enregistrement.',
+    reimportFileHint: 'Pour changer le fichier, supprimez cette source puis importez-en un autre.',
   },
 
   // ── Profils ──
@@ -501,6 +510,8 @@ export const fr = {
   settings: {
     title: 'Paramètres',
     profile: 'Profil',
+    sources: 'Sources',
+    sourcesDescription: 'Comptes Xtream et listes M3U',
     appearance: 'Apparence',
     playback: 'Lecture',
     language: 'Langue',

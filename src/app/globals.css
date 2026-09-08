@@ -265,9 +265,19 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
     scrollbar-width: none;
   }
 
-  /* Safe area */
+  /* Safe area.
+     --safe-* : env() partout ; plancher 40/48 px sur html.android-phone
+     (WebView Android, env() souvent à 0). Pas de plancher TV. */
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html.android-phone {
+    --safe-top: max(env(safe-area-inset-top, 0px), 40px);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 48px);
+  }
   .safe-area-pb {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--safe-bottom);
   }
 
   /* Line clamp */
@@ -514,4 +524,19 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
   .aspect-thumb {
     aspect-ratio: 16 / 9;
   }
+}
+
+/* Cartes catalogue : le navigateur saute le rendu hors écran. */
+.catalog-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 220px;
+}
+
+/* VOD ExoPlayer : la WebView laisse voir la surface native dessous. */
+html.native-vod,
+html.native-vod body,
+html.native-vod #contenu-principal,
+html.native-vod .cinema {
+  background-color: transparent !important;
+  background: transparent !important;
 }

@@ -6,6 +6,7 @@ import { ChannelCard } from '@/design-system/components/MediaCard';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useAppStore } from '@/store/useAppStore';
+import { resolveProfileId } from '@/lib/profileScope';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, ChannelCardSkeleton } from '@/design-system/components/LoadingSkeleton';
@@ -31,7 +32,8 @@ export function LiveTVPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const favorites = useAppStore((s) => s.favorites);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
-  const profileId = activeProfileId ?? 'profile-1';
+  const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
+  const profileId = resolveProfileId(activeProfileId, firstProfileId);
   const categoryPins = useAppStore((s) => s.categoryPins[profileId] ?? EMPTY_CATEGORY_IDS);
   const categoryOrder = useAppStore((s) => s.categoryOrder[profileId] ?? EMPTY_CATEGORY_IDS);
   // Verrou parental des catégories : une catégorie sous cadenas ne

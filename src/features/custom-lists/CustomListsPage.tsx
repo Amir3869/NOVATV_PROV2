@@ -7,6 +7,7 @@ import { cn } from '@/utils/cn';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { ChannelCard } from '@/design-system/components/MediaCard';
 import { useAppStore } from '@/store/useAppStore';
+import { resolveProfileId } from '@/lib/profileScope';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
@@ -27,6 +28,7 @@ export function CustomListsPage() {
   const { movies: allMovies, series: allSeries, channels: allChannels } = useActiveCatalog();
   const customLists = useAppStore((s) => s.customLists);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
+  const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
   const updateCustomList = useAppStore((s) => s.updateCustomList);
   const deleteCustomList = useAppStore((s) => s.deleteCustomList);
   const [showCreate, setShowCreate] = useState(false);
@@ -36,7 +38,8 @@ export function CustomListsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [addMediaOpen, setAddMediaOpen] = useState(false);
 
-  const profileLists = customLists.filter((l) => l.profileId === activeProfileId);
+  const profileId = resolveProfileId(activeProfileId, firstProfileId);
+  const profileLists = customLists.filter((l) => l.profileId === profileId);
   const selectedList = profileLists.find((l) => l.id === selectedListId);
 
   const getMediaForList = (list: CustomList): ListMedia[] => {
@@ -297,6 +300,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const { t } = useTranslation();
   const addCustomList = useAppStore((s) => s.addCustomList);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
+  const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('🎬');
@@ -307,7 +311,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
     if (!name.trim()) return;
     const newList = {
       id: `list-${Date.now()}`,
-      profileId: activeProfileId ?? 'profile-1',
+      profileId: resolveProfileId(activeProfileId, firstProfileId),
       name: name.trim(),
       description: description.trim() || undefined,
       icon,

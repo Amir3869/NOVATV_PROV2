@@ -4,7 +4,7 @@ import React from 'react';
 import {
   User, Globe, Palette,
   ChevronRight, Volume2, Wifi, Monitor,
-  Sun, Moon, Laptop, Ratio
+  Sun, Moon, Laptop, Ratio, Radio
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/utils/cn';
@@ -13,7 +13,7 @@ import { GlassCard } from '@/design-system/components/GlassCard';
 import { useAppStore, useActiveProfile } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { useDeviceType } from '@/hooks/useDeviceType';
-import { resolveGlass } from '@/hooks/useGlass';
+import { isLowPowerGlassDevice, resolveGlass } from '@/hooks/useGlass';
 import { resolveAnimations } from '@/hooks/useAnimations';
 import { QUALITY_POLICIES, type QualityPolicy } from '@/services/player/qualityLadder';
 import { VIDEO_FIT_MODES, type VideoFitMode } from '@/services/player/videoFit';
@@ -249,7 +249,7 @@ export function SettingsPage() {
   // RÉELLEMENT appliqué à l'écran, pas la valeur brute enregistrée —
   // sinon il afficherait « actif » sur un téléviseur sans verre.
   const { isTV, prefersReducedMotion } = useDeviceType();
-  const glassOn = resolveGlass(preferences.glassEnabled, isTV);
+  const glassOn = resolveGlass(preferences.glassEnabled, isLowPowerGlassDevice(isTV));
   // Même raisonnement pour les animations : l'interrupteur montre l'état
   // réellement appliqué, qui dépend aussi du réglage système.
   const animationsOn = resolveAnimations(
@@ -278,6 +278,12 @@ export function SettingsPage() {
           description={profile?.isKidsProfile ? t('settings.profileKid') : t('settings.profileAdult')}
           rightElement={profile ? <Avatar profile={profile} size="xs" /> : undefined}
           href="/profiles"
+        />
+        <SettingsRow
+          icon={Radio}
+          label={t('settings.sources')}
+          description={t('settings.sourcesDescription')}
+          href="/playlists"
         />
         {/* « Controle parental » a ete retire du menu. Le champ `pinHash`
             existe dans le type `Profile` mais rien ne l'ecrit ni ne le

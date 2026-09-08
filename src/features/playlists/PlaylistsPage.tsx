@@ -32,10 +32,10 @@ import { ERROR_KEYS, STEP_KEYS, EPG_STEP_KEYS } from './syncMessages';
 import { XtreamForm } from './forms/XtreamForm';
 import { M3UUrlForm } from './forms/M3UUrlForm';
 import { M3UFileForm } from './forms/M3UFileForm';
+import { EditSourceDialog } from './EditSourceDialog';
+import { runPlaylistEpg, schedulePlaylistEpg } from './runPlaylistEpg';
 import { syncM3UFromUrl, toM3UErrorKind } from '@/services/m3u/m3uSync';
 import {
-  syncEPG,
-  buildXtreamEPGUrl,
   toEPGErrorKind,
   type EPGSyncStep,
 } from '@/services/epg/epgSync';
@@ -194,7 +194,6 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const [syncing, setSyncing] = useState(false);
   const [step, setStep] = useState<SyncStep | null>(null);
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(playlist.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [epgBusy, setEpgBusy] = useState(false);
@@ -216,7 +215,6 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
 
   const updatePlaylist = useAppStore((s) => s.updatePlaylist);
   const setCatalog = useAppStore((s) => s.setCatalog);
-  const setEpgPrograms = useAppStore((s) => s.setEpgPrograms);
   const deletePlaylist = useAppStore((s) => s.deletePlaylist);
   const setActivePlaylist = useAppStore((s) => s.setActivePlaylist);
   const activePlaylistId = useAppStore((s) => s.activePlaylistId);
@@ -230,9 +228,6 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
    * pour l'affichage, mais `syncEPG` a besoin des objets.
    */
   const channels = useAppStore((s) => s.channels);
-  // Reglage « Jours de guide TV ». Lu ici, seul endroit qui declenche
-  // une synchronisation : c'est le fichier qui CONSOMME la preference.
-  const epgDays = useAppStore((s) => s.preferences.epgDays);
   const liveCategories = useAppStore((s) => s.liveCategories);
 
   /**
@@ -267,34 +262,18 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
       return;
     }
 
-    let url: string;
-    if (playlist.type === 'xtream') {
-      if (!playlist.xtream) return;
-      const password = await secureStore.getPlaylistPassword(playlist.id);
-      if (!password) {
-        toast.error(t('errors.auth'));
-        return;
-      }
-      url = buildXtreamEPGUrl({
-        serverUrl: playlist.xtream.serverUrl,
-        username: playlist.xtream.username,
-        password,
-      });
-    } else {
-      if (!playlist.m3u?.epgUrl) return;
-      url = playlist.m3u.epgUrl;
-    }
-
     setEpgBusy(true);
     setEpgStep('download');
 
     try {
-      const result = await syncEPG(url, playlistChannels, playlist.id, {
+      const result = await runPlaylistEpg(playlist.id, {
         onProgress: (p) => setEpgStep(p.step),
-        keepAheadDays: epgDays,
       });
 
-      setEpgPrograms(playlist.id, result.programs);
+      if (!result) {
+        toast.error(t('errors.auth'));
+        return;
+      }
 
       if (result.programs.length === 0) {
         // Le téléchargement a réussi mais aucune chaîne n'a pu être
@@ -321,31 +300,6 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
       setEpgBusy(false);
       setEpgStep(null);
     }
-  };
-
-  /**
-   * Renomme la source.
-   *
-   * Seul le nom est modifiable. Changer l'adresse ou les identifiants
-   * reviendrait à pointer vers un autre abonnement tout en gardant les
-   * chaînes déjà téléchargées : la liste afficherait le contenu d'une
-   * source et les identifiants d'une autre. Le formulaire le dit, et
-   * renvoie vers « supprimer puis rajouter ».
-   */
-  const handleRename = () => {
-    const trimmed = draftName.trim();
-    // Un nom vide rendrait la source impossible à distinguer des
-    // autres dans la liste.
-    if (!trimmed) {
-      setDraftName(playlist.name);
-      setEditing(false);
-      return;
-    }
-    if (trimmed !== playlist.name) {
-      updatePlaylist(playlist.id, { name: trimmed });
-      toast.success(t('playlists.renamed'));
-    }
-    setEditing(false);
   };
 
   /**
@@ -500,6 +454,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           },
         });
         toast.success(t('playlists.syncSummary', result.counts));
+        schedulePlaylistEpg(playlist.id);
         return;
       }
 
@@ -517,6 +472,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
         lastError: undefined,
       });
       toast.success(t('playlists.importSummary', { channels: result.counts.channels }));
+      schedulePlaylistEpg(playlist.id);
     } catch (err) {
       const kind =
         err instanceof Error && (err.message === 'missing_password' || err.message === 'missing_connection')
@@ -619,11 +575,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           )}
           <button
             type="button"
-            onClick={() => {
-              setDraftName(playlist.name);
-              setEditing(true);
-            }}
-            disabled={editing}
+            onClick={() => setEditing(true)}
+            disabled={syncing}
             aria-label={t('playlists.editPlaylist')}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
           >
@@ -650,34 +603,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            {editing ? (
-              /* Renommage sur place plutôt que dans une fenêtre : un
-                 seul champ ne justifie pas d'interrompre l'écran.
-                 Entrée valide, Échap abandonne, et la perte du focus
-                 vaut validation — sinon la modification disparaîtrait
-                 sans explication. */
-              <input
-                type="text"
-                value={draftName}
-                autoFocus
-                aria-label={t('playlists.playlistName')}
-                onChange={(e) => setDraftName(e.target.value)}
-                onBlur={handleRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleRename();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setDraftName(playlist.name);
-                    setEditing(false);
-                  }
-                }}
-                className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-white/10 border border-accent/50 text-sm font-semibold text-white focus:outline-none"
-              />
-            ) : (
-              <h3 className="font-semibold text-white truncate">{playlist.name}</h3>
-            )}
+            <h3 className="font-semibold text-white truncate">{playlist.name}</h3>
             {isCurrent && <Badge variant="new" size="xs">{t('common.active')}</Badge>}
             <Badge variant="hd" size="xs">{typeLabel}</Badge>
           </div>
@@ -746,9 +672,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
       )}
 
       {editing && (
-        <p className="text-xs text-white/30 mt-3">
-          {t('playlists.renameHint')} {t('playlists.editServerHint')}
-        </p>
+        <EditSourceDialog playlist={playlist} onClose={() => setEditing(false)} />
       )}
 
       {/*

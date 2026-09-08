@@ -43,7 +43,7 @@ export function ProfilesPage() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-[100svh] flex flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
+      <div className="min-h-full flex flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:py-12 pb-[max(1.5rem,var(--safe-bottom))] [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
         <div className="w-full max-w-3xl space-y-6 sm:space-y-10 [@media(max-height:500px)]:space-y-3">
           <div className="flex flex-col items-center gap-4">
             <Skeleton className="h-10 w-40" />
@@ -68,7 +68,7 @@ export function ProfilesPage() {
   const deletingProfile = deletingId ? profiles.find((p) => p.id === deletingId) : undefined;
 
   return (
-    <div className="min-h-[100svh] flex flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:py-12 [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
+    <div className="min-h-full flex flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:py-12 pb-[max(1.5rem,var(--safe-bottom))] [@media(max-height:500px)]:justify-start [@media(max-height:500px)]:py-3">
       <div className="w-full max-w-3xl space-y-6 sm:space-y-10 [@media(max-height:500px)]:space-y-3">
         {/* Logo */}
         <div className="text-center">

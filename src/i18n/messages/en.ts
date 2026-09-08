@@ -78,6 +78,8 @@ export const en: Messages = {
     favorites: 'Favourites',
     synopsis: 'Synopsis',
     cast: 'Cast',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
   },
 
   home: {
@@ -200,6 +202,8 @@ export const en: Messages = {
     subtitle: 'Programme schedule',
     allChannels: 'All',
     onNow: 'ON NOW',
+    loadFailed: 'The guide could not be loaded.',
+    loadFailedDescription: 'The download failed, or no channel could be matched. Try again.',
   },
 
   favorites: {
@@ -425,6 +429,11 @@ export const en: Messages = {
     deleted: 'Source deleted',
     setActive: 'Use this source',
     activated: 'Active source: {name}',
+    passwordKeepHint: 'Leave empty to keep the saved password.',
+    savedCredentials: 'Credentials saved',
+    fileRenameOnly: 'Only the name of this file source can be changed.',
+    editCredentialsHint: 'Same source: the id does not change. A successful test is required before saving.',
+    reimportFileHint: 'To change the file, delete this source then import another.',
   },
 
   profiles: {
@@ -480,6 +489,8 @@ export const en: Messages = {
   settings: {
     title: 'Settings',
     profile: 'Profile',
+    sources: 'Sources',
+    sourcesDescription: 'Xtream accounts and M3U lists',
     appearance: 'Appearance',
     playback: 'Playback',
     language: 'Language',

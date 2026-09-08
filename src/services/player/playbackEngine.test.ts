@@ -62,6 +62,56 @@ describe('pickEngine', () => {
   it('reste natif pour une URL nue sans streamType', () => {
     expect(pickEngine('http://p.tv/quelque/chose')).toBe('native');
   });
+
+  it('choisit mpegts pour une URL nue en direct', () => {
+    expect(pickEngine('http://p.tv/live/u/p/1', undefined, true)).toBe('mpegts');
+  });
+
+  it('garde le mp4 natif même en direct', () => {
+    expect(pickEngine('http://p.tv/live/u/p/1.mp4', undefined, true)).toBe('native');
+  });
+});
+
+describe('nativeXMLHttpRequest', () => {
+  it('ne lève pas et, si l iframe s ouvre, rend un XMLHttpRequest', async () => {
+    vi.resetModules();
+    const { nativeXMLHttpRequest } = await import('./playbackEngine');
+    const ctor = nativeXMLHttpRequest();
+    if (ctor) {
+      // Le constructeur vient de l'iframe : `instanceof XMLHttpRequest`
+      // de la fenêtre du test est faux (deux realms). On vérifie
+      // l'interface, pas l'identité du prototype.
+      expect(typeof ctor).toBe('function');
+      const xhr = new ctor();
+      expect(typeof xhr.open).toBe('function');
+      expect(typeof xhr.send).toBe('function');
+    } else {
+      expect(ctor).toBeNull();
+    }
+  });
+});
+
+describe('mediaWorkersAllowed', () => {
+  it('autorise les workers hors Capacitor', async () => {
+    vi.resetModules();
+    const { mediaWorkersAllowed } = await import('./playbackEngine');
+    expect(mediaWorkersAllowed()).toBe(true);
+  });
+
+  it('les coupe sur une WebView Capacitor', async () => {
+    vi.resetModules();
+    const previous = (window as unknown as { Capacitor?: unknown }).Capacitor;
+    (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor = {
+      isNativePlatform: () => true,
+    };
+    const { mediaWorkersAllowed } = await import('./playbackEngine');
+    expect(mediaWorkersAllowed()).toBe(false);
+    if (previous === undefined) {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+    } else {
+      (window as unknown as { Capacitor?: unknown }).Capacitor = previous;
+    }
+  });
 });
 
 describe('httpStatusToKind', () => {

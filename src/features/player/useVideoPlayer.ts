@@ -19,6 +19,13 @@ import type {
 } from '@/services/player/qualityLadder';
 import type { QualitySource } from '@/services/player/playbackEngine';
 import type { LiveChannel } from '@/types';
+import {
+  NativeVodPlayer,
+  shouldUseNativeVod,
+  type NativeVodEvent,
+} from '@/services/player/nativeVodPlayer';
+import type { PluginListenerHandle } from '@capacitor/core';
+import type { PlaybackErrorKind } from '@/services/player/playbackEngine';
 
 /**
  * Pilote une balise vidéo réelle.
@@ -157,6 +164,11 @@ export interface VideoPlayerState {
    * custom. Sans source, l'écran n'affiche que le rendu natif.
    */
   subtitles: SubtitleSnapshot;
+  /**
+   * Vrai quand ExoPlayer peint sous la WebView (VOD Android).
+   * L'écran doit alors rendre le chrome transparent et cacher `<video>`.
+   */
+  usesNativeSurface: boolean;
 }
 
 /** Ce que l'écran a besoin de savoir sur les qualités disponibles. */
@@ -267,6 +279,20 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
    * par l'effet d'attachement, donc à chaque changement de flux.
    */
   const preferencesAppliedRef = useRef(false);
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+
+  const sessionKey = `${url ?? ''}|${isLive ? '1' : '0'}|${retryToken}`;
+  const [activeSession, setActiveSession] = useState(sessionKey);
+  if (sessionKey !== activeSession) {
+    setActiveSession(sessionKey);
+    setIsLoading(Boolean(url));
+    setError(null);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+    setIsBuffering(false);
+  }
 
   useEffect(() => {
     onProgressRef.current = onProgress;
@@ -274,21 +300,18 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     trackPreferencesRef.current = trackPreferences;
     onEndedRef.current = onEnded;
     onQualityHeightRef.current = onQualityHeight;
-  }, [onProgress, resumeAt, trackPreferences, onEnded, onQualityHeight]);
+    currentTimeRef.current = currentTime;
+    durationRef.current = duration;
+  }, [onProgress, resumeAt, trackPreferences, onEnded, onQualityHeight, currentTime, duration]);
 
   // Attachement du flux.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !url) return;
+    if (shouldUseNativeVod(isLive)) return;
 
     let cancelled = false;
-    // Nouveau flux : les préférences doivent pouvoir s'appliquer à
-    // nouveau, y compris quand on enchaîne deux chaînes en zapping.
     preferencesAppliedRef.current = false;
-    setIsLoading(true);
-    setError(null);
-    setCurrentTime(0);
-    setDuration(0);
 
     /**
      * Garde-temps : armé maintenant, désarmé par le premier signal du
@@ -453,10 +476,84 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoRef, url, isLive, streamType, retryToken]);
 
+  // VOD Android : ExoPlayer sous la WebView (AC-3). Le chrome HTML reste.
+  useEffect(() => {
+    if (!shouldUseNativeVod(isLive) || !url) return;
+
+    let cancelled = false;
+    const handles: PluginListenerHandle[] = [];
+    document.documentElement.classList.add('native-vod');
+
+    const resume = resumeAtRef.current;
+    void NativeVodPlayer.play({
+      url,
+      resumeAt: resume && resume > 5 ? resume : 0,
+    }).catch(() => {
+      if (cancelled) return;
+      setIsLoading(false);
+      setError({ kind: 'unknown', recoverable: true });
+    });
+
+    const listen = async (
+      event: Parameters<typeof NativeVodPlayer.addListener>[0],
+      cb: (data: NativeVodEvent) => void
+    ) => {
+      const handle = await NativeVodPlayer.addListener(event, cb);
+      if (cancelled) {
+        void handle.remove();
+        return;
+      }
+      handles.push(handle);
+    };
+
+    void listen('ready', (data) => {
+      if (cancelled) return;
+      setIsLoading(false);
+      setDuration(data.duration ?? 0);
+    });
+    void listen('time', (data) => {
+      if (cancelled) return;
+      if (typeof data.position === 'number') setCurrentTime(data.position);
+      if (typeof data.duration === 'number' && data.duration > 0) setDuration(data.duration);
+    });
+    void listen('playing', () => {
+      if (cancelled) return;
+      setIsPlaying(true);
+      setIsBuffering(false);
+    });
+    void listen('paused', () => {
+      if (!cancelled) setIsPlaying(false);
+    });
+    void listen('buffering', (data) => {
+      if (!cancelled) setIsBuffering(Boolean(data.value));
+    });
+    void listen('ended', () => {
+      if (cancelled) return;
+      setIsPlaying(false);
+      onEndedRef.current?.();
+    });
+    void listen('error', (data) => {
+      if (cancelled) return;
+      setIsLoading(false);
+      const kind = (['network', 'timeout', 'cors', 'notFound', 'forbidden', 'decode', 'unsupported', 'aborted', 'unknown'].includes(data.kind ?? '')
+        ? data.kind
+        : 'unknown') as PlaybackErrorKind;
+      setError({ kind, recoverable: kind === 'network' || kind === 'timeout' });
+    });
+
+    return () => {
+      cancelled = true;
+      document.documentElement.classList.remove('native-vod');
+      handles.forEach((h) => void h.remove());
+      void NativeVodPlayer.release();
+    };
+  }, [url, isLive, retryToken]);
+
   // Abonnement aux événements de la balise.
   useEffect(() => {
     const video = videoEl;
     if (!video) return;
+    if (shouldUseNativeVod(isLive)) return;
 
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
@@ -525,7 +622,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onVideoError);
     };
-  }, [videoEl]);
+  }, [videoEl, isLive]);
 
   // Enregistrement périodique de la position.
   //
@@ -535,6 +632,12 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
   useEffect(() => {
     if (isLive || !isPlaying) return;
     const timer = setInterval(() => {
+      if (shouldUseNativeVod(isLive)) {
+        if (durationRef.current > 0) {
+          onProgressRef.current?.(currentTimeRef.current, durationRef.current);
+        }
+        return;
+      }
       const video = videoRef.current;
       if (!video || !Number.isFinite(video.duration) || video.duration === 0) return;
       onProgressRef.current?.(video.currentTime, video.duration);
@@ -549,7 +652,14 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     // nettoyage s'execute, `videoRef.current` peut deja valoir null.
     const video = videoRef.current;
     return () => {
-      if (!video || isLive) return;
+      if (isLive) return;
+      if (shouldUseNativeVod(isLive)) {
+        if (durationRef.current > 0 && currentTimeRef.current >= 5) {
+          onProgressRef.current?.(currentTimeRef.current, durationRef.current);
+        }
+        return;
+      }
+      if (!video) return;
       if (!Number.isFinite(video.duration) || video.duration === 0) return;
       if (video.currentTime < 5) return;
       onProgressRef.current?.(video.currentTime, video.duration);
@@ -557,6 +667,11 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
   }, [videoRef, isLive]);
 
   const togglePlay = useCallback(() => {
+    if (shouldUseNativeVod(isLive)) {
+      if (isPlaying) void NativeVodPlayer.pause();
+      else void NativeVodPlayer.resume();
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
@@ -564,15 +679,29 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     } else {
       video.pause();
     }
-  }, [videoRef]);
+  }, [videoRef, isPlaying, isLive]);
 
   const toggleMute = useCallback(() => {
+    if (shouldUseNativeVod(isLive)) {
+      const next = !isMuted;
+      setIsMuted(next);
+      void NativeVodPlayer.setMuted({ value: next });
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     video.muted = !video.muted;
-  }, [videoRef]);
+  }, [videoRef, isMuted, isLive]);
 
   const setVolume = useCallback((value: number) => {
+    if (shouldUseNativeVod(isLive)) {
+      const clamped = Math.min(100, Math.max(0, value));
+      setVolumeState(clamped);
+      if (clamped > 0 && isMuted) setIsMuted(false);
+      void NativeVodPlayer.setVolume({ value: clamped });
+      if (clamped > 0) void NativeVodPlayer.setMuted({ value: false });
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     const clamped = Math.min(100, Math.max(0, value));
@@ -580,16 +709,27 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     // Monter le son alors que tout est coupé doit rétablir le son, sinon
     // l'utilisateur pousse le volume sans rien entendre.
     if (clamped > 0 && video.muted) video.muted = false;
-  }, [videoRef]);
+  }, [videoRef, isMuted, isLive]);
 
   const seekTo = useCallback((seconds: number) => {
+    if (shouldUseNativeVod(isLive)) {
+      const total = durationRef.current;
+      const next = Math.min(total > 0 ? total : seconds, Math.max(0, seconds));
+      setCurrentTime(next);
+      void NativeVodPlayer.seek({ seconds: next });
+      return;
+    }
     const video = videoRef.current;
     if (!video || !Number.isFinite(video.duration)) return;
     video.currentTime = Math.min(video.duration, Math.max(0, seconds));
-  }, [videoRef]);
+  }, [videoRef, isLive]);
 
   const seekBy = useCallback(
     (delta: number) => {
+      if (shouldUseNativeVod(isLive)) {
+        seekTo(currentTimeRef.current + delta);
+        return;
+      }
       const video = videoRef.current;
       if (!video) return;
       seekTo(video.currentTime + delta);
@@ -646,5 +786,6 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     quality,
     selectQuality,
     subtitles,
+    usesNativeSurface: shouldUseNativeVod(isLive),
   };
 }

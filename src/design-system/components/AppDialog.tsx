@@ -139,7 +139,7 @@ export function AppDialog({
   return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-[300] flex items-center justify-center p-4',
+        'fixed inset-0 z-[300] flex items-center justify-center p-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,var(--safe-bottom))]',
         cinema && 'cinema',
       )}
     >

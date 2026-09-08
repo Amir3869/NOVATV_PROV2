@@ -572,6 +572,41 @@ export function migratePersistedState(
     };
   }
 
+  // Version 13 : l'onboarding créait un profil sans l'activer. Les
+  // listes / favoris écrits avec le repli `profile-1` devenaient
+  // invisibles. On rattache ces orphelins au premier profil réel, et
+  // on active ce profil s'il n'y en a pas encore.
+  if (version < 14) {
+    const firstId = state.profiles?.[0]?.id;
+    const hasProfile1 = (state.profiles ?? []).some((p) => p.id === 'profile-1');
+    const remap = Boolean(firstId && !hasProfile1);
+    const retag = <T extends { profileId: string }>(items: T[] | undefined): T[] =>
+      remap
+        ? (items ?? []).map((item) =>
+            item.profileId === 'profile-1' ? { ...item, profileId: firstId as string } : item
+          )
+        : (items ?? []);
+    const categoryPins = { ...(state.categoryPins ?? {}) };
+    const categoryOrder = { ...(state.categoryOrder ?? {}) };
+    if (remap && firstId && categoryPins['profile-1'] && !categoryPins[firstId]) {
+      categoryPins[firstId] = categoryPins['profile-1'];
+      delete categoryPins['profile-1'];
+    }
+    if (remap && firstId && categoryOrder['profile-1'] && !categoryOrder[firstId]) {
+      categoryOrder[firstId] = categoryOrder['profile-1'];
+      delete categoryOrder['profile-1'];
+    }
+    state = {
+      ...state,
+      customLists: retag(state.customLists),
+      favorites: retag(state.favorites),
+      watchHistory: retag(state.watchHistory),
+      categoryPins,
+      categoryOrder,
+      activeProfileId: state.activeProfileId ?? firstId ?? null,
+    };
+  }
+
   return state;
 }
 
@@ -681,7 +716,48 @@ export const useAppStore = create<AppState>()(
         set({ activeProfileId: profileId, sessionUnlocked: false }),
 
       addProfile: (profile) =>
-        set((state) => ({ profiles: [...state.profiles, profile] })),
+        set((state) => {
+          // Premier profil : il devient actif. Sans cela l'onboarding
+          // créait `profile-${Date.now()}` en laissant `activeProfileId`
+          // à null, et les listes (filtrées sur l'actif) disparaissaient.
+          const activate = state.activeProfileId === null;
+          const hasProfile1 = state.profiles.some((p) => p.id === 'profile-1');
+          const remap = activate && !hasProfile1;
+          const customLists = remap
+            ? state.customLists.map((l) =>
+                l.profileId === 'profile-1' ? { ...l, profileId: profile.id } : l
+              )
+            : state.customLists;
+          const favorites = remap
+            ? state.favorites.map((f) =>
+                f.profileId === 'profile-1' ? { ...f, profileId: profile.id } : f
+              )
+            : state.favorites;
+          const watchHistory = remap
+            ? state.watchHistory.map((h) =>
+                h.profileId === 'profile-1' ? { ...h, profileId: profile.id } : h
+              )
+            : state.watchHistory;
+          const categoryPins = { ...state.categoryPins };
+          const categoryOrder = { ...state.categoryOrder };
+          if (remap && categoryPins['profile-1'] && !categoryPins[profile.id]) {
+            categoryPins[profile.id] = categoryPins['profile-1'];
+            delete categoryPins['profile-1'];
+          }
+          if (remap && categoryOrder['profile-1'] && !categoryOrder[profile.id]) {
+            categoryOrder[profile.id] = categoryOrder['profile-1'];
+            delete categoryOrder['profile-1'];
+          }
+          return {
+            profiles: [...state.profiles, profile],
+            activeProfileId: activate ? profile.id : state.activeProfileId,
+            customLists,
+            favorites,
+            watchHistory,
+            categoryPins,
+            categoryOrder,
+          };
+        }),
 
       updateProfile: (profileId, updates) =>
         set((state) => ({
@@ -1197,7 +1273,7 @@ export const useAppStore = create<AppState>()(
        * À chaque incrément, Zustand appelle `migrate` ci-dessous pour
        * convertir les données déjà enregistrées au nouveau format.
        */
-      version: 13,
+      version: 14,
       migrate: migratePersistedState,
       partialize: (state) => ({
         profiles: state.profiles,
@@ -1211,6 +1287,8 @@ export const useAppStore = create<AppState>()(
         preferences: state.preferences,
         categoryRenames: state.categoryRenames,
         channelRenames: state.channelRenames,
+        categoryPins: state.categoryPins,
+        categoryOrder: state.categoryOrder,
         // Les verrous survivent au rechargement ; le déverrouillage de
         // session, lui, est exclu (voir `sessionUnlocked`) pour que le
         // code soit redemandé à chaque ouverture.

@@ -48,6 +48,9 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
   if (!item) return null;
 
   const backdrop = 'backdrop' in item ? item.backdrop : undefined;
+  const poster =
+    ('cover' in item && item.cover) || ('logo' in item && item.logo) || undefined;
+  const visual = backdrop || poster;
   const rating = item.rating;
   const plot = item.plot;
   const href = item.mediaType === 'movie' ? `/movies?id=${encodeURIComponent(item.id)}` : `/series?id=${encodeURIComponent(item.id)}`;
@@ -58,9 +61,9 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
     <div className={cn('relative w-full overflow-hidden', className)}>
       {/* Background */}
       <div className="relative w-full min-h-[430px] h-[62vh] max-h-[760px] md:h-[68vh] lg:h-[72vh]">
-        {backdrop && !imgError ? (
+        {visual && !imgError ? (
           <img
-            src={backdrop}
+            src={visual}
             alt={item.name}
             className="absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-700"
             onError={() => setErroredIndex(activeIndex)}

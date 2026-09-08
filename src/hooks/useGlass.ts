@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/store/useAppStore';
+import { isAndroidPhoneAgent } from '@/lib/safeArea';
 import type { UserPreferences } from '@/types';
 
 /**
@@ -27,7 +28,9 @@ export type GlassPreference = UserPreferences['glassEnabled'];
  *
  * Règle :
  *   - un choix explicite (true / false) l'emporte toujours ;
- *   - sans choix, on suit l'appareil : pas de verre sur un téléviseur.
+ *   - sans choix, on suit l'appareil : pas de verre sur un téléviseur
+ *     ni sur un téléphone Android, où le flou des barres de navigation
+ *     fait saccader le changement d'onglet.
  *
  * Pourquoi couper sur téléviseur par défaut : `backdrop-filter` demande
  * au processeur graphique de recalculer le flou de tout ce qui se trouve
@@ -36,6 +39,16 @@ export type GlassPreference = UserPreferences['glassEnabled'];
  * se voit immédiatement sous forme de saccades. Mieux vaut une première
  * ouverture fluide qu'une première ouverture jolie mais hachée.
  */
+/**
+ * Appareil où le verre d'usine est trop coûteux : TV, ou téléphone /
+ * tablette Android (Samsung). Un choix explicite l'emporte toujours.
+ */
+export function isLowPowerGlassDevice(isTV: boolean): boolean {
+  if (isTV) return true;
+  if (typeof navigator === 'undefined') return false;
+  return isAndroidPhoneAgent(navigator.userAgent);
+}
+
 export function resolveGlass(preference: GlassPreference, isTV: boolean): boolean {
   if (preference === true) return true;
   if (preference === false) return false;
@@ -90,6 +103,6 @@ export function useGlass(isTV: boolean, isReady: boolean): void {
     // l'appliquer tout de suite, sans attendre la détection.
     if (preference === null && !isReady) return;
 
-    applyGlass(resolveGlass(preference, isTV));
+    applyGlass(resolveGlass(preference, isLowPowerGlassDevice(isTV)));
   }, [preference, isTV, isReady]);
 }

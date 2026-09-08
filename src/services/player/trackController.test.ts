@@ -5,6 +5,7 @@ import {
   hasSelectableTracks,
   matchesLanguage,
   pickPreferredTrack,
+  pickPlayableAudioTrack,
   applyTrackPreferences,
   type HlsLike,
   type TrackController,
@@ -270,6 +271,38 @@ describe('pickPreferredTrack', () => {
   });
 });
 
+describe('pickPlayableAudioTrack', () => {
+  it('préfère l AAC de la langue demandée à un AC-3 de la même langue', () => {
+    const pistes = [
+      track('0', 'audio', 'Français AC3', 'fra'),
+      track('1', 'audio', 'Français AAC', 'fra'),
+    ];
+    expect(pickPlayableAudioTrack(pistes, 'fr')?.id).toBe('1');
+  });
+
+  it('prend un AAC anglais plutôt qu un AC-3 français muet', () => {
+    // Image sans son : mieux vaut une VO audible qu'une VF que la
+    // WebView ne décode pas.
+    const pistes = [
+      track('0', 'audio', 'Français Dolby Digital', 'fra'),
+      track('1', 'audio', 'English AAC', 'eng'),
+    ];
+    expect(pickPlayableAudioTrack(pistes, 'fr')?.id).toBe('1');
+  });
+
+  it('sans indice de codec, retombe sur la langue demandée', () => {
+    const pistes = [
+      track('0', 'audio', 'English', 'eng'),
+      track('1', 'audio', 'Français', 'fra'),
+    ];
+    expect(pickPlayableAudioTrack(pistes, 'fr')?.id).toBe('1');
+  });
+
+  it('renvoie null sur une liste vide', () => {
+    expect(pickPlayableAudioTrack([], 'fr')).toBeNull();
+  });
+});
+
 describe('applyTrackPreferences', () => {
   function stub(audio: MediaTrack[], subs: MediaTrack[]) {
     const calls: string[] = [];
@@ -359,5 +392,19 @@ describe('applyTrackPreferences', () => {
       subtitlesEnabled: true,
     });
     expect(calls).toContain('sub:0');
+  });
+
+  it('bascule sur la piste AAC quand la langue demandée est en AC-3', () => {
+    const codecs = [
+      track('0', 'audio', 'Français AC3', 'fra'),
+      track('1', 'audio', 'English AAC', 'eng'),
+    ];
+    const { controller, calls } = stub(codecs, []);
+    applyTrackPreferences(controller, {
+      audioLanguage: 'fr',
+      subtitleLanguage: 'fr',
+      subtitlesEnabled: false,
+    });
+    expect(calls).toEqual(['audio:1']);
   });
 });

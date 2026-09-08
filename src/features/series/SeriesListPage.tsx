@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useAppStore } from '@/store/useAppStore';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { GridPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { SeriesCard } from '@/design-system/components/MediaCard';
+import { VirtualGrid } from '@/design-system/components/VirtualGrid';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { useTranslation } from '@/i18n';
@@ -19,7 +20,7 @@ const ALL_CATEGORY = '__all__';
 
 export function SeriesListPage() {
   const { t } = useTranslation();
-  const allSeries = useAppStore((s) => s.series);
+  const { series: allSeries } = useActiveCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL_CATEGORY);
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -34,18 +35,18 @@ export function SeriesListPage() {
   }, [allSeries]);
 
   const filtered = useMemo(() => {
-    let series = [...allSeries];
-    if (category !== ALL_CATEGORY) {
-      series = series.filter((s) => s.categoryName === category || s.genre?.includes(category));
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      series = series.filter((s) => s.name.toLowerCase().includes(q) || s.cast?.toLowerCase().includes(q));
-    }
-    return series;
+    const q = search.toLowerCase();
+    return allSeries.filter((s) => {
+      if (category !== ALL_CATEGORY && s.categoryName !== category && !s.genre?.includes(category)) {
+        return false;
+      }
+      if (search && !s.name.toLowerCase().includes(q) && !s.cast?.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
   }, [search, category, allSeries]);
 
-  const favorites = allSeries.filter((s) => s.isFavorite);
   const inProgress = allSeries.filter((s) => s.lastWatchedEpisodeId);
 
   // Voir useHydrated : ne rien conclure tant que les données
@@ -95,18 +96,23 @@ export function SeriesListPage() {
         {filtered.length === 0 ? (
           <EmptyState emoji="📺" title={t('series.noResults')} description={t('series.noResultsDescription')} />
         ) : view === 'grid' ? (
-          <div className="grid grid-cols-3 gap-x-3 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 md:gap-x-4 md:gap-y-10">
-            {filtered.map((s) => <SeriesCard key={s.id} series={s} />)}
-          </div>
+          <VirtualGrid
+            items={filtered}
+            getKey={(s) => s.id}
+            renderItem={(s) => <SeriesCard series={s} className="w-full" />}
+          />
         ) : (
-          <div className="space-y-3">
-            {filtered.map((item) => (
-              <Link key={item.id} href={`/series?id=${encodeURIComponent(item.id)}`} className="group flex gap-4 rounded-xl p-3 transition-colors hover:bg-surface-2">
+          <VirtualGrid
+            items={filtered}
+            layout="list"
+            getKey={(s) => s.id}
+            renderItem={(item) => (
+              <Link href={`/series?id=${encodeURIComponent(item.id)}`} className="group flex gap-4 rounded-xl p-3 transition-colors hover:bg-surface-2">
                 <ImageWithFallback src={item.cover} alt={item.name} className="h-24 w-16 flex-shrink-0 rounded-lg object-cover" fallbackClassName="h-24 w-16 flex-shrink-0 rounded-lg bg-surface-3" fallback={<Tv className="h-5 w-5 text-white/20" />} />
                 <div className="min-w-0 flex-1"><h3 className="font-semibold text-white group-hover:text-white/80">{item.name}</h3><p className="mt-1 line-clamp-1 text-xs text-white/40">{item.genre || item.cast || ''}</p></div>
               </Link>
-            ))}
-          </div>
+            )}
+          />
         )}
       </section>
     </div>

@@ -404,6 +404,60 @@ export function pickPreferredTrack(
   return fallbackToFirst ? tracks[0] : null;
 }
 
+/**
+ * Codecs que la WebView Android (MSE / Chrome) refuse souvent.
+ *
+ * IPTV Smarters passe par ExoPlayer, qui décode l'AC-3 / le DTS.
+ * Notre lecteur tourne dans une WebView : image sans son, le codec
+ * audio n'y est pas. On ne peut rien y faire si le flux n'offre
+ * aucune autre piste — d'où le choix, ci-dessous, d'une piste AAC
+ * dès qu'elle existe.
+ */
+const UNPLAYABLE_AUDIO = /ac-?3|eac3|ec-3|dolby|atmos|\bdts\b/i;
+const PLAYABLE_AUDIO = /aac|mp4a|mp3|opus|vorbis|flac/i;
+
+function trackText(track: MediaTrack): string {
+  return `${track.label} ${track.lang ?? ''}`;
+}
+
+export function looksUnplayableAudio(track: MediaTrack): boolean {
+  return UNPLAYABLE_AUDIO.test(trackText(track));
+}
+
+export function looksPlayableAudio(track: MediaTrack): boolean {
+  return PLAYABLE_AUDIO.test(trackText(track));
+}
+
+/**
+ * Choisit une piste audio que la WebView a une chance de décoder.
+ *
+ * Ordre : AAC dans la langue demandée, n'importe quel AAC, langue
+ * demandée hors AC-3, n'importe quelle piste hors AC-3, puis le
+ * comportement historique (langue, sinon rien).
+ */
+export function pickPlayableAudioTrack(
+  tracks: readonly MediaTrack[],
+  preferred: string
+): MediaTrack | null {
+  if (tracks.length === 0) return null;
+
+  const preferredTracks = tracks.filter((track) => matchesLanguage(track, preferred));
+
+  const aacPreferred = preferredTracks.find(looksPlayableAudio);
+  if (aacPreferred) return aacPreferred;
+
+  const anyAac = tracks.find(looksPlayableAudio);
+  if (anyAac) return anyAac;
+
+  const preferredOk = preferredTracks.find((track) => !looksUnplayableAudio(track));
+  if (preferredOk) return preferredOk;
+
+  const anyOk = tracks.find((track) => !looksUnplayableAudio(track));
+  if (anyOk) return anyOk;
+
+  return pickPreferredTrack(tracks, preferred, false);
+}
+
 /** Préférences lues par la sélection automatique. */
 export interface TrackPreferences {
   /** Code de langue audio souhaité (`'fr'`, `'en'`, …). */
@@ -450,7 +504,7 @@ export function applyTrackPreferences(
   if (audioTracks.length === 0 && subtitleTracks.length === 0) return false;
 
   if (audioTracks.length > 1) {
-    const audio = pickPreferredTrack(audioTracks, preferences.audioLanguage, false);
+    const audio = pickPlayableAudioTrack(audioTracks, preferences.audioLanguage);
     // Ne pas réémettre une sélection déjà active : certains flux
     // repartent du début du segment à chaque changement de piste.
     if (audio && audio.id !== controller.activeAudioId) {
