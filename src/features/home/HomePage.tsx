@@ -16,8 +16,10 @@ import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { HeroSkeleton, SectionSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { useTranslation } from '@/i18n';
-import type { Movie, Series } from '@/types';
+import { pickFeatured } from '@/features/home/pickFeatured';
 import { historyEntryHref, historyEpisodeSeriesId, historyProfileId } from '@/features/history/historyLinks';
+import { useClock } from '@/hooks/useClock';
+import { enrichLiveChannels } from '@/services/epg/epgSync';
 
 /**
  * Écran d'accueil.
@@ -32,7 +34,12 @@ export function HomePage() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { channels, movies, series, activePlaylistId } = useActiveCatalog();
+  const { channels, movies, series, epgPrograms, activePlaylistId } = useActiveCatalog();
+  const nowMs = useClock();
+  const homeChannels = React.useMemo(
+    () => enrichLiveChannels(channels.slice(0, 20), epgPrograms, nowMs),
+    [channels, epgPrograms, nowMs]
+  );
   const playlists = useAppStore((s) => s.playlists);
   const watchHistory = useAppStore((s) => s.watchHistory);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
@@ -76,20 +83,8 @@ export function HomePage() {
   const favoriteMovies = movies.filter((m) => isFavorite(m.id));
   const favoriteSeries = series.filter((s) => isFavorite(s.id));
 
-  // Le bandeau met en avant les contenus les mieux notés disponibles.
-  // `rating` est une chaîne côté API : on la convertit pour trier, et
-  // une note absente ou illisible vaut 0 plutôt que de fausser l'ordre.
-  const ratingOf = (item: Movie | Series): number => {
-    const value = Number.parseFloat(item.rating ?? '');
-    return Number.isFinite(value) ? value : 0;
-  };
-
-  const featured: Array<(Movie | Series) & { mediaType: 'movie' | 'series' }> = [
-    ...movies.map((m) => ({ ...m, mediaType: 'movie' as const })),
-    ...series.map((s) => ({ ...s, mediaType: 'series' as const })),
-  ]
-    .sort((a, b) => ratingOf(b) - ratingOf(a))
-    .slice(0, 5);
+  // Visuel d'abord, puis les plus récemment ajoutés (voir pickFeatured).
+  const featured = pickFeatured(movies, series, 5);
 
   // ── Lecture des données enregistrées en cours ──
   // Même attente que TV en direct : sans le catalogue IndexedDB,
@@ -178,7 +173,7 @@ export function HomePage() {
               className="mb-4"
             />
             <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">
-              {channels.slice(0, 20).map((channel) => (
+              {homeChannels.map((channel) => (
                 <ChannelCard
                   key={channel.id}
                   channel={channel}

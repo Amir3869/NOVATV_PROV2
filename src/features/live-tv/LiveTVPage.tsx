@@ -3,12 +3,15 @@
 import React, { useState, useMemo } from 'react';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { ChannelCard } from '@/design-system/components/MediaCard';
+import { BroadcastChannelCard } from '@/design-system/components/BroadcastChannelCard';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { EmptyState } from '@/design-system/components/EmptyState';
+import { VirtualGrid } from '@/design-system/components/VirtualGrid';
 import { useAppStore } from '@/store/useAppStore';
 import { resolveProfileId } from '@/lib/profileScope';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
+import { useClock } from '@/hooks/useClock';
 import { Skeleton, ChannelCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
 import { CategoryRenamePanel } from '@/features/categories/CategoryRenamePanel';
@@ -19,6 +22,8 @@ import {
   EMPTY_CATEGORY_IDS,
   layoutCategories,
 } from '@/services/catalog/categoryLayout';
+import { channelMatchesCategory } from '@/services/catalog/categoryMatch';
+import { enrichLiveChannels } from '@/services/epg/epgSync';
 
 export function LiveTVPage() {
   const { t } = useTranslation();
@@ -36,17 +41,13 @@ export function LiveTVPage() {
   const profileId = resolveProfileId(activeProfileId, firstProfileId);
   const categoryPins = useAppStore((s) => s.categoryPins[profileId] ?? EMPTY_CATEGORY_IDS);
   const categoryOrder = useAppStore((s) => s.categoryOrder[profileId] ?? EMPTY_CATEGORY_IDS);
-  // Verrou parental des catégories : une catégorie sous cadenas ne
-  // s'ouvre pas tant que le code n'a pas été saisi (session).
   const { isCategoryBlocked, ensureUnlocked } = useParental();
+  const nowMs = useClock();
 
-  // Enrich channels with EPG
-  const enrichedChannels = useMemo(() => {
-    return allChannels.map((ch) => ({
-      ...ch,
-      currentProgram: allPrograms.find((p) => p.channelId === ch.id && new Date(p.start) <= new Date() && new Date(p.stop) >= new Date()),
-    }));
-  }, [allChannels, allPrograms]);
+  const enrichedChannels = useMemo(
+    () => enrichLiveChannels(allChannels, allPrograms, nowMs),
+    [allChannels, allPrograms, nowMs]
+  );
 
   const favoriteChannelIds = favorites
     .filter((f) => f.mediaType === 'channel' && f.profileId === activeProfileId)
@@ -55,14 +56,11 @@ export function LiveTVPage() {
   const filtered = useMemo(() => {
     let result = enrichedChannels;
     if (activeCategory) {
-      result = result.filter((ch) => ch.categoryId === activeCategory);
+      result = result.filter((ch) => channelMatchesCategory(ch.categoryId, activeCategory));
     }
     if (search) {
       const q = search.toLowerCase();
       result = result.filter((ch) => {
-        // La recherche se fait sur les noms **affichés** : un surnom
-        // doit être trouvable, sinon l'utilisateur cherche « Sport » et
-        // rien n'apparaît après l'avoir renommée.
         const name = channelDisplayName(ch.id, ch.name, channelRenames);
         const catName = ch.categoryId && ch.categoryName
           ? categoryDisplayName(ch.categoryId, ch.categoryName, categoryRenames)
@@ -73,15 +71,14 @@ export function LiveTVPage() {
     return result;
   }, [enrichedChannels, activeCategory, search, categoryRenames, channelRenames]);
 
-  // Tant que les données enregistrées ne sont pas relues, on affiche un
-  // gabarit plutôt qu'une liste vide qui donnerait l'impression que le
-  // catalogue a disparu.
   const hydrated = useHydrated();
 
   const laidOutCategories = useMemo(() => {
     const { pinned, rest } = layoutCategories(allCategories, categoryPins, categoryOrder);
-    return [...pinned, ...rest];
-  }, [allCategories, categoryPins, categoryOrder]);
+    return [...pinned, ...rest].filter((cat) =>
+      allChannels.some((ch) => channelMatchesCategory(ch.categoryId, cat.id))
+    );
+  }, [allCategories, categoryPins, categoryOrder, allChannels]);
   const pinnedIds = useMemo(() => new Set(categoryPins), [categoryPins]);
 
   const favoriteChannels = enrichedChannels.filter((ch) => favoriteChannelIds.includes(ch.id));
@@ -128,7 +125,6 @@ export function LiveTVPage() {
         onSelect={(id) => {
           if (id) {
             const cat = allCategories.find((c) => c.id === id);
-            // Une catégorie verrouillée demande le code avant de s'ouvrir.
             if (cat && isCategoryBlocked(cat)) {
               void ensureUnlocked();
               return;
@@ -150,14 +146,13 @@ export function LiveTVPage() {
         gridLabel={t('liveTV.gridView')}
       />
 
-      {/* Favorites section */}
       {!search && !activeCategory && favoriteChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader title={t('liveTV.myFavoriteChannels')} accent className="mb-3" />
           {view === 'list' ? (
             <div className="space-y-1">
               {favoriteChannels.map((ch) => (
-                <ChannelCard key={ch.id} channel={ch} variant="list" />
+                <BroadcastChannelCard key={ch.id} channel={ch} />
               ))}
             </div>
           ) : (
@@ -170,14 +165,13 @@ export function LiveTVPage() {
         </section>
       )}
 
-      {/* Recent section */}
       {!search && !activeCategory && recentChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader title={t('liveTV.recent')} accent className="mb-3" />
           {view === 'list' ? (
             <div className="space-y-1">
               {recentChannels.map((ch) => (
-                <ChannelCard key={ch.id} channel={ch} variant="list" />
+                <BroadcastChannelCard key={ch.id} channel={ch} />
               ))}
             </div>
           ) : (
@@ -190,7 +184,6 @@ export function LiveTVPage() {
         </section>
       )}
 
-      {/* All channels */}
       <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
         <SectionHeader
           title={
@@ -209,18 +202,19 @@ export function LiveTVPage() {
             description={t('liveTV.noChannelsFoundDescription')}
             action={{ label: t('liveTV.managePlaylists'), onClick: () => {} }}
           />
-        ) : view === 'list' ? (
-          <div className="space-y-1">
-            {filtered.map((ch) => (
-              <ChannelCard key={ch.id} channel={ch} variant="list" />
-            ))}
-          </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {filtered.map((ch) => (
-              <ChannelCard key={ch.id} channel={ch} variant="grid" />
-            ))}
-          </div>
+          <VirtualGrid
+            items={filtered}
+            layout={view === 'list' ? 'list' : 'grid'}
+            getKey={(ch) => ch.id}
+            renderItem={(ch) =>
+              view === 'list' ? (
+                <BroadcastChannelCard channel={ch} />
+              ) : (
+                <ChannelCard channel={ch} variant="grid" className="w-full" />
+              )
+            }
+          />
         )}
       </section>
     </div>

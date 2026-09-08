@@ -274,7 +274,7 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
   }
   html.android-phone {
     --safe-top: max(env(safe-area-inset-top, 0px), 40px);
-    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 48px);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
   }
   .safe-area-pb {
     padding-bottom: var(--safe-bottom);
@@ -530,6 +530,21 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
 .catalog-card {
   content-visibility: auto;
   contain-intrinsic-size: 0 220px;
+}
+
+/* Nom de chaîne trop long : défilement (demande : au-delà de 3 lettres). */
+@keyframes scroll-channel-name {
+  0%, 18% { transform: translateX(0); }
+  82%, 100% { transform: translateX(-50%); }
+}
+.scroll-channel-name {
+  animation: scroll-channel-name 8s linear infinite;
+}
+html[data-motion='off'] .scroll-channel-name {
+  animation: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* VOD ExoPlayer : la WebView laisse voir la surface native dessous. */

@@ -222,6 +222,46 @@ export function selectionOrAll(
   return selection[kind];
 }
 
+/**
+ * Ajoute les sous-catégories des parents cochés.
+ *
+ * Xtream expose `parent_id` : une « grande famille » (France, Sport)
+ * n'a souvent aucun flux, ce sont les enfants qui portent les chaînes.
+ * Cocher le parent sans eux laissait des rubriques vides.
+ *
+ * `undefined` (tout télécharger) et `[]` (rien) restent inchangés.
+ */
+export function expandWithChildren(
+  ids: string[] | undefined,
+  categories: XtreamCategory[]
+): string[] | undefined {
+  if (ids === undefined) return undefined;
+  if (ids.length === 0) return ids;
+
+  const selected = new Set(ids);
+  const selectedNums = new Set<number>();
+  for (const id of ids) {
+    const n = Number(id);
+    if (Number.isFinite(n)) selectedNums.add(n);
+  }
+
+  let added = true;
+  while (added) {
+    added = false;
+    for (const category of categories) {
+      if (selected.has(category.categoryId)) continue;
+      if (category.parentId === 0) continue;
+      if (!selectedNums.has(category.parentId)) continue;
+      selected.add(category.categoryId);
+      const n = Number(category.categoryId);
+      if (Number.isFinite(n)) selectedNums.add(n);
+      added = true;
+    }
+  }
+
+  return [...selected];
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Recherche et regroupement
 // ─────────────────────────────────────────────────────────────────────

@@ -37,10 +37,10 @@ import {
 } from './xtreamService';
 import type { Season, Episode } from '@/types';
 import {
+  expandWithChildren,
   runWithConcurrency,
   selectionOrAll,
   type CategoryCatalog,
-  type CategoryKind,
   type CategorySelection,
 } from './categorySelection';
 
@@ -104,7 +104,7 @@ const CATEGORY_CONCURRENCY = 3;
  * Le total téléchargé ici est toujours inférieur ou égal à l'appel
  * global, et généralement dix fois moindre.
  */
-async function fetchByCategories<T>(
+async function fetchByCategories<T extends { categoryId: string }>(
   categoryIds: string[] | undefined,
   fetchAll: () => Promise<T[]>,
   fetchOne: (categoryId: string) => Promise<T[]>
@@ -119,29 +119,18 @@ async function fetchByCategories<T>(
   const batches = await runWithConcurrency(
     categoryIds,
     CATEGORY_CONCURRENCY,
-    (categoryId) => fetchOne(categoryId)
+    async (categoryId) => {
+      const items = await fetchOne(categoryId);
+      // Beaucoup de portails omettent `category_id` quand on a déjà
+      // filtré : sans ce tampon, films / séries / chaînes arrivent
+      // sans nom de catégorie et les filtres de l'UI restent vides.
+      return items.map((item) =>
+        item.categoryId?.trim() ? item : { ...item, categoryId }
+      );
+    }
   );
 
   return batches.flat();
-}
-
-/**
- * Ne conserve que les catégories retenues, pour l'affichage.
- *
- * Le serveur renvoie la liste complète de ses catégories, y compris
- * celles que l'utilisateur a écartées. Les enregistrer toutes ferait
- * apparaître dans l'application des rubriques vides, sans le moindre
- * contenu derrière.
- */
-function keepSelectedCategories<T extends { categoryId: string }>(
-  categories: T[],
-  selection: CategorySelection | null | undefined,
-  kind: CategoryKind
-): T[] {
-  const ids = selectionOrAll(selection, kind);
-  if (ids === undefined) return categories;
-  const keep = new Set(ids);
-  return categories.filter((c) => keep.has(c.categoryId));
 }
 
 /**
@@ -237,6 +226,18 @@ function orUndefined(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/** Unix secondes ou date lisible → ISO. Sinon rien. */
+export function addedAtFrom(raw: string | undefined): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    if (seconds > 1_000_000_000) return new Date(seconds * 1000).toISOString();
+  }
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+}
+
 /**
  * Préfixe les identifiants par celui de la source.
  *
@@ -281,7 +282,9 @@ export function mapLiveChannels(
     streamUrl: xtreamService.getLiveStreamUrl(creds, s.streamId, format),
     streamType: streamTypeFor(format),
     logo: orUndefined(s.streamIcon),
-    categoryId: orUndefined(s.categoryId),
+    categoryId: s.categoryId
+      ? scopedId(playlistId, 'livecat', s.categoryId)
+      : undefined,
     categoryName: categoryNames.get(s.categoryId),
     epgChannelId: orUndefined(s.epgChannelId),
     tvgId: orUndefined(s.epgChannelId),
@@ -305,6 +308,7 @@ export function mapMovies(
     rating: string;
     categoryId: string;
     containerExtension: string;
+    added?: string;
   }[],
   categoryNames: Map<string, string>,
   creds: XtreamCredentials,
@@ -321,6 +325,7 @@ export function mapMovies(
     playlistId,
     streamId: s.streamId,
     containerExtension: orUndefined(s.containerExtension),
+    addedAt: addedAtFrom(s.added),
     isFavorite: false,
     // `plot`, `cast`, `director`, `duration` ne figurent pas dans
     // `get_vod_streams` : ils exigent un appel `get_vod_info` par film.
@@ -567,14 +572,18 @@ export async function syncXtreamCatalog(
 
   report('live_categories', 0.1);
   const allLiveCategories = await xtreamService.getLiveCategories(creds, { signal });
-  const liveCategories = keepSelectedCategories(allLiveCategories, selection, 'live');
+  const liveSelection = expandWithChildren(selectionOrAll(selection, 'live'), allLiveCategories);
+  const liveCategories =
+    liveSelection === undefined
+      ? allLiveCategories
+      : allLiveCategories.filter((c) => liveSelection.includes(c.categoryId));
   const liveCategoryNames = new Map(
     liveCategories.map((c) => [c.categoryId, c.categoryName])
   );
 
   report('live_streams', 0.2);
   const liveStreams = await fetchByCategories(
-    selectionOrAll(selection, 'live'),
+    liveSelection,
     () => xtreamService.getLiveStreams(creds, undefined, { signal }),
     (categoryId) => xtreamService.getLiveStreams(creds, categoryId, { signal })
   );
@@ -598,11 +607,15 @@ export async function syncXtreamCatalog(
   let movies: Movie[] = [];
   try {
     const allVodCategories = await xtreamService.getVodCategories(creds, { signal });
-    const vodCategories = keepSelectedCategories(allVodCategories, selection, 'vod');
+    const vodSelection = expandWithChildren(selectionOrAll(selection, 'vod'), allVodCategories);
+    const vodCategories =
+      vodSelection === undefined
+        ? allVodCategories
+        : allVodCategories.filter((c) => vodSelection.includes(c.categoryId));
     const vodNames = new Map(vodCategories.map((c) => [c.categoryId, c.categoryName]));
     report('vod_streams', 0.6);
     const vodStreams = await fetchByCategories(
-      selectionOrAll(selection, 'vod'),
+      vodSelection,
       () => xtreamService.getVodStreams(creds, undefined, { signal }),
       (categoryId) => xtreamService.getVodStreams(creds, categoryId, { signal })
     );
@@ -618,13 +631,20 @@ export async function syncXtreamCatalog(
   let series: Series[] = [];
   try {
     const allSeriesCategories = await xtreamService.getSeriesCategories(creds, { signal });
-    const seriesCategories = keepSelectedCategories(allSeriesCategories, selection, 'series');
+    const seriesSelection = expandWithChildren(
+      selectionOrAll(selection, 'series'),
+      allSeriesCategories
+    );
+    const seriesCategories =
+      seriesSelection === undefined
+        ? allSeriesCategories
+        : allSeriesCategories.filter((c) => seriesSelection.includes(c.categoryId));
     const seriesNames = new Map(
       seriesCategories.map((c) => [c.categoryId, c.categoryName])
     );
     report('series', 0.9);
     const seriesList = await fetchByCategories(
-      selectionOrAll(selection, 'series'),
+      seriesSelection,
       () => xtreamService.getSeries(creds, undefined, { signal }),
       (categoryId) => xtreamService.getSeries(creds, categoryId, { signal })
     );

@@ -12,6 +12,15 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "PlayerImmersive")
 public class PlayerImmersivePlugin extends Plugin {
 
+    static void hideNavigationBar(Window window) {
+        WindowCompat.setDecorFitsSystemWindows(window, false);
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(window, window.getDecorView());
+        controller.hide(WindowInsetsCompat.Type.navigationBars());
+        controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+    }
+
     @PluginMethod
     public void setImmersive(PluginCall call) {
         Boolean value = call.getBoolean("value", true);
@@ -19,15 +28,16 @@ public class PlayerImmersivePlugin extends Plugin {
 
         getActivity().runOnUiThread(() -> {
             Window window = getActivity().getWindow();
-            WindowCompat.setDecorFitsSystemWindows(window, !on);
+            WindowCompat.setDecorFitsSystemWindows(window, false);
             WindowInsetsControllerCompat controller =
                     WindowCompat.getInsetsController(window, window.getDecorView());
+            controller.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             if (on) {
                 controller.hide(WindowInsetsCompat.Type.systemBars());
-                controller.setSystemBarsBehavior(
-                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             } else {
-                controller.show(WindowInsetsCompat.Type.systemBars());
+                controller.show(WindowInsetsCompat.Type.statusBars());
+                controller.hide(WindowInsetsCompat.Type.navigationBars());
             }
         });
 

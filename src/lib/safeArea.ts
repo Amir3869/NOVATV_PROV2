@@ -17,8 +17,8 @@
 /** Plancher barre d'état Samsung (heure, wifi, notifications), en px. */
 export const ANDROID_PHONE_SAFE_TOP_MIN_PX = 40;
 
-/** Plancher barre 3 boutons Samsung, en px. */
-export const ANDROID_PHONE_SAFE_BOTTOM_MIN_PX = 48;
+/** Plancher bas : nav système masquée, BottomNav collée en bas. */
+export const ANDROID_PHONE_SAFE_BOTTOM_MIN_PX = 8;
 
 const TV_UA =
   /\b(AFT[A-Z0-9]{1,5}|Android\s?TV|GoogleTV|Google TV|SMART-TV|SmartTV|Tizen|Web0S|WebOS|BRAVIA|HbbTV|NetCast|Philips.*TV|VIDAA|Roku)\b/i;

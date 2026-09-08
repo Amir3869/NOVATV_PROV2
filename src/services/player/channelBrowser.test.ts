@@ -127,6 +127,11 @@ describe('filterChannels', () => {
     expect(filterChannels(channels, 'c1', '').map((c) => c.id)).toEqual(['1']);
   });
 
+  it('filtre une chaîne à id brut contre une catégorie scopée', () => {
+    const mixed = [channel('1', 'TF1', '12')];
+    expect(filterChannels(mixed, 'pl-1:livecat:12', '').map((c) => c.id)).toEqual(['1']);
+  });
+
   it('la recherche traverse toutes les catégories', () => {
     // Rubrique « c2 » ouverte, mais la chaîne cherchée est dans « c1 ».
     const found = filterChannels(channels, 'c2', 'bein');

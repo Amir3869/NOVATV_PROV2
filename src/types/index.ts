@@ -233,6 +233,8 @@ export interface Movie {
   isFavorite: boolean;
   watchProgress?: number;
   watchedAt?: string;
+  /** Date d'ajout côté portail, ISO, si le serveur la fournit. */
+  addedAt?: string;
   audioTracks?: AudioTrack[];
   subtitleTracks?: SubtitleTrack[];
 }
@@ -269,6 +271,8 @@ export interface Series {
   episodeCount?: number;
   lastWatchedEpisodeId?: string;
   watchProgress?: WatchProgress;
+  /** Date d'ajout côté portail, ISO, si le serveur la fournit. */
+  addedAt?: string;
 }
 
 export interface Season {

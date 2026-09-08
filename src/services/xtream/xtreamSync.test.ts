@@ -7,8 +7,11 @@ import {
   mapMovies,
   mapSeries,
   mapLiveCategories,
+  mapSeriesInfo,
+  mapVodInfo,
   type SyncStep,
 } from './xtreamSync';
+import type { XtreamSeriesInfo, XtreamVodInfo } from './xtreamService';
 import { XtreamError, type XtreamCredentials } from './xtreamService';
 
 const creds: XtreamCredentials = {
@@ -159,6 +162,7 @@ describe('conversion vers les types de l’application', () => {
     );
     expect(channels[0].id).toBe('pl-1:live:42');
     expect(channels[0].playlistId).toBe('pl-1');
+    expect(channels[0].categoryId).toBe('pl-1:livecat:1');
     // L'identifiant natif reste accessible pour les appels ultérieurs.
     expect(channels[0].streamId).toBe(42);
   });
@@ -266,6 +270,102 @@ describe('conversion vers les types de l’application', () => {
     );
     expect(channels[0].isFavorite).toBe(false);
     expect(channels[0].isRecent).toBe(false);
+  });
+});
+
+describe('mapSeriesInfo', () => {
+  const info: XtreamSeriesInfo = {
+    name: 'Série B',
+    cover: 'http://img/s.png',
+    plot: 'Un synopsis.',
+    cast: 'Untel',
+    director: '',
+    genre: 'Drame',
+    releaseDate: '2019-05-01',
+    rating: '7',
+    backdrop: 'http://img/back.png',
+    seasons: [{ seasonNumber: 1, name: 'Saison 1', cover: '', airDate: '2019-05-01', episodeCount: 1 }],
+    episodes: [
+      {
+        streamId: 205,
+        seasonNumber: 1,
+        episodeNumber: 1,
+        title: 'Pilote',
+        plot: 'Début.',
+        image: 'http://img/e1.png',
+        durationSecs: 2400,
+        containerExtension: 'mkv',
+        rating: '8',
+        airDate: '2019-05-01',
+      },
+    ],
+  };
+
+  it('construit les adresses de lecture et préfixe les identifiants', () => {
+    const details = mapSeriesInfo(info, creds, 'pl-1', 'pl-1:series:5');
+    expect(details.seasons[0].id).toBe('pl-1:series:5:season:1');
+    expect(details.episodes[0].id).toBe('pl-1:series:5:episode:205');
+    expect(details.episodes[0].streamUrl).toBe(
+      'http://exemple.tv:8080/series/user/pass/205.mkv'
+    );
+    expect(details.episodes[0].duration).toBe(2400);
+    expect(details.seriesPatch.year).toBe(2019);
+    expect(details.seriesPatch.episodeCount).toBe(1);
+  });
+
+  it('laisse vides les champs absents du serveur', () => {
+    const details = mapSeriesInfo(info, creds, 'pl-1', 'pl-1:series:5');
+    expect(details.seriesPatch.director).toBeUndefined();
+  });
+});
+
+describe('mapVodInfo', () => {
+  const movie = {
+    id: 'pl-1:movie:7',
+    name: 'Film A',
+    streamUrl: 'http://exemple.tv:8080/movie/user/pass/7.mkv',
+    playlistId: 'pl-1',
+    isFavorite: false,
+    streamId: 7,
+    logo: 'http://img/f.png',
+  };
+
+  it('convertit la durée en minutes et n’écrase pas une affiche déjà connue', () => {
+    const info: XtreamVodInfo = {
+      plot: 'Un film.',
+      cast: 'Untel',
+      director: 'Unetelle',
+      genre: 'Drame',
+      releaseDate: '1999-10-15',
+      rating: '8.8',
+      backdrop: 'http://img/bd.png',
+      image: 'http://img/other.png',
+      durationSecs: 8340,
+      tmdbId: '550',
+      containerExtension: 'mkv',
+    };
+    const patch = mapVodInfo(info, movie);
+    expect(patch.plot).toBe('Un film.');
+    expect(patch.duration).toBe(139);
+    expect(patch.year).toBe(1999);
+    expect(patch.logo).toBeUndefined();
+  });
+
+  it('n’écrit pas un champ vide', () => {
+    const info: XtreamVodInfo = {
+      plot: '',
+      cast: '',
+      director: '',
+      genre: '',
+      releaseDate: '',
+      rating: '',
+      backdrop: '',
+      image: '',
+      durationSecs: 0,
+      tmdbId: '',
+      containerExtension: '',
+    };
+    expect(mapVodInfo(info, movie)).toEqual({});
   });
 });
 
@@ -517,6 +617,76 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
     });
 
     expect(result.catalog.liveCategories[0].channelCount).toBe(2);
+  });
+
+  it('tamponne category_id quand le portail l’omet à l’appel par catégorie', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', async (input: string | URL, init?: { signal?: AbortSignal }) => {
+      if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      const url = new URL(String(input));
+      urls.push(url.search);
+      const action = url.searchParams.get('action') ?? 'auth';
+      const body: Record<string, unknown> = {
+        auth: AUTH_OK,
+        get_live_categories: [{ category_id: '1', category_name: 'FR | Général', parent_id: 0 }],
+        get_live_streams: [{ num: 1, name: 'FR TF1', stream_id: 11 }],
+        get_vod_categories: [],
+        get_vod_streams: [],
+        get_series_categories: [],
+        get_series: [],
+      };
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => JSON.stringify(body[action] ?? []),
+      };
+    });
+
+    const result = await syncXtreamCatalog(creds, 'p1', {
+      selection: { live: ['1'], vod: [], series: [] },
+    });
+    expect(result.catalog.channels[0].categoryId).toBe('p1:livecat:1');
+    expect(result.catalog.channels[0].categoryName).toBe('FR | Général');
+    expect(result.catalog.liveCategories[0].id).toBe('p1:livecat:1');
+  });
+
+  it('importe les sous-catégories d’un parent coché', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL, init?: { signal?: AbortSignal }) => {
+      if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      const url = new URL(String(input));
+      const action = url.searchParams.get('action') ?? 'auth';
+      const categoryId = url.searchParams.get('category_id');
+      const live: Record<string, unknown[]> = {
+        '1': [],
+        '10': [{ num: 1, name: 'TF1', stream_id: 11, category_id: '10' }],
+      };
+      const body: Record<string, unknown> = {
+        auth: AUTH_OK,
+        get_live_categories: [
+          { category_id: '1', category_name: 'France', parent_id: 0 },
+          { category_id: '10', category_name: 'FR | TF1', parent_id: 1 },
+        ],
+        get_live_streams: categoryId === null ? Object.values(live).flat() : (live[categoryId] ?? []),
+        get_vod_categories: [],
+        get_vod_streams: [],
+        get_series_categories: [],
+        get_series: [],
+      };
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => JSON.stringify(body[action] ?? []),
+      };
+    });
+
+    const result = await syncXtreamCatalog(creds, 'p1', {
+      selection: { live: ['1'], vod: [], series: [] },
+    });
+    expect(result.counts.channels).toBe(1);
+    expect(result.catalog.channels[0].name).toBe('TF1');
+    expect(result.catalog.liveCategories.map((c) => c.name).sort()).toEqual(['FR | TF1', 'France']);
   });
 
   it('ignore une catégorie cochée que le serveur ne connaît plus', async () => {

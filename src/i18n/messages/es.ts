@@ -137,6 +137,8 @@ export const es: Messages = {
     channelRenameHint: "Solo cambia el nombre mostrado. Deja el campo vacío para restaurar el nombre original.",
     renamedChannel: 'Canal renombrado a « {name} »',
     restoredChannel: "Nombre original restaurado: « {name} »",
+    now: 'Ahora',
+    noProgram: 'Programa no disponible',
   },
 
   movies: {
@@ -198,6 +200,8 @@ export const es: Messages = {
     onNow: 'EN EMISIÓN',
     loadFailed: 'No se pudo cargar la guía.',
     loadFailedDescription: 'La descarga falló o no se pudo asociar ninguna cadena. Inténtalo de nuevo.',
+    showPast: 'Ver programas pasados',
+    hidePast: 'Ocultar programas pasados',
   },
 
   favorites: {
@@ -269,6 +273,7 @@ export const es: Messages = {
     addedCount: '{count} elemento(s) añadido(s)',
     removeItem: 'Quitar de la lista',
     updated: 'Lista actualizada',
+    missingFromCatalog: 'Ya no está en el catálogo',
   },
 
   search: {

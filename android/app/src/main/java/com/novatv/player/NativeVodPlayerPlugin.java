@@ -13,6 +13,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -37,6 +38,7 @@ public class NativeVodPlayerPlugin extends Plugin {
     private final Handler main = new Handler(Looper.getMainLooper());
     @Nullable private Runnable tick;
     private float lastVolume = 1f;
+    private String lastResizeMode = "contain";
 
     @PluginMethod
     public void play(PluginCall call) {
@@ -46,10 +48,13 @@ public class NativeVodPlayerPlugin extends Plugin {
             return;
         }
         double resumeAt = call.getDouble("resumeAt", 0d);
+        String resizeMode = call.getString("resizeMode", lastResizeMode);
+        if (resizeMode != null) lastResizeMode = resizeMode;
 
         getActivity().runOnUiThread(() -> {
             releaseInternal();
             attachSurface();
+            applyResizeMode(lastResizeMode);
 
             ExoPlayer exo = new ExoPlayer.Builder(getContext()).build();
             exo.setAudioAttributes(
@@ -155,6 +160,14 @@ public class NativeVodPlayerPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setResizeMode(PluginCall call) {
+        String mode = call.getString("mode", lastResizeMode);
+        if (mode != null) lastResizeMode = mode;
+        getActivity().runOnUiThread(() -> applyResizeMode(lastResizeMode));
+        call.resolve();
+    }
+
+    @PluginMethod
     public void release(PluginCall call) {
         getActivity().runOnUiThread(this::releaseInternal);
         call.resolve();
@@ -181,11 +194,25 @@ public class NativeVodPlayerPlugin extends Plugin {
 
         playerView = new PlayerView(getContext());
         playerView.setUseController(false);
+        playerView.setBackgroundColor(Color.BLACK);
         playerView.setShutterBackgroundColor(Color.BLACK);
         playerView.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
         host.addView(playerView, 0);
+        applyResizeMode(lastResizeMode);
+    }
+
+    private void applyResizeMode(String mode) {
+        if (playerView == null) return;
+        int resize = AspectRatioFrameLayout.RESIZE_MODE_FIT;
+        if ("cover".equals(mode)) {
+            resize = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+        } else if ("fill".equals(mode)) {
+            resize = AspectRatioFrameLayout.RESIZE_MODE_FILL;
+        }
+        playerView.setResizeMode(resize);
+        playerView.setBackgroundColor(Color.BLACK);
     }
 
     private void releaseInternal() {

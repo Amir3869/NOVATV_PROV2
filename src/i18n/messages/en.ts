@@ -143,6 +143,8 @@ export const en: Messages = {
     channelRenameHint: "Only the displayed name changes. Leave the field empty to restore the original name.",
     renamedChannel: 'Channel renamed to « {name} »',
     restoredChannel: "Original name restored: « {name} »",
+    now: 'Now',
+    noProgram: 'No programme',
   },
 
   movies: {
@@ -204,6 +206,8 @@ export const en: Messages = {
     onNow: 'ON NOW',
     loadFailed: 'The guide could not be loaded.',
     loadFailedDescription: 'The download failed, or no channel could be matched. Try again.',
+    showPast: 'Show past programmes',
+    hidePast: 'Hide past programmes',
   },
 
   favorites: {
@@ -275,6 +279,7 @@ export const en: Messages = {
     addedCount: '{count} item(s) added',
     removeItem: 'Remove from list',
     updated: 'List updated',
+    missingFromCatalog: 'No longer in the catalogue',
   },
 
   search: {

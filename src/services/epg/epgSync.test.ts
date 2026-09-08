@@ -3,11 +3,17 @@ import {
   buildXtreamEPGUrl,
   mapEPGPrograms,
   findCurrentAndNext,
+  indexNowPlaying,
+  indexUpcoming,
   programProgressPercent,
   toEPGErrorKind,
   EPGSyncError,
   syncEPG,
   MAX_EPG_BYTES,
+  logoFallbacksFromEpg,
+  applyLogoFallbacks,
+  broadcastArtworkUrl,
+  enrichLiveChannels,
 } from './epgSync';
 import type { ParsedEPGProgram } from './epgService';
 import type { EPGProgram, LiveChannel } from '@/types';
@@ -140,6 +146,15 @@ describe('mapEPGPrograms', () => {
     expect(out[0].description).toBe('Info');
     expect(out[0].category).toBe('News');
     expect(out[0].episodeNum).toBe('S1E2');
+  });
+
+  it('reporte l icone du programme', () => {
+    const out = mapEPGPrograms(
+      [program({ icon: 'http://art/j.jpg' })],
+      mapping,
+      'pl1'
+    );
+    expect(out[0].icon).toBe('http://art/j.jpg');
   });
 });
 
@@ -297,5 +312,98 @@ describe('syncEPG', () => {
 
     const err = await syncEPG('http://x/xmltv.php', [channel()], 'pl1').catch((e) => e);
     expect(toEPGErrorKind(err)).toBe('network');
+  });
+});
+
+
+describe('logoFallbacksFromEpg / applyLogoFallbacks', () => {
+  it('associe le logo XMLTV a la chaine source', () => {
+    const mapping = new Map([['pl1:live:1', 'tf1.fr']]);
+    const out = logoFallbacksFromEpg(mapping, [
+      { id: 'tf1.fr', displayName: 'TF1', icon: 'http://guide/tf1.png' },
+    ]);
+    expect(out['pl1:live:1']).toBe('http://guide/tf1.png');
+  });
+
+  it('ne remplace pas un logo Xtream deja present', () => {
+    const list = [channel({ logo: 'http://xtream/tf1.png' })];
+    const next = applyLogoFallbacks(list, { 'pl1:live:1': 'http://guide/tf1.png' });
+    expect(next[0].logo).toBe('http://xtream/tf1.png');
+    expect(next).toBe(list);
+  });
+
+  it('remplit un logo manquant', () => {
+    const ch = channel();
+    const next = applyLogoFallbacks([ch], { 'pl1:live:1': 'http://guide/tf1.png' });
+    expect(next[0].logo).toBe('http://guide/tf1.png');
+  });
+
+  it('renvoie la meme reference si rien ne change', () => {
+    const list = [channel({ logo: 'http://x.png' })];
+    expect(applyLogoFallbacks(list, {})).toBe(list);
+  });
+});
+
+describe('broadcastArtworkUrl', () => {
+  it('prefere l affiche emission au logo chaine', () => {
+    const ch = channel({
+      logo: 'http://logo.png',
+      currentProgram: {
+        id: 'p',
+        channelId: 'pl1:live:1',
+        title: 'JT',
+        start: '2026-08-20T19:00:00Z',
+        stop: '2026-08-20T19:40:00Z',
+        icon: 'http://art.jpg',
+      },
+    });
+    expect(broadcastArtworkUrl(ch)).toBe('http://art.jpg');
+  });
+
+  it('replie sur le logo chaine', () => {
+    expect(broadcastArtworkUrl(channel({ logo: 'http://logo.png' }))).toBe('http://logo.png');
+  });
+
+  it('reste vide si ni affiche ni logo', () => {
+    expect(broadcastArtworkUrl(channel())).toBeUndefined();
+  });
+});
+
+describe('enrichLiveChannels', () => {
+  const now = Date.parse('2026-08-20T19:10:00Z');
+  const programs: EPGProgram[] = [
+    {
+      id: 'now',
+      channelId: 'pl1:live:1',
+      title: 'Maintenant',
+      start: '2026-08-20T19:00:00Z',
+      stop: '2026-08-20T19:40:00Z',
+      icon: 'http://art.jpg',
+    },
+    {
+      id: 'next',
+      channelId: 'pl1:live:1',
+      title: 'Apres',
+      start: '2026-08-20T19:40:00Z',
+      stop: '2026-08-20T20:00:00Z',
+    },
+  ];
+
+  it('pose en-cours, suivant et barre', () => {
+    const [out] = enrichLiveChannels([channel()], programs, now);
+    expect(out.currentProgram?.title).toBe('Maintenant');
+    expect(out.currentProgram?.progressPercent).toBe(25);
+    expect(out.nextProgram?.title).toBe('Apres');
+  });
+
+  it('laisse intacte une chaine sans guide', () => {
+    const ch = channel({ id: 'pl1:live:9' });
+    const [out] = enrichLiveChannels([ch], programs, now);
+    expect(out).toBe(ch);
+  });
+
+  it('renvoie la meme liste si le guide est vide', () => {
+    const list = [channel()];
+    expect(enrichLiveChannels(list, [], now)).toBe(list);
   });
 });

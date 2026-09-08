@@ -15,6 +15,7 @@ import { secureStore } from '@/lib/secureStore';
 import {
   syncEPG,
   buildXtreamEPGUrl,
+  applyLogoFallbacks,
   type EPGSyncOptions,
   type EPGSyncResult,
 } from '@/services/epg/epgSync';
@@ -49,7 +50,13 @@ export async function runPlaylistEpg(
     signal: options.signal,
     keepAheadDays: state.preferences.epgDays,
   });
-  useAppStore.getState().setEpgPrograms(playlistId, result.programs);
+  const store = useAppStore.getState();
+  store.setEpgPrograms(playlistId, result.programs);
+  const latest = store.channels.filter((c) => c.playlistId === playlistId);
+  const patched = applyLogoFallbacks(latest, result.logoFallbacks);
+  if (patched !== latest) {
+    store.setCatalog(playlistId, { channels: patched });
+  }
   return result;
 }
 

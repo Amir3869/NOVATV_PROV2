@@ -17,25 +17,28 @@ function isLockable(orientation: ScreenOrientation): orientation is LockableOrie
 }
 
 /**
- * Demande au système de verrouiller le lecteur en paysage.
+ * Verrouillage paysage du lecteur, ou déverrouillage si `enabled` est faux.
  *
- * Sur l'APK Android / une WebView Capacitor, l'appel est généralement
- * honoré. Dans Safari iOS (et la plupart des navigateurs desktop), il
- * est refusé hors plein écran : l'échec est silencieux, et l'écran
- * « Tournez l'appareil » du lecteur prend le relais.
- *
- * `unlock` au démontage rend le reste de l'application à l'orientation
- * libre — Accueil, Live, Paramètres restent utilisables en portrait.
+ * Le lecteur s'ouvre désormais dans n'importe quel sens : on appelle
+ * ce hook avec `false` pour lever un verrou laissé par une version
+ * précédente. Accueil, Live et Paramètres restent libres.
  */
 export function usePlayerLandscapeLock(enabled: boolean): void {
   useEffect(() => {
-    if (!enabled) return;
     if (typeof screen === 'undefined' || !screen.orientation) return;
 
     const orientation = screen.orientation;
+    if (!enabled) {
+      try {
+        orientation.unlock();
+      } catch {
+        /* Déjà déverrouillé, ou API absente. */
+      }
+      return;
+    }
     if (isLockable(orientation)) {
       void orientation.lock('landscape').catch(() => {
-        /* Refus du navigateur : l'overlay portrait s'en charge. */
+        /* Refus du navigateur : lecture libre dans le sens du téléphone. */
       });
     }
 

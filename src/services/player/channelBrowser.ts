@@ -10,6 +10,7 @@
  */
 
 import type { LiveCategory, LiveChannel } from '@/types';
+import { categoryToken, channelMatchesCategory } from '@/services/catalog/categoryMatch';
 
 /**
  * Rubrique « Toutes les chaînes ».
@@ -63,15 +64,16 @@ export function buildCategoryList(
   const counts = new Map<string, number>();
   for (const channel of channels) {
     if (!channel.categoryId) continue;
-    counts.set(channel.categoryId, (counts.get(channel.categoryId) ?? 0) + 1);
+    const token = categoryToken(channel.categoryId);
+    counts.set(token, (counts.get(token) ?? 0) + 1);
   }
 
   const known = categories
-    .filter((category) => (counts.get(category.id) ?? 0) > 0)
+    .filter((category) => (counts.get(categoryToken(category.id)) ?? 0) > 0)
     .map((category) => ({
       id: category.id,
       name: category.name,
-      count: counts.get(category.id) ?? 0,
+      count: counts.get(categoryToken(category.id)) ?? 0,
     }));
 
   /*
@@ -81,9 +83,10 @@ export function buildCategoryList(
     ouverte. Les listes M3U, souvent sans catégories propres, tombent
     entièrement dans ce cas.
   */
-  const knownIds = new Set(categories.map((c) => c.id));
+  const knownTokens = new Set(categories.map((c) => categoryToken(c.id)));
   const orphans = channels.filter(
-    (channel) => !channel.categoryId || !knownIds.has(channel.categoryId)
+    (channel) =>
+      !channel.categoryId || !knownTokens.has(categoryToken(channel.categoryId))
   ).length;
 
   const list: BrowserCategory[] = [
@@ -141,7 +144,7 @@ export function filterChannels(
     return channels.filter((channel) => !channel.categoryId || !knownIds.has(channel.categoryId));
   }
 
-  return channels.filter((channel) => channel.categoryId === categoryId);
+  return channels.filter((channel) => channelMatchesCategory(channel.categoryId, categoryId));
 }
 
 /**
@@ -162,8 +165,9 @@ export function initialCategory(
     return preferredId;
   }
   const categoryId = currentChannel?.categoryId;
-  if (categoryId && categories.some((c) => c.id === categoryId)) {
-    return categoryId;
-  }
+  const matched = categoryId
+    ? categories.find((c) => channelMatchesCategory(categoryId, c.id))
+    : undefined;
+  if (matched) return matched.id;
   return ALL_CATEGORIES;
 }

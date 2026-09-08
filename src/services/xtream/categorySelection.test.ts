@@ -6,6 +6,7 @@ import {
   countSelected,
   emptyCatalog,
   emptySelection,
+  expandWithChildren,
   filterCategories,
   groupCategories,
   isCategorySelected,

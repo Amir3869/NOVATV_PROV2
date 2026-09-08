@@ -8,7 +8,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize,
   SkipBack, SkipForward, ArrowLeft, Radio, AlertTriangle, RotateCcw,
-  ChevronLeft, ChevronRight, Settings, List, Ratio, Captions, RotateCw,
+  ChevronLeft, ChevronRight, Settings, List, Ratio, Captions,
   Heart, Lock, LockOpen, Timer, Gauge
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -96,17 +96,10 @@ const AUTO_NEXT_DELAY_SECONDS = 10;
 
 function PlayerContent() {
   const { t, locale } = useTranslation();
-  const { isTV, orientation, isReady, hasTouch, height } = useDeviceType();
-  /**
-   * Téléphone et tablette (tactile, hors TV) : le lecteur est paysage.
-   * On verrouille l'orientation côté système, et si le navigateur refuse
-   * (Safari iOS), l'écran « Tournez l'appareil » recouvre tout.
-   * PC souris et Firestick : pas de verrou, pas d'écran.
-   */
-  const lockLandscape = isReady && hasTouch && !isTV;
-  usePlayerLandscapeLock(lockLandscape);
+  const { isReady, height } = useDeviceType();
+  /** Plus de verrou paysage : le lecteur s'ouvre dans le sens du téléphone. */
+  usePlayerLandscapeLock(false);
   usePlayerImmersive(isReady);
-  const showRotate = lockLandscape && orientation === 'portrait';
   /** Hauteur paysage téléphone (~390–430) : le gros play central chevauche les barres. */
   const compactChrome = isReady && height > 0 && height < 500;
   const {
@@ -423,6 +416,7 @@ function PlayerContent() {
     qualityPolicy: defaultQuality,
     preferredHeight: lastQualityHeight,
     onQualityHeight: handleQualityHeight,
+    videoFit,
   });
 
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
@@ -632,7 +626,7 @@ function PlayerContent() {
     return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
   }, []);
 
-  useWakeLock(player.isPlaying && !showRotate && !player.error);
+  useWakeLock(player.isPlaying && !player.error);
 
   useEffect(() => {
     const node = videoRef.current;
@@ -1614,32 +1608,6 @@ function PlayerContent() {
         />
       )}
 
-      {showRotate && (
-        <div
-          className="cinema fixed inset-0 z-[400] flex flex-col items-center justify-center bg-black px-8 text-center"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="player-rotate-title"
-        >
-          <RotateCw className="w-12 h-12 text-white/80 mb-4" aria-hidden="true" />
-          <p id="player-rotate-title" className="text-white font-semibold text-lg">
-            {t('player.rotateTitle')}
-          </p>
-          <p className="text-white/60 text-sm mt-2 max-w-xs">
-            {t('player.rotateHint')}
-          </p>
-          {/* Sortir sans relocker l'orientation : le lecteur reste
-              paysage-only, ce bouton quitte la page. */}
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="mt-8 inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm font-semibold hover:bg-white/15"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {t('common.back')}
-          </button>
-        </div>
-      )}
     </div>
   );
 }

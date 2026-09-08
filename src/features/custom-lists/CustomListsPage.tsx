@@ -8,24 +8,21 @@ import { EmptyState } from '@/design-system/components/EmptyState';
 import { ChannelCard } from '@/design-system/components/MediaCard';
 import { useAppStore } from '@/store/useAppStore';
 import { resolveProfileId } from '@/lib/profileScope';
-import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
+import { resolveListItems } from '@/features/custom-lists/resolveListMedia';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
 import { AppDialog } from '@/design-system/components/AppDialog';
 import { AddMediaToListDialog } from '@/design-system/components/AddMediaToListDialog';
 import toast from 'react-hot-toast';
-import type { CustomList, LiveChannel, Movie, Series } from '@/types';
 import { useTranslation } from '@/i18n';
-
-type ListMedia =
-  | { mediaType: 'movie'; itemId: string; mediaId: string; data: Movie }
-  | { mediaType: 'series'; itemId: string; mediaId: string; data: Series }
-  | { mediaType: 'channel'; itemId: string; mediaId: string; data: LiveChannel };
 
 export function CustomListsPage() {
   const { t } = useTranslation();
-  const { movies: allMovies, series: allSeries, channels: allChannels } = useActiveCatalog();
+  const allMovies = useAppStore((s) => s.movies);
+  const allSeries = useAppStore((s) => s.series);
+  const allChannels = useAppStore((s) => s.channels);
+  const catalogReady = useAppStore((s) => s.catalogReady);
   const customLists = useAppStore((s) => s.customLists);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
@@ -42,26 +39,9 @@ export function CustomListsPage() {
   const profileLists = customLists.filter((l) => l.profileId === profileId);
   const selectedList = profileLists.find((l) => l.id === selectedListId);
 
-  const getMediaForList = (list: CustomList): ListMedia[] => {
-    const resolved: ListMedia[] = [];
-    for (const item of list.items) {
-      if (item.mediaType === 'movie') {
-        const movie = allMovies.find((m) => m.id === item.mediaId);
-        if (movie) resolved.push({ mediaType: 'movie', itemId: item.id, mediaId: item.mediaId, data: movie });
-      } else if (item.mediaType === 'series') {
-        const seriesItem = allSeries.find((s) => s.id === item.mediaId);
-        if (seriesItem) resolved.push({ mediaType: 'series', itemId: item.id, mediaId: item.mediaId, data: seriesItem });
-      } else if (item.mediaType === 'channel') {
-        const channel = allChannels.find((c) => c.id === item.mediaId);
-        if (channel) resolved.push({ mediaType: 'channel', itemId: item.id, mediaId: item.mediaId, data: channel });
-      }
-    }
-    return resolved;
-  };
-
   const hydrated = useHydrated();
 
-  if (!hydrated) return <ListPageSkeleton rows={4} />;
+  if (!hydrated || !catalogReady) return <ListPageSkeleton rows={4} />;
 
   return (
     <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
@@ -193,7 +173,21 @@ export function CustomListsPage() {
                       </div>
                     ) : (
                       <div className="overflow-hidden rounded-xl border border-line bg-surface-2 divide-y divide-line">
-                        {getMediaForList(list).map((item) => {
+                        {resolveListItems(list, {
+                          channels: allChannels,
+                          movies: allMovies,
+                          series: allSeries,
+                        }).map((item) => {
+                          if (item.status === 'missing') {
+                            return (
+                              <div key={item.itemId} className="flex items-center gap-3 p-3">
+                                <div className="w-16 h-10 rounded-lg bg-surface-3 flex-shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm text-white/50 truncate">{t('lists.missingFromCatalog')}</p>
+                                </div>
+                              </div>
+                            );
+                          }
                           if (item.mediaType === 'channel') {
                             return (
                               <ChannelCard

@@ -85,6 +85,8 @@ export function ImageWithFallback({
       src={src}
       alt={alt}
       className={className}
+      referrerPolicy="no-referrer"
+      decoding="async"
       onError={() => setFailedSrc(src)}
     />
   );

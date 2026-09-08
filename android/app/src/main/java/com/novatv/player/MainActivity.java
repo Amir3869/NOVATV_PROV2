@@ -9,5 +9,6 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PlayerImmersivePlugin.class);
         registerPlugin(NativeVodPlayerPlugin.class);
         super.onCreate(savedInstanceState);
+        PlayerImmersivePlugin.hideNavigationBar(getWindow());
     }
 }

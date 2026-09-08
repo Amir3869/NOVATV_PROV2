@@ -94,6 +94,28 @@ export function endOfDayAhead(days: number, from: Date = new Date()): Date {
   return end;
 }
 
+/**
+ * Première URL d'illustration trouvée sur un nœud XMLTV.
+ *
+ * Le DTD officiel n'a que `<icon src="…">`. Les portails y ajoutent
+ * souvent `<poster>` ou `<image>`, en attribut ou en texte. Sans ce
+ * ramassage, la carte Live B resterait noire alors que le fichier
+ * portait déjà le visuel.
+ */
+export function xmltvMediaUrl(el: Element): string | undefined {
+  for (const tag of ['icon', 'poster', 'image'] as const) {
+    for (const node of Array.from(el.querySelectorAll(tag))) {
+      const src =
+        node.getAttribute('src')?.trim() ||
+        node.getAttribute('href')?.trim() ||
+        node.textContent?.trim() ||
+        '';
+      if (src) return src;
+    }
+  }
+  return undefined;
+}
+
 /** Au-delà, on cesse d'accumuler les messages : ils seraient illisibles. */
 const MAX_ERRORS = 50;
 
@@ -199,7 +221,7 @@ export async function parseXMLTV(
         // Une chaîne sans nom lisible reste utile : son identifiant
         // permet quand même de rattacher les programmes.
         displayName: displayName || id,
-        icon: el.querySelector('icon')?.getAttribute('src')?.trim() || undefined,
+        icon: xmltvMediaUrl(el),
         url: el.querySelector('url')?.textContent?.trim() || undefined,
       });
     }
@@ -270,7 +292,7 @@ export async function parseXMLTV(
           stop,
           description: el.querySelector('desc')?.textContent?.trim() || undefined,
           category: el.querySelector('category')?.textContent?.trim() || undefined,
-          icon: el.querySelector('icon')?.getAttribute('src')?.trim() || undefined,
+          icon: xmltvMediaUrl(el),
           episodeNum: el.querySelector('episode-num')?.textContent?.trim() || undefined,
           rating: el.querySelector('rating value')?.textContent?.trim() || undefined,
         });

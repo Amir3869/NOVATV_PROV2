@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Play, Plus, Info, Star, Clock, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
-import { cn } from '@/utils/cn';
+import { Play, Info, Star, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
+import { cn, formatDuration } from '@/utils/cn';
 import { Badge } from './Badge';
-import { formatDuration } from '@/utils/cn';
 import { useAppStore } from '@/store/useAppStore';
 import { useTranslation } from '@/i18n';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import type { Movie, Series } from '@/types';
 
 type FeaturedItem = (Movie | Series) & { mediaType: 'movie' | 'series' };
@@ -35,10 +35,19 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
   const imgError = erroredIndex === activeIndex;
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(items[activeIndex]?.id ?? ''));
+  const { isTV, hasTouch } = useDeviceType();
+  const showArrows = items.length > 1 && (isTV || !hasTouch);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
 
   const item = items[activeIndex];
 
+  const go = (delta: number) => {
+    if (items.length < 2) return;
+    setActiveIndex((i) => (i + delta + items.length) % items.length);
+  };
+
   useEffect(() => {
+    if (items.length < 2) return;
     const interval = setInterval(() => {
       setActiveIndex((i) => (i + 1) % items.length);
     }, 8000);
@@ -58,7 +67,25 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
   const watchProgress = 'watchProgress' in item && typeof item.watchProgress === 'number' ? item.watchProgress : undefined;
 
   return (
-    <div className={cn('relative w-full overflow-hidden', className)}>
+    <div
+      className={cn('relative w-full overflow-hidden touch-pan-y', className)}
+      onPointerDown={(event) => {
+        if (isTV || items.length < 2) return;
+        swipe.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerUp={(event) => {
+        const start = swipe.current;
+        swipe.current = null;
+        if (!start) return;
+        const dx = event.clientX - start.x;
+        const dy = event.clientY - start.y;
+        if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+        go(dx < 0 ? 1 : -1);
+      }}
+      onPointerCancel={() => {
+        swipe.current = null;
+      }}
+    >
       {/* Background */}
       <div className="relative w-full min-h-[430px] h-[62vh] max-h-[760px] md:h-[68vh] lg:h-[72vh]">
         {visual && !imgError ? (
@@ -178,22 +205,21 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
           </div>
         )}
 
-        {/* Arrow navigation */}
-        {items.length > 1 && (
+        {showArrows && (
           <>
             <button
               type="button"
               aria-label={t('common.previousContent')}
-              onClick={() => setActiveIndex((i) => (i - 1 + items.length) % items.length)}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all"
+              onClick={() => go(-1)}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               type="button"
               aria-label={t('common.nextContent')}
-              onClick={() => setActiveIndex((i) => (i + 1) % items.length)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all"
+              onClick={() => go(1)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all"
             >
               <ChevronRight className="w-5 h-5" />
             </button>

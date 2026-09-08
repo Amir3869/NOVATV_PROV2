@@ -196,6 +196,29 @@ describe('parseXMLTV', () => {
     expect(journal!.category).toBe('Information');
   });
 
+  it('lit l’affiche d’un programme via <icon>, <poster> ou <image>', async () => {
+    const xml = `<?xml version="1.0"?>
+<tv>
+  <channel id="a"><display-name>A</display-name></channel>
+  <programme channel="a" start="20240101200000 +0100" stop="20240101210000 +0100">
+    <title>Icon</title>
+    <icon src="http://art/icon.jpg" />
+  </programme>
+  <programme channel="a" start="20240101210000 +0100" stop="20240101220000 +0100">
+    <title>Poster</title>
+    <poster src="http://art/poster.jpg" />
+  </programme>
+  <programme channel="a" start="20240101220000 +0100" stop="20240101230000 +0100">
+    <title>Image</title>
+    <image>http://art/image.jpg</image>
+  </programme>
+</tv>`;
+    const r = await parseXMLTV(xml);
+    expect(r.programs.find((p) => p.title === 'Icon')?.icon).toBe('http://art/icon.jpg');
+    expect(r.programs.find((p) => p.title === 'Poster')?.icon).toBe('http://art/poster.jpg');
+    expect(r.programs.find((p) => p.title === 'Image')?.icon).toBe('http://art/image.jpg');
+  });
+
   it("suppose une heure de durée quand l'attribut stop manque", async () => {
     const r = await parseXMLTV(XML);
     const p = r.programs.find((x) => x.title === 'Sans heure de fin');

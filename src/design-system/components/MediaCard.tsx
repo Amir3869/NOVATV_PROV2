@@ -15,6 +15,8 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { channelDisplayName } from '@/lib/displayNames';
+import { ScrollingText } from './ScrollingText';
+import { broadcastArtworkUrl } from '@/services/epg/epgSync';
 
 // ─── Movie Card ──────────────────────────────
 interface MovieCardProps {
@@ -212,6 +214,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
   // le store ici pour que la carte soit toujours à jour sans rien
   // passer en prop d'une page à l'autre.
   const displayName = channelDisplayName(channel.id, channel.name, channelRenames);
+  const artwork = broadcastArtworkUrl(channel);
 
   // Cliquer une chaîne la LANCE. Auparavant on ouvrait sa fiche, et il
   // fallait un second clic sur « Regarder en direct » : deux gestes pour
@@ -241,16 +244,27 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
           }}
         >
           <div className={cn('relative overflow-hidden rounded-xl md:rounded-2xl border border-line bg-gradient-to-br from-surface-3 via-surface-3 to-surface-1 shadow-lg shadow-black/10 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-black/25 focus-within:-translate-y-1 focus-within:border-white/30 focus-within:ring-2 focus-within:ring-accent/70 focus-within:ring-offset-2 focus-within:ring-offset-surface-0', blocked && 'opacity-60')}>
-            <div className="relative aspect-video flex items-center justify-center bg-black/10 p-2 md:p-5">
+            <div className="relative aspect-video flex items-center justify-center bg-black/10 p-2 md:p-5 overflow-hidden">
+              {artwork ? (
+                <img
+                  src={artwork}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover opacity-35"
+                  referrerPolicy="no-referrer"
+                  decoding="async"
+                />
+              ) : null}
               {channel.logo && !imgError ? (
                 <img
                   src={channel.logo}
                   alt={displayName}
-                  className="max-h-12 max-w-full object-contain filter drop-shadow-lg"
+                  className="relative z-[1] max-h-12 max-w-full object-contain filter drop-shadow-lg"
+                  referrerPolicy="no-referrer"
+                  decoding="async"
                   onError={() => setImgError(true)}
                 />
               ) : (
-                <div className="w-12 h-8 rounded bg-white/5 flex items-center justify-center">
+                <div className="relative z-[1] w-12 h-8 rounded bg-white/5 flex items-center justify-center">
                   <Tv className="w-5 h-5 text-white/20" />
                 </div>
               )}
@@ -261,7 +275,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
               )}
             </div>
             <div className="px-2 pb-2 md:px-3 md:pb-3">
-              <p className="truncate text-xs md:text-sm font-semibold text-white">{displayName}</p>
+              <ScrollingText text={displayName} className="text-xs md:text-sm font-semibold text-white" />
               {channel.currentProgram && (
                 <p className="mt-1 truncate text-[11px] text-white/50">{channel.currentProgram.title}</p>
               )}
@@ -308,6 +322,8 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
             src={channel.logo}
             alt={displayName}
             className="max-h-8 max-w-14 object-contain"
+            referrerPolicy="no-referrer"
+            decoding="async"
             onError={() => setImgError(true)}
           />
         ) : (
@@ -315,8 +331,8 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className={cn('text-sm font-semibold text-white truncate', blocked && 'opacity-60')}>{displayName}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <ScrollingText text={displayName} className={cn('flex-1 text-sm font-semibold text-white', blocked && 'opacity-60')} />
           {blocked && <Lock className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
           <Badge variant="live" size="xs" pulse>{t('common.liveShort')}</Badge>
         </div>

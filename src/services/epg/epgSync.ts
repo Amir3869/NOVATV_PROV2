@@ -14,6 +14,7 @@ import {
   parseXMLTV,
   matchChannelsWithEPG,
   type EPGParseResult,
+  type ParsedEPGChannel,
   type ParsedEPGProgram,
 } from './epgService';
 import { shortHash } from '../m3u/m3uSync';
@@ -68,6 +69,11 @@ export interface EPGSyncResult {
   unmatchedChannels: number;
   /** Anomalies non bloquantes relevées pendant l'analyse. */
   warnings: string[];
+  /**
+   * Logo XMLTV de la chaîne, pour celles qui n'en ont pas déjà un
+   * côté Xtream / M3U. Clé = id de la chaîne source.
+   */
+  logoFallbacks: Record<string, string>;
 }
 
 /**
@@ -280,6 +286,50 @@ export function mapEPGPrograms(
   return out;
 }
 
+/** Logos XMLTV indexés par id de chaîne source. */
+export function logoFallbacksFromEpg(
+  mapping: Map<string, string>,
+  epgChannels: ParsedEPGChannel[]
+): Record<string, string> {
+  const byId = new Map<string, string>();
+  for (const channel of epgChannels) {
+    if (channel.icon) byId.set(channel.id, channel.icon);
+  }
+  const out: Record<string, string> = {};
+  for (const [channelId, epgId] of mapping) {
+    const icon = byId.get(epgId);
+    if (icon) out[channelId] = icon;
+  }
+  return out;
+}
+
+/**
+ * Ne remplit le logo que s'il manque : un `stream_icon` Xtream
+ * l'emporte toujours sur l'icône du guide.
+ */
+export function applyLogoFallbacks(
+  channels: LiveChannel[],
+  fallbacks: Record<string, string>
+): LiveChannel[] {
+  let changed = false;
+  const next = channels.map((channel) => {
+    if (channel.logo) return channel;
+    const icon = fallbacks[channel.id];
+    if (!icon) return channel;
+    changed = true;
+    return { ...channel, logo: icon };
+  });
+  return changed ? next : channels;
+}
+
+/**
+ * Visuel d'une carte Live B : affiche émission, sinon logo chaîne.
+ * Jamais `undefined` si l'un des deux existe — sinon la carte est noire.
+ */
+export function broadcastArtworkUrl(channel: LiveChannel): string | undefined {
+  return channel.currentProgram?.icon || channel.logo || undefined;
+}
+
 /**
  * Récupère le guide d'une source et le traduit pour le store.
  *
@@ -338,6 +388,7 @@ export async function syncEPG(
     matchedChannels: mapping.size,
     unmatchedChannels: channels.length - mapping.size,
     warnings: parsed.errors,
+    logoFallbacks: logoFallbacksFromEpg(mapping, parsed.channels),
   };
 }
 
@@ -347,6 +398,46 @@ export async function syncEPG(
  * Version `EPGProgram` de `getCurrentAndNext`, pour les écrans qui
  * lisent le store et n'ont jamais vu les types du parseur.
  */
+/**
+ * Programme en cours par chaîne — un passage, pas un find par chaîne.
+ *
+ * Appelé par TV en direct et l'accueil : un `find` par chaîne sur un
+ * guide de 20 000 programmes figeait l'interface.
+ */
+export function indexNowPlaying(
+  programs: readonly EPGProgram[],
+  nowMs: number = Date.now()
+): Map<string, EPGProgram> {
+  const map = new Map<string, EPGProgram>();
+  for (const program of programs) {
+    const start = Date.parse(program.start);
+    const stop = Date.parse(program.stop);
+    if (Number.isNaN(start) || Number.isNaN(stop)) continue;
+    if (start <= nowMs && nowMs < stop && !map.has(program.channelId)) {
+      map.set(program.channelId, program);
+    }
+  }
+  return map;
+}
+
+/** Prochain programme de chaque chaîne (le plus tôt après `now`). */
+export function indexUpcoming(
+  programs: readonly EPGProgram[],
+  nowMs: number = Date.now()
+): Map<string, EPGProgram> {
+  const map = new Map<string, EPGProgram>();
+  const starts = new Map<string, number>();
+  for (const program of programs) {
+    const start = Date.parse(program.start);
+    if (Number.isNaN(start) || start <= nowMs) continue;
+    const prev = starts.get(program.channelId);
+    if (prev !== undefined && start >= prev) continue;
+    starts.set(program.channelId, start);
+    map.set(program.channelId, program);
+  }
+  return map;
+}
+
 export function findCurrentAndNext(
   programs: EPGProgram[],
   channelId: string,
@@ -391,4 +482,32 @@ export function programProgressPercent(
 
   const ratio = (now.getTime() - start) / (stop - start);
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+}
+
+/**
+ * Pose en-cours, suivant et barre de progression sur chaque chaîne.
+ *
+ * Un seul passage sur le guide (via les index), pas un find par chaîne.
+ */
+export function enrichLiveChannels(
+  channels: readonly LiveChannel[],
+  programs: readonly EPGProgram[],
+  nowMs: number
+): LiveChannel[] {
+  if (programs.length === 0) return channels as LiveChannel[];
+  const nowPlaying = indexNowPlaying(programs, nowMs);
+  const upcoming = indexUpcoming(programs, nowMs);
+  const now = new Date(nowMs);
+  return channels.map((channel) => {
+    const current = nowPlaying.get(channel.id);
+    const next = upcoming.get(channel.id);
+    if (!current && !next) return channel;
+    return {
+      ...channel,
+      currentProgram: current
+        ? { ...current, progressPercent: programProgressPercent(current, now) }
+        : undefined,
+      nextProgram: next,
+    };
+  });
 }

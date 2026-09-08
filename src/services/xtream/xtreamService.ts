@@ -83,6 +83,8 @@ export interface XtreamVodStream {
   categoryId: string;
   /** Extension du fichier, nécessaire pour construire l'adresse. */
   containerExtension: string;
+  /** Horodatage d'ajout, souvent Unix en secondes. */
+  added: string;
 }
 
 export interface XtreamSeries {
@@ -457,6 +459,7 @@ function toVodStream(raw: unknown): XtreamVodStream {
     // Sans extension, l'adresse de lecture serait invalide. `mp4` est
     // le repli le plus courant.
     containerExtension: str(r.container_extension, 'mp4'),
+    added: str(r.added),
   };
 }
 

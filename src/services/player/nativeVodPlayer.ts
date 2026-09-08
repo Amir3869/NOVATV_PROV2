@@ -7,12 +7,13 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 export interface NativeVodPlayerPlugin {
-  play(options: { url: string; resumeAt?: number }): Promise<void>;
+  play(options: { url: string; resumeAt?: number; resizeMode?: string }): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   seek(options: { seconds: number }): Promise<void>;
   setVolume(options: { value: number }): Promise<void>;
   setMuted(options: { value: boolean }): Promise<void>;
+  setResizeMode(options: { mode: string }): Promise<void>;
   release(): Promise<void>;
   addListener(
     event: 'ready' | 'time' | 'playing' | 'paused' | 'buffering' | 'ended' | 'error',

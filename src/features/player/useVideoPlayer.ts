@@ -24,6 +24,7 @@ import {
   shouldUseNativeVod,
   type NativeVodEvent,
 } from '@/services/player/nativeVodPlayer';
+import { DEFAULT_VIDEO_FIT, type VideoFitMode } from '@/services/player/videoFit';
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { PlaybackErrorKind } from '@/services/player/playbackEngine';
 
@@ -110,6 +111,13 @@ export interface UseVideoPlayerOptions {
    * boucle.
    */
   onEnded?: () => void;
+  /**
+   * Ajustement de l'image (contain / cover / fill).
+   *
+   * Sur le direct, c'est du CSS. Sur un film/série Android, ExoPlayer
+   * ignore le CSS : le mode est envoyé au plugin natif.
+   */
+  videoFit?: VideoFitMode;
 }
 
 export interface VideoPlayerState {
@@ -213,6 +221,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     qualityPolicy = 'auto',
     preferredHeight = null,
     onQualityHeight,
+    videoFit = DEFAULT_VIDEO_FIT,
   } = options;
 
   const attachmentRef = useRef<Attachment | null>(null);
@@ -269,6 +278,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
   const qualitySourceRef = useRef<QualitySource | null>(null);
   const onQualityHeightRef = useRef(onQualityHeight);
   const onEndedRef = useRef(onEnded);
+  const videoFitRef = useRef(videoFit);
 
   /**
    * Verrou : les préférences ne s'appliquent qu'une fois par vidéo.
@@ -300,9 +310,10 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     trackPreferencesRef.current = trackPreferences;
     onEndedRef.current = onEnded;
     onQualityHeightRef.current = onQualityHeight;
+    videoFitRef.current = videoFit;
     currentTimeRef.current = currentTime;
     durationRef.current = duration;
-  }, [onProgress, resumeAt, trackPreferences, onEnded, onQualityHeight, currentTime, duration]);
+  }, [onProgress, resumeAt, trackPreferences, onEnded, onQualityHeight, videoFit, currentTime, duration]);
 
   // Attachement du flux.
   useEffect(() => {
@@ -488,6 +499,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     void NativeVodPlayer.play({
       url,
       resumeAt: resume && resume > 5 ? resume : 0,
+      resizeMode: videoFitRef.current,
     }).catch(() => {
       if (cancelled) return;
       setIsLoading(false);
@@ -548,6 +560,14 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
       void NativeVodPlayer.release();
     };
   }, [url, isLive, retryToken]);
+
+  // Ajustement ExoPlayer : le CSS `object-fit` ne traverse pas la surface native.
+  useEffect(() => {
+    if (!shouldUseNativeVod(isLive)) return;
+    void NativeVodPlayer.setResizeMode({ mode: videoFit }).catch(() => {
+      /* Ancien APK sans la méthode : l'image reste en FIT. */
+    });
+  }, [videoFit, isLive]);
 
   // Abonnement aux événements de la balise.
   useEffect(() => {

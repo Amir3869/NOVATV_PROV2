@@ -146,6 +146,8 @@ export const ar: Messages = {
     channelRenameHint: 'تتغيّر التسمية المعروضة فقط. اترك الحقل فارغًا لاستعادة الاسم الأصلي.',
     renamedChannel: 'تمت إعادة تسمية القناة إلى « {name} »',
     restoredChannel: 'تمت استعادة الاسم الأصلي: « {name} »',
+    now: 'الآن',
+    noProgram: 'لا يوجد برنامج',
   },
 
   movies: {
@@ -207,6 +209,8 @@ export const ar: Messages = {
     onNow: 'يُبثّ الآن',
     loadFailed: 'تعذّر تحميل الدليل.',
     loadFailedDescription: 'فشل التنزيل أو تعذّر ربط أي قناة. أعد المحاولة.',
+    showPast: 'عرض البرامج السابقة',
+    hidePast: 'إخفاء البرامج السابقة',
   },
 
   favorites: {
@@ -278,6 +282,7 @@ export const ar: Messages = {
     addedCount: 'تمت إضافة {count} عنصر',
     removeItem: 'إزالة من القائمة',
     updated: 'تم تحديث القائمة',
+    missingFromCatalog: 'لم يعد في الكتالوج',
   },
 
   search: {

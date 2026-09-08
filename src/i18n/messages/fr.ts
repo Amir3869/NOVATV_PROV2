@@ -154,6 +154,8 @@ export const fr = {
     channelRenameHint: "Seul le nom affiché change. Laissez le champ vide pour restaurer le nom d'origine.",
     renamedChannel: 'Chaîne renommée en « {name} »',
     restoredChannel: "Nom d'origine restauré : « {name} »",
+    now: 'Maintenant',
+    noProgram: 'Programme indisponible',
   },
 
   // ── Films ──
@@ -218,6 +220,8 @@ export const fr = {
     onNow: 'EN COURS',
     loadFailed: 'Le guide n’a pas pu être chargé.',
     loadFailedDescription: 'Le téléchargement a échoué ou aucune chaîne n’a pu être associée. Réessayez.',
+    showPast: 'Voir les programmes passés',
+    hidePast: 'Masquer les programmes passés',
   },
 
   // ── Favoris, historique, listes ──
@@ -290,6 +294,7 @@ export const fr = {
     addedCount: '{count} élément(s) ajouté(s)',
     removeItem: 'Retirer de la liste',
     updated: 'Liste mise à jour',
+    missingFromCatalog: 'Plus dans le catalogue',
   },
 
   // ── Recherche ──
