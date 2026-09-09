@@ -383,6 +383,7 @@ export const fr = {
     stepSeriesCategories: 'Récupération des catégories de séries…',
     stepSeries: 'Récupération des séries…',
     stepDone: 'Terminé',
+    syncProgressDetail: '{done} / {total} catégories · {count} titres',
     syncSummary: '{channels} chaînes, {movies} films, {series} séries',
     categoriesTitle: 'Choisir les catégories',
     categoriesSubtitle: 'Ne téléchargez que ce que vous regardez. Un abonnement complet peut contenir plus de 15 000 chaînes.',

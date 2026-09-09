@@ -359,6 +359,7 @@ export const es: Messages = {
     stepSeriesCategories: 'Obteniendo categorías de series…',
     stepSeries: 'Obteniendo series…',
     stepDone: 'Terminado',
+    syncProgressDetail: '{done} / {total} categorías · {count} títulos',
     syncSummary: '{channels} canales, {movies} películas, {series} series',
     categoriesTitle: 'Elegir categorías',
     categoriesSubtitle: 'Descargue solo lo que ve. Una suscripción completa puede contener más de 15 000 canales.',

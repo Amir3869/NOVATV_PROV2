@@ -29,6 +29,11 @@ interface SliderProps {
   className?: string;
   /** Grise et rend non focusable. */
   disabled?: boolean;
+  /**
+   * Progression video : piste plus haute et pastille toujours visible,
+   * pour un doigt sur telephone. Le volume reste plus fin.
+   */
+  thick?: boolean;
 }
 
 /**
@@ -64,6 +69,7 @@ export function Slider({
   valueText,
   className,
   disabled = false,
+  thick = false,
 }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragValue, setDragValue] = useState<number | null>(null);
@@ -201,22 +207,25 @@ export function Slider({
         // Zone de saisie verticale elargie : viser une barre de 4 px au
         // doigt est impossible, alors que la zone sensible peut etre
         // plus haute que le trait visible.
-        'py-2 -my-2 cursor-pointer',
+        thick ? 'py-3.5 -my-3.5 cursor-pointer' : 'py-2.5 -my-2.5 cursor-pointer',
         // Focus vu a trois metres, regle du projet.
         'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
         !usable && 'opacity-40 cursor-default',
         className
       )}
     >
-      <div className="h-1 rounded-full bg-white/20 overflow-hidden">
+      <div className={cn('rounded-full bg-white/20 overflow-hidden', thick ? 'h-2' : 'h-1.5')}>
         <div className="h-full bg-accent rounded-full" style={{ width: `${percent}%` }} />
       </div>
       {/* Pastille : toujours visible pendant le glissement et au focus,
-          sinon elle disparaitrait sous le doigt au moment ou elle sert. */}
+          sinon elle disparaitrait sous le doigt au moment ou elle sert.
+          En mode epais (progression), elle reste affichee : un pouce
+          a besoin d'un point d'appui, pas seulement d'un trait. */}
       <div
         className={cn(
-          'absolute top-1/2 w-3 h-3 rounded-full bg-accent shadow-md pointer-events-none transition-opacity',
-          dragValue !== null
+          'absolute top-1/2 rounded-full bg-accent shadow-md pointer-events-none transition-opacity',
+          thick ? 'w-5 h-5' : 'w-3.5 h-3.5',
+          dragValue !== null || thick
             ? 'opacity-100'
             : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
         )}

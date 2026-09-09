@@ -17,6 +17,7 @@ import {
   fetchCategoryCatalog,
   syncXtreamCatalog,
   toSourceErrorKind,
+  type SyncProgress as XtreamSyncProgress,
   type SyncStep,
 } from '@/services/xtream/xtreamSync';
 import {
@@ -193,6 +194,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const { t, locale } = useTranslation();
   const [syncing, setSyncing] = useState(false);
   const [step, setStep] = useState<SyncStep | null>(null);
+  const [syncProgress, setSyncProgress] = useState<XtreamSyncProgress | null>(null);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -429,7 +431,10 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           { serverUrl: connection.serverUrl, username: connection.username, password },
           playlist.id,
           {
-            onProgress: (p) => setStep(p.step),
+            onProgress: (p) => {
+              setStep(p.step);
+              setSyncProgress(p);
+            },
             // `normalizeSelection` rend `null` si le champ est absent
             // (source créée avant cette fonctionnalité) ou corrompu par
             // une écriture manuelle. `undefined` signifie alors « tout
@@ -485,6 +490,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
     } finally {
       setSyncing(false);
       setStep(null);
+      setSyncProgress(null);
     }
   };
 
@@ -627,8 +633,18 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           {/* Étape en cours : sans elle, une attente de 40 s ressemble
               à une application figée. */}
           {syncing && step && (
-            <p className="text-xs text-white/50 mt-1" role="status" aria-live="polite">
+            <p className="text-xs text-white/70 mt-1 tabular-nums" role="status" aria-live="polite">
               {t(STEP_KEYS[step])}
+              {syncProgress && syncProgress.total ? (
+                <>
+                  {' · '}
+                  {t('playlists.syncProgressDetail', {
+                    done: syncProgress.done ?? 0,
+                    total: syncProgress.total,
+                    count: syncProgress.loaded ?? 0,
+                  })}
+                </>
+              ) : null}
             </p>
           )}
 

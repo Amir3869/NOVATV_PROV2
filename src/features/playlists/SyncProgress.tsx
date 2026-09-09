@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Overlay d'import : une ligne par famille, spinner puis coche verte,
- * puis « Source ajoutée ».
+ * Overlay d'import : une ligne par famille, compteur réel, puis
+ * « Source ajoutée ». Pas de minuterie artificielle.
  */
 
 import React from 'react';
@@ -10,7 +10,7 @@ import { Check, Loader2 } from 'lucide-react';
 import { useTranslation, type MessageKey } from '@/i18n';
 import { cn } from '@/utils/cn';
 import type { CategoryKind, CategorySelection } from '@/services/xtream/categorySelection';
-import type { SyncStep } from '@/services/xtream/xtreamSync';
+import type { SyncProgress as XtreamSyncProgress, SyncStep } from '@/services/xtream/xtreamSync';
 import {
   authStatus,
   selectedSyncGroups,
@@ -22,6 +22,12 @@ const GROUP_LABEL: Record<CategoryKind, MessageKey> = {
   live: 'playlists.categoriesLive',
   vod: 'playlists.categoriesVod',
   series: 'playlists.categoriesSeries',
+};
+
+const GROUP_STEP: Record<CategoryKind, SyncStep> = {
+  live: 'live_streams',
+  vod: 'vod_streams',
+  series: 'series',
 };
 
 function StatusIcon({ status }: { status: SyncGroupStatus }) {
@@ -45,9 +51,11 @@ function StatusIcon({ status }: { status: SyncGroupStatus }) {
 export function SyncProgress({
   step,
   selection,
+  progress,
 }: {
   step: SyncStep | null;
   selection: CategorySelection;
+  progress?: XtreamSyncProgress | null;
 }) {
   const { t } = useTranslation();
   const groups = selectedSyncGroups(selection);
@@ -58,19 +66,37 @@ export function SyncProgress({
     <div className="flex flex-col gap-3 py-2" role="status" aria-live="polite">
       <div className="flex items-center gap-3">
         <StatusIcon status={auth} />
-        <p className={cn('text-sm', auth === 'pending' ? 'text-white/35' : 'text-white/85')}>
+        <p className={cn('text-sm text-white', auth === 'pending' && 'text-white/50')}>
           {t('playlists.stepAuth')}
         </p>
       </div>
 
       {groups.map((group) => {
         const status = syncGroupStatus(step, group);
+        const showCount =
+          status === 'active' &&
+          progress &&
+          progress.step === GROUP_STEP[group] &&
+          typeof progress.total === 'number' &&
+          progress.total > 0;
+
         return (
           <div key={group} className="flex items-center gap-3">
             <StatusIcon status={status} />
-            <p className={cn('text-sm', status === 'pending' ? 'text-white/35' : 'text-white/85')}>
-              {t(GROUP_LABEL[group])}
-            </p>
+            <div className="min-w-0 flex-1">
+              <p className={cn('text-sm text-white', status === 'pending' && 'text-white/50')}>
+                {t(GROUP_LABEL[group])}
+              </p>
+              {showCount && (
+                <p className="text-xs text-white/60 tabular-nums mt-0.5">
+                  {t('playlists.syncProgressDetail', {
+                    done: progress.done ?? 0,
+                    total: progress.total ?? 0,
+                    count: progress.loaded ?? 0,
+                  })}
+                </p>
+              )}
+            </div>
           </div>
         );
       })}

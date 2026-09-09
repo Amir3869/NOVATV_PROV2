@@ -65,6 +65,12 @@ export interface SyncProgress {
   step: SyncStep;
   /** Progression de 0 à 1, approximative. */
   ratio: number;
+  /** Catégories déjà lues dans l'étape en cours. */
+  done?: number;
+  /** Catégories à lire dans l'étape en cours. */
+  total?: number;
+  /** Titres (chaînes / films / séries) déjà reçus. */
+  loaded?: number;
 }
 
 export interface SyncOptions {
@@ -107,7 +113,8 @@ const CATEGORY_CONCURRENCY = 3;
 async function fetchByCategories<T extends { categoryId: string }>(
   categoryIds: string[] | undefined,
   fetchAll: () => Promise<T[]>,
-  fetchOne: (categoryId: string) => Promise<T[]>
+  fetchOne: (categoryId: string) => Promise<T[]>,
+  onChunk?: (info: { done: number; total: number; loaded: number }) => void
 ): Promise<T[]> {
   // Pas de sélection : comportement historique, un seul appel.
   if (categoryIds === undefined) return fetchAll();
@@ -116,11 +123,18 @@ async function fetchByCategories<T extends { categoryId: string }>(
   // ne contacte pas le serveur du tout.
   if (categoryIds.length === 0) return [];
 
+  let done = 0;
+  let loaded = 0;
+  const total = categoryIds.length;
+
   const batches = await runWithConcurrency(
     categoryIds,
     CATEGORY_CONCURRENCY,
     async (categoryId) => {
       const items = await fetchOne(categoryId);
+      done += 1;
+      loaded += items.length;
+      onChunk?.({ done, total, loaded });
       // Beaucoup de portails omettent `category_id` quand on a déjà
       // filtré : sans ce tampon, films / séries / chaînes arrivent
       // sans nom de catégorie et les filtres de l'UI restent vides.
@@ -563,8 +577,11 @@ export async function syncXtreamCatalog(
   options: SyncOptions = {}
 ): Promise<SyncResult> {
   const { onProgress, signal, selection } = options;
-  const report = (step: SyncStep, ratio: number) =>
-    onProgress?.({ step, ratio });
+  const report = (
+    step: SyncStep,
+    ratio: number,
+    extra?: { done: number; total: number; loaded: number }
+  ) => onProgress?.({ step, ratio, ...extra });
 
   report('auth', 0);
   const { userInfo } = await xtreamService.getAccountInfo(creds, { signal });
@@ -585,7 +602,8 @@ export async function syncXtreamCatalog(
   const liveStreams = await fetchByCategories(
     liveSelection,
     () => xtreamService.getLiveStreams(creds, undefined, { signal }),
-    (categoryId) => xtreamService.getLiveStreams(creds, categoryId, { signal })
+    (categoryId) => xtreamService.getLiveStreams(creds, categoryId, { signal }),
+    (chunk) => report('live_streams', 0.2 + 0.25 * (chunk.done / Math.max(1, chunk.total)), chunk)
   );
 
   // Comptage réel par catégorie : afficher un nombre inventé serait
@@ -617,7 +635,8 @@ export async function syncXtreamCatalog(
     const vodStreams = await fetchByCategories(
       vodSelection,
       () => xtreamService.getVodStreams(creds, undefined, { signal }),
-      (categoryId) => xtreamService.getVodStreams(creds, categoryId, { signal })
+      (categoryId) => xtreamService.getVodStreams(creds, categoryId, { signal }),
+      (chunk) => report('vod_streams', 0.6 + 0.15 * (chunk.done / Math.max(1, chunk.total)), chunk)
     );
     movies = mapMovies(vodStreams, vodNames, creds, playlistId);
   } catch (err) {

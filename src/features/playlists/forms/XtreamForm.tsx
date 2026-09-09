@@ -25,7 +25,7 @@ import {
   fetchCategoryCatalog,
   syncXtreamCatalog,
   toSourceErrorKind,
-  type SyncStep,
+  type SyncProgress as XtreamSyncProgress,
 } from '@/services/xtream/xtreamSync';
 import {
   emptyCatalog,
@@ -51,7 +51,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [step, setStep] = useState<SyncStep | null>(null);
+  const [progress, setProgress] = useState<XtreamSyncProgress | null>(null);
 
   /**
    * Étape courante du formulaire.
@@ -166,7 +166,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
   const handleAdd = async () => {
     if (!name || !serverUrl || !username || !password) return;
     setAdding(true);
-    setStep('auth');
+    setProgress({ step: 'auth', ratio: 0 });
     setTestResult(null);
     setTestMessage(null);
 
@@ -178,7 +178,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
 
     try {
       const result = await syncXtreamCatalog({ serverUrl, username, password }, id, {
-        onProgress: (p) => setStep(p.step),
+        onProgress: setProgress,
         signal: controller.signal,
         selection,
       });
@@ -224,8 +224,6 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
 
       toast.success(t('playlists.syncSummary', result.counts));
       schedulePlaylistEpg(id);
-      setStep('done');
-      await new Promise((r) => window.setTimeout(r, 900));
       onClose();
       return;
     } catch (err) {
@@ -239,7 +237,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       abortRef.current = null;
     }
     setAdding(false);
-    setStep(null);
+    setProgress(null);
   };
 
   const busy = testing || adding || loadingCategories;
@@ -265,7 +263,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       showClose={!adding}
     >
       {adding ? (
-        <SyncProgress step={step} selection={selection} />
+        <SyncProgress step={progress?.step ?? null} selection={selection} progress={progress} />
       ) : phase === 'categories' ? (
         <>
           <CategoryPicker

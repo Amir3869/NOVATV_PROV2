@@ -365,6 +365,7 @@ export const en: Messages = {
     stepSeriesCategories: 'Fetching series categories…',
     stepSeries: 'Fetching series…',
     stepDone: 'Done',
+    syncProgressDetail: '{done} / {total} categories · {count} titles',
     syncSummary: '{channels} channels, {movies} movies, {series} series',
     categoriesTitle: 'Choose categories',
     categoriesSubtitle: 'Only download what you watch. A full subscription can hold over 15,000 channels.',

@@ -96,12 +96,10 @@ const AUTO_NEXT_DELAY_SECONDS = 10;
 
 function PlayerContent() {
   const { t, locale } = useTranslation();
-  const { isReady, height } = useDeviceType();
+  const { isReady } = useDeviceType();
   /** Plus de verrou paysage : le lecteur s'ouvre dans le sens du téléphone. */
   usePlayerLandscapeLock(false);
   usePlayerImmersive(isReady);
-  /** Hauteur paysage téléphone (~390–430) : le gros play central chevauche les barres. */
-  const compactChrome = isReady && height > 0 && height < 500;
   const {
     channels: allChannels,
     liveCategories: allLiveCategories,
@@ -143,19 +141,11 @@ function PlayerContent() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   /**
-   * Les contrôles démarrent MASQUÉS.
-   *
-   * À l'ouverture, la lecture se lance seule : afficher un gros bouton
-   * « Lecture » par-dessus une vidéo qui démarre est contradictoire, et
-   * il recouvrait l'indicateur de chargement. On ne montre donc rien
-   * d'autre que l'image et, le temps du chargement, sa roue d'attente.
-   *
-   * Les contrôles apparaissent au premier geste — souris, touche,
-   * toucher — puis se cachent après trois secondes d'inactivité, comme
-   * avant. Une mise en pause les affiche aussi, car `resetControlsTimer`
-   * ne relance sa minuterie que si la lecture est en cours.
+   * Les contrôles démarrent visibles : play / pause au centre et
+   * −10 s / +10 s, puis se cachent après trois secondes de lecture.
+   * Un tap les ramène.
    */
-  const [showControls, setShowControls] = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -626,6 +616,22 @@ function PlayerContent() {
     return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
   }, []);
 
+  /**
+   * En lecture, cacher le chrome au bout de trois secondes.
+   *
+   * `setShowControls` est dans le timeout, pas dans le corps de
+   * l'effet : React interdit d'y poser un état de façon synchrone.
+   * En pause, on coupe le minuteur et on laisse les boutons affichés.
+   */
+  useEffect(() => {
+    if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    if (!player.isPlaying) return;
+    controlsTimer.current = setTimeout(() => setShowControls(false), 3000);
+    return () => {
+      if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    };
+  }, [player.isPlaying]);
+
   useWakeLock(player.isPlaying && !player.error);
 
   useEffect(() => {
@@ -981,7 +987,7 @@ function PlayerContent() {
 
       {/* Controls overlay */}
       <div className={cn(
-        'absolute inset-0 flex flex-col justify-between transition-opacity duration-300',
+        'absolute inset-0 z-30 flex flex-col justify-between transition-opacity duration-300',
         'pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]',
         'ps-[max(0.75rem,env(safe-area-inset-left))] pe-[max(0.75rem,env(safe-area-inset-right))]',
         showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -992,9 +998,9 @@ function PlayerContent() {
             onClick={() => router.back()}
             type="button"
             aria-label={t('common.back')}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 backdrop-blur-sm text-white/80 hover:text-white transition-colors"
+            className="flex items-center gap-2 min-h-12 px-3.5 rounded-full bg-black/40 backdrop-blur-sm text-white/80 hover:text-white transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-5 h-5" />
             <span className="text-sm font-medium hidden sm:inline">{t('common.back')}</span>
           </button>
 
@@ -1016,13 +1022,13 @@ function PlayerContent() {
               <ImageWithFallback
                 src={channel.logo}
                 alt=""
-                className="w-9 h-9 rounded-lg object-contain bg-white/10 flex-shrink-0"
-                fallbackClassName="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0 text-white/25"
+                className="w-11 h-11 rounded-xl object-contain bg-white/10 flex-shrink-0"
+                fallbackClassName="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-white/25"
                 fallback={<Radio className="w-4 h-4" />}
               />
             )}
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate max-w-48 md:max-w-xs drop-shadow">
+              <p className="text-base font-semibold text-white truncate max-w-48 md:max-w-xs drop-shadow">
                 {mediaTitle}
               </p>
               {epgView && (
@@ -1050,16 +1056,16 @@ function PlayerContent() {
             L'ordre suit la frequence d'usage decroissante en partant du
             bord : ajustement, qualite, pistes.
           */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             {id && favoriteType && (
               <button
                 type="button"
                 onClick={() => toggleFavorite(id, favoriteType)}
                 aria-label={isFav ? t('common.removeFromFavorites') : t('common.addToFavorites')}
                 aria-pressed={isFav}
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                <Heart className={cn('w-4 h-4', isFav && 'fill-accent text-accent')} />
+                <Heart className={cn('w-5 h-5', isFav && 'fill-accent text-accent')} />
               </button>
             )}
 
@@ -1071,9 +1077,9 @@ function PlayerContent() {
               onClick={() => setFitMenuOpen(true)}
               aria-label={t('player.fitTitle')}
               aria-haspopup="dialog"
-              className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             >
-              <Ratio className="w-4 h-4" />
+              <Ratio className="w-5 h-5" />
             </button>
 
             {/* Deux variantes au minimum, sinon rien a choisir : un flux
@@ -1087,9 +1093,9 @@ function PlayerContent() {
                   ? `${t('player.qualityTitle')} ${currentQualityLabel}`
                   : t('player.qualityTitle')}
                 aria-haspopup="dialog"
-                className="h-9 flex-shrink-0 px-2.5 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1.5 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="h-12 flex-shrink-0 px-3 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1.5 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-5 h-5" />
                 {currentQualityLabel && (
                   <span className="text-[11px] font-semibold tabular-nums">{currentQualityLabel}</span>
                 )}
@@ -1108,57 +1114,66 @@ function PlayerContent() {
                 onClick={() => setSubtitleMenuOpen(true)}
                 aria-label={t('player.tracksTitle')}
                 aria-haspopup="dialog"
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                <Captions className="w-4 h-4" />
+                <Captions className="w-5 h-5" />
               </button>
             )}
           </div>
         </div>
 
-        {/* Center play/pause — masqué en paysage téléphone : les ±10 s
-            tiennent alors à côté du play du bas. */}
-        <div className={cn(
-          'absolute inset-0 flex items-center justify-center pointer-events-none',
-          compactChrome && 'hidden'
-        )}>
-          <div className="flex items-center gap-8">
+        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+          <div className="flex items-center gap-8 sm:gap-14">
             {!isLive && (
               <button
-                className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors pointer-events-auto disabled:opacity-30"
-                onClick={() => player.seekBy(-10)}
+                className="w-16 h-16 rounded-full bg-black/70 backdrop-blur-md flex flex-col items-center justify-center text-white pointer-events-auto disabled:opacity-30 border border-white/25 shadow-lg"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  player.seekBy(-10);
+                  resetControlsTimer();
+                }}
                 disabled={!streamUrl}
                 type="button"
                 aria-label={t('player.rewind')}
               >
-                <SkipBack className="w-5 h-5" />
+                <SkipBack className="w-7 h-7" />
+                <span className="text-xs font-bold tabular-nums leading-none mt-0.5">−10</span>
               </button>
             )}
             <button
-              className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white transition-all hover:bg-black/70 pointer-events-auto border border-white/10 disabled:opacity-30"
-              onClick={player.togglePlay}
+              className="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-white transition-all hover:bg-accent-hover pointer-events-auto border border-white/20 shadow-xl disabled:opacity-30"
+              onClick={(event) => {
+                event.stopPropagation();
+                player.togglePlay();
+                resetControlsTimer();
+              }}
               disabled={!streamUrl}
               type="button"
               aria-label={player.isPlaying ? t('common.pause') : t('player.playAction')}
             >
-              {player.isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-0.5 fill-white" />}
+              {player.isPlaying ? <Pause className="w-9 h-9" /> : <Play className="w-9 h-9 ml-1 fill-white" />}
             </button>
             {!isLive && (
               <button
-                className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors pointer-events-auto disabled:opacity-30"
-                onClick={() => player.seekBy(10)}
+                className="w-16 h-16 rounded-full bg-black/70 backdrop-blur-md flex flex-col items-center justify-center text-white pointer-events-auto disabled:opacity-30 border border-white/25 shadow-lg"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  player.seekBy(10);
+                  resetControlsTimer();
+                }}
                 disabled={!streamUrl}
                 type="button"
                 aria-label={t('player.forward')}
               >
-                <SkipForward className="w-5 h-5" />
+                <SkipForward className="w-7 h-7" />
+                <span className="text-xs font-bold tabular-nums leading-none mt-0.5">+10</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Bottom controls */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/*
             Direct : la barre suit le PROGRAMME, pas le flux.
 
@@ -1175,7 +1190,7 @@ function PlayerContent() {
           {isLive && epgView && (
             <div className="space-y-1.5">
               <div className="flex items-center gap-3">
-                <span className="text-xs text-white/60 w-12 tabular-nums">
+                <span className="text-sm text-white/70 w-14 tabular-nums">
                   {epgView.startLabel}
                 </span>
                 <div
@@ -1185,14 +1200,14 @@ function PlayerContent() {
                   aria-valuemax={100}
                   aria-valuenow={epgView.percent}
                   aria-valuetext={`${epgView.percent} %`}
-                  className="flex-1 h-[5px] rounded-full bg-white/20 overflow-hidden"
+                  className="flex-1 h-2 rounded-full bg-white/20 overflow-hidden"
                 >
                   <div
                     className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
                     style={{ width: `${epgView.percent}%` }}
                   />
                 </div>
-                <span className="text-xs text-white/60 w-12 text-right tabular-nums">
+                <span className="text-sm text-white/70 w-14 text-right tabular-nums">
                   {epgView.endLabel}
                 </span>
               </div>
@@ -1222,7 +1237,7 @@ function PlayerContent() {
               seuls ou se deplacer dans le temps a un sens. */}
           {!isLive && (
             <div className="flex items-center gap-3">
-              <span className="text-xs text-white/60 w-12 tabular-nums">
+              <span className="text-sm text-white/70 w-14 tabular-nums">
                 {formatTime(displayedTime)}
               </span>
               <Slider
@@ -1234,9 +1249,10 @@ function PlayerContent() {
                 label={t('player.progress')}
                 valueText={formatTime(displayedTime)}
                 disabled={!streamUrl}
+                thick
                 className="flex-1"
               />
-              <span className="text-xs text-white/60 w-12 text-right tabular-nums">
+              <span className="text-sm text-white/70 w-14 text-right tabular-nums">
                 {player.duration > 0 ? formatTime(player.duration) : '--:--'}
               </span>
             </div>
@@ -1261,16 +1277,16 @@ function PlayerContent() {
             pour passer du suivant a la liste.
           */}
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               {!isLive && (
                 <button
                   onClick={() => player.seekBy(-10)}
                   disabled={!streamUrl}
                   type="button"
                   aria-label={t('player.rewind')}
-                  className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
-                  <SkipBack className="w-4 h-4" />
+                  <SkipBack className="w-5 h-5" />
                 </button>
               )}
 
@@ -1280,9 +1296,9 @@ function PlayerContent() {
                 disabled={!streamUrl}
                 type="button"
                 aria-label={player.isPlaying ? t('common.pause') : t('player.playAction')}
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                {player.isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
+                {player.isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
               </button>
 
               {!isLive && (
@@ -1291,9 +1307,9 @@ function PlayerContent() {
                   disabled={!streamUrl}
                   type="button"
                   aria-label={t('player.forward')}
-                  className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
-                  <SkipForward className="w-4 h-4" />
+                  <SkipForward className="w-5 h-5" />
                 </button>
               )}
 
@@ -1309,9 +1325,9 @@ function PlayerContent() {
                     aria-label={t('player.previousChannel')}
                     disabled={!canZap}
                     onClick={() => goToChannel(-1)}
-                    className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-white/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-white/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
 
                   {/*
@@ -1332,13 +1348,13 @@ function PlayerContent() {
                       aria-haspopup="dialog"
                       aria-expanded={browserOpen}
                       className={cn(
-                        'h-9 flex-shrink-0 px-3 rounded-xl backdrop-blur-sm flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                        'h-12 flex-shrink-0 px-3.5 rounded-full backdrop-blur-sm flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
                         browserOpen
                           ? 'bg-accent text-white'
                           : 'bg-black/40 text-white/70 hover:text-white'
                       )}
                     >
-                      <List className="w-4 h-4" />
+                      <List className="w-5 h-5" />
                       <span className="text-xs font-semibold hidden sm:inline">
                         {t('common.channels')}
                       </span>
@@ -1350,9 +1366,9 @@ function PlayerContent() {
                     aria-label={t('player.nextChannel')}
                     disabled={!canZap}
                     onClick={() => goToChannel(1)}
-                    className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-white/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-white/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                 </>
               )}
@@ -1379,9 +1395,9 @@ function PlayerContent() {
                     type="button"
                     onClick={goToNextEpisode}
                     aria-label={t('player.nextEpisodeGo', { code: episodeCode(nextEpisode) })}
-                    className="h-9 flex-shrink-0 px-3 rounded-xl bg-black/40 backdrop-blur-sm flex items-center gap-2 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="h-12 flex-shrink-0 px-3.5 rounded-full bg-black/40 backdrop-blur-sm flex items-center gap-2 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
-                    <SkipForward className="w-4 h-4" />
+                    <SkipForward className="w-5 h-5" />
                     <span className="text-xs font-semibold hidden sm:inline">
                       {episodeCode(nextEpisode)}
                     </span>
@@ -1391,7 +1407,7 @@ function PlayerContent() {
             </div>
 
             {/* Reglages de confort : son, puis plein ecran. */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2.5 flex-shrink-0">
               {/* Volume : bouton muet + curseur.
                   Le curseur affiche zero quand le son est coupe, sinon
                   il montrerait un niveau que l'on n'entend pas. */}
@@ -1400,9 +1416,9 @@ function PlayerContent() {
                 type="button"
                 aria-label={player.isMuted ? t('player.unmute') : t('player.mute')}
                 aria-pressed={player.isMuted}
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                {player.isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                {player.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
               <Slider
                 value={player.isMuted ? 0 : player.volume}
@@ -1423,9 +1439,9 @@ function PlayerContent() {
                   onClick={() => setSpeedMenuOpen(true)}
                   aria-label={t('player.speedTitle')}
                   aria-haspopup="dialog"
-                  className="h-9 flex-shrink-0 px-2.5 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  className="h-12 flex-shrink-0 px-3 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
-                  <Gauge className="w-4 h-4" />
+                  <Gauge className="w-5 h-5" />
                   <span className="text-[11px] font-semibold tabular-nums">
                     {t('player.speedValue', { rate: String(playbackRate).replace('.', ',') })}
                   </span>
@@ -1438,11 +1454,11 @@ function PlayerContent() {
                 aria-label={t('player.sleepTitle')}
                 aria-haspopup="dialog"
                 className={cn(
-                  'h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                  sleepRemainingSeconds !== null ? 'px-2.5' : 'w-9'
+                  'h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                  sleepRemainingSeconds !== null ? 'px-3' : 'w-12'
                 )}
               >
-                <Timer className="w-4 h-4" />
+                <Timer className="w-5 h-5" />
                 {sleepRemainingSeconds !== null && (
                   <span className="text-[11px] font-semibold tabular-nums">
                     {formatTime(sleepRemainingSeconds)}
@@ -1458,9 +1474,9 @@ function PlayerContent() {
                   setShowUnlockHint(true);
                 }}
                 aria-label={t('player.lockControls')}
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                <Lock className="w-4 h-4" />
+                <Lock className="w-5 h-5" />
               </button>
 
               {/* Fullscreen */}
@@ -1468,9 +1484,9 @@ function PlayerContent() {
                 onClick={toggleFullscreen}
                 type="button"
                 aria-label={isFullscreen ? t('player.exitFullscreen') : t('player.fullscreen')}
-                className="w-9 h-9 flex-shrink-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </button>
             </div>
           </div>

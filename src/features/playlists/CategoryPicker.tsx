@@ -210,7 +210,7 @@ export function CategoryPicker({
             écran, injoignable à la télécommande sans un défilement
             interminable.
           */}
-          <div className="max-h-[22rem] overflow-y-auto rounded-xl border border-white/8 bg-white/[0.02]">
+          <div className="max-h-[22rem] overflow-y-auto rounded-xl border border-line bg-surface-3">
             {visible.length === 0 ? (
               <p className="text-sm text-white/40 py-10 text-center">
                 {t('playlists.categoriesNoMatch')}
@@ -225,15 +225,15 @@ export function CategoryPicker({
                 return (
                   <section key={group.prefix ?? '__loose__'}>
                     {group.prefix !== null && (
-                      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-2 bg-[#0b0b0f]/95 backdrop-blur-sm border-b border-white/8">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-white/40">
+                      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-2 bg-surface-2 border-b border-line">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-white">
                           {group.prefix}
                         </span>
                         <button
                           type="button"
                           onClick={() => handleToggleGroup(group.categories, !groupChecked)}
                           disabled={busy}
-                          className="text-[11px] text-white/50 hover:text-white underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded disabled:opacity-40"
+                          className="text-[11px] text-white/70 hover:text-white underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded disabled:opacity-40"
                         >
                           {groupChecked
                             ? t('playlists.categoriesClearAll')
@@ -286,8 +286,8 @@ export function CategoryPicker({
                               </span>
                               <span
                                 className={cn(
-                                  'text-sm truncate',
-                                  checked ? 'text-white' : 'text-white/70'
+                                  'text-sm truncate text-white',
+                                  !checked && 'text-white/80'
                                 )}
                               >
                                 {category.categoryName}

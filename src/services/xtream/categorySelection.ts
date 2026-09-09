@@ -357,7 +357,61 @@ export interface CategoryGroup {
  * rejoignent le fourre-tout, sinon l'écran afficherait des dizaines
  * d'en-têtes ne couvrant qu'une ligne chacune.
  */
-export function groupCategories(categories: XtreamCategory[]): CategoryGroup[] {
+function sortByName(list: XtreamCategory[]): XtreamCategory[] {
+  return [...list].sort((a, b) =>
+    a.categoryName.localeCompare(b.categoryName, undefined, { sensitivity: 'base' })
+  );
+}
+
+/**
+ * Regroupe par parent Xtream (`parent_id`) quand le portail en envoie.
+ *
+ * Beaucoup de panneaux exposent une famille (« France », « Sport »)
+ * puis des enfants qui portent vraiment les chaînes / films. Sans ça,
+ * parents et enfants se mélangent en une liste plate mal triée.
+ */
+function groupByParent(categories: XtreamCategory[]): CategoryGroup[] | null {
+  const byNumericId = new Map<number, XtreamCategory>();
+  for (const category of categories) {
+    const id = Number(category.categoryId);
+    if (Number.isFinite(id)) byNumericId.set(id, category);
+  }
+
+  const children = new Map<number, XtreamCategory[]>();
+  const roots: XtreamCategory[] = [];
+  let nested = 0;
+
+  for (const category of categories) {
+    if (category.parentId > 0 && byNumericId.has(category.parentId)) {
+      const bucket = children.get(category.parentId) ?? [];
+      bucket.push(category);
+      children.set(category.parentId, bucket);
+      nested += 1;
+    } else {
+      roots.push(category);
+    }
+  }
+
+  if (nested === 0) return null;
+
+  const groups: CategoryGroup[] = [];
+  const loose: XtreamCategory[] = [];
+
+  for (const root of roots) {
+    const id = Number(root.categoryId);
+    const kids = (Number.isFinite(id) ? children.get(id) : undefined) ?? [];
+    if (kids.length === 0) {
+      loose.push(root);
+      continue;
+    }
+    groups.push({ prefix: root.categoryName, categories: sortByName(kids) });
+  }
+
+  if (loose.length > 0) groups.push({ prefix: null, categories: sortByName(loose) });
+  return groups;
+}
+
+function groupByPrefix(categories: XtreamCategory[]): CategoryGroup[] {
   const byPrefix = new Map<string, XtreamCategory[]>();
   const loose: XtreamCategory[] = [];
   const order: string[] = [];
@@ -383,20 +437,19 @@ export function groupCategories(categories: XtreamCategory[]): CategoryGroup[] {
   for (const prefix of order) {
     const bucket = byPrefix.get(prefix) ?? [];
     if (bucket.length > 1) {
-      groups.push({ prefix, categories: bucket });
+      groups.push({ prefix, categories: sortByName(bucket) });
     } else {
       orphans.push(...bucket);
     }
   }
 
-  // Les célibataires reprennent leur place dans l'ordre d'origine.
-  const rest = [...loose, ...orphans].sort(
-    (a, b) => categories.indexOf(a) - categories.indexOf(b)
-  );
-
+  const rest = sortByName([...loose, ...orphans]);
   if (rest.length > 0) groups.push({ prefix: null, categories: rest });
-
   return groups;
+}
+
+export function groupCategories(categories: XtreamCategory[]): CategoryGroup[] {
+  return groupByParent(categories) ?? groupByPrefix(categories);
 }
 
 // ─────────────────────────────────────────────────────────────────────

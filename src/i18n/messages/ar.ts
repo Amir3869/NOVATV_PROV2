@@ -368,6 +368,7 @@ export const ar: Messages = {
     stepSeriesCategories: 'جارٍ جلب فئات المسلسلات…',
     stepSeries: 'جارٍ جلب المسلسلات…',
     stepDone: 'اكتمل',
+    syncProgressDetail: '{done} / {total} فئات · {count} عناوين',
     syncSummary: '{channels} قناة، {movies} فيلم، {series} مسلسل',
     categoriesTitle: 'اختيار الفئات',
     categoriesSubtitle: 'نزّل ما تشاهده فقط. قد يحتوي الاشتراك الكامل على أكثر من 15000 قناة.',

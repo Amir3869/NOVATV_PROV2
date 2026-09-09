@@ -275,7 +275,7 @@ describe('categoryPrefix', () => {
 });
 
 describe('groupCategories', () => {
-  it('regroupe par préfixe en gardant l’ordre du serveur', () => {
+  it('regroupe par préfixe et trie les noms', () => {
     const groups = groupCategories([
       cat('1', 'FR | TF1'),
       cat('2', 'AR Sport'),
@@ -283,8 +283,8 @@ describe('groupCategories', () => {
       cat('4', 'AR Music'),
     ]);
     expect(groups.map((g) => g.prefix)).toEqual(['FR', 'AR']);
-    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['1', '3']);
-    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['2', '4']);
+    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['3', '1']);
+    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['4', '2']);
   });
 
   it('place les noms sans préfixe dans un groupe final', () => {
@@ -298,13 +298,12 @@ describe('groupCategories', () => {
   });
 
   it('ne crée pas de groupe pour un préfixe unique', () => {
-    // Sinon l'écran afficherait des dizaines d'en-têtes d'une ligne.
     const groups = groupCategories([cat('1', 'FR | TF1'), cat('2', 'DE Sport')]);
     expect(groups.map((g) => g.prefix)).toEqual([null]);
-    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['1', '2']);
+    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['2', '1']);
   });
 
-  it('remet les préfixes solitaires à leur place d’origine', () => {
+  it('range les préfixes solitaires avec les autres, triés', () => {
     const groups = groupCategories([
       cat('1', 'DE Sport'),
       cat('2', 'FR | TF1'),
@@ -312,7 +311,18 @@ describe('groupCategories', () => {
       cat('4', 'FR | M6'),
     ]);
     expect(groups.map((g) => g.prefix)).toEqual(['FR', null]);
-    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['1', '3']);
+    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['3', '1']);
+  });
+
+  it('regroupe les enfants sous le parent Xtream', () => {
+    const france = cat('10', 'France');
+    const tf1 = { ...cat('11', 'TF1 HD'), parentId: 10 };
+    const m6 = { ...cat('12', 'M6 HD'), parentId: 10 };
+    const sport = cat('20', 'Sport');
+    const groups = groupCategories([tf1, france, m6, sport]);
+    expect(groups.map((g) => g.prefix)).toEqual(['France', null]);
+    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['12', '11']);
+    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['20']);
   });
 
   it('rend une liste vide pour une entrée vide', () => {
