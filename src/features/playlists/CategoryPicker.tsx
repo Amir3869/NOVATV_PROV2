@@ -23,7 +23,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { Check, ChevronLeft, Layers, Search, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Layers, Search, X } from 'lucide-react';
 
 import { useTranslation, type MessageKey } from '@/i18n';
 import { cn } from '@/utils/cn';
@@ -74,6 +74,8 @@ export function CategoryPicker({
   const { t } = useTranslation();
   const [activeKind, setActiveKind] = useState<CategoryKind>('live');
   const [query, setQuery] = useState('');
+  /** `null` = liste des groupes ; sinon le préfixe ouvert (`__loose__` pour Autres). */
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const categories = catalog[activeKind];
 
@@ -147,6 +149,7 @@ export function CategoryPicker({
                 // Une recherche laissée en place masquerait presque tout
                 // dans l'onglet suivant, sans que la cause soit visible.
                 setQuery('');
+                setOpenGroup(null);
               }}
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all',
@@ -185,7 +188,10 @@ export function CategoryPicker({
               <input
                 type="search"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setOpenGroup(null);
+                }}
                 placeholder={t('playlists.categoriesSearch')}
                 aria-label={t('playlists.categoriesSearch')}
                 disabled={busy}
@@ -216,7 +222,58 @@ export function CategoryPicker({
                 {t('playlists.categoriesNoMatch')}
               </p>
             ) : (
-              groups.map((group) => {
+              <>
+                {groups.length > 1 && query.trim() === '' && openGroup === null ? (
+                  <ul>
+                    {groups.map((group) => {
+                      const key = group.prefix ?? '__loose__';
+                      const groupIds = group.categories.map((c) => c.categoryId);
+                      const groupChecked = groupIds.every((id) =>
+                        selection[activeKind].includes(id)
+                      );
+                      const n = group.categories.length;
+                      return (
+                        <li key={key}>
+                          <div className="flex items-center border-b border-line">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setOpenGroup(key)}
+                              className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3 text-start hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-white disabled:opacity-40"
+                            >
+                              <span className="text-sm font-semibold text-white truncate">
+                                {group.prefix ?? t('playlists.categoriesOther')}
+                              </span>
+                              <span className="text-[11px] text-white/45 flex-shrink-0">
+                                {n === 1
+                                  ? t('playlists.categoriesGroupCountOne')
+                                  : t('playlists.categoriesGroupCount', { count: n })}
+                              </span>
+                              <ChevronRight className="w-4 h-4 text-white/30 flex-shrink-0" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleGroup(group.categories, !groupChecked)}
+                              disabled={busy}
+                              className="px-3 py-3 text-[11px] text-white/70 hover:text-white underline underline-offset-2 flex-shrink-0 disabled:opacity-40"
+                            >
+                              {groupChecked
+                                ? t('playlists.categoriesClearAll')
+                                : t('playlists.categoriesSelectAll')}
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  groups
+                    .filter((group) => {
+                      if (groups.length <= 1 || query.trim() !== '') return true;
+                      const key = group.prefix ?? '__loose__';
+                      return key === openGroup;
+                    })
+                    .map((group) => {
                 const groupIds = group.categories.map((c) => c.categoryId);
                 const groupChecked = groupIds.every((id) =>
                   selection[activeKind].includes(id)
@@ -224,11 +281,28 @@ export function CategoryPicker({
 
                 return (
                   <section key={group.prefix ?? '__loose__'}>
-                    {group.prefix !== null && (
+                    {(group.prefix !== null || openGroup !== null) && (
                       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-2 bg-surface-2 border-b border-line">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-white">
-                          {group.prefix}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {openGroup !== null && groups.length > 1 && query.trim() === '' && (
+                            <button
+                              type="button"
+                              onClick={() => setOpenGroup(null)}
+                              aria-label={t('playlists.categoriesBack')}
+                              className="w-9 h-9 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                          )}
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-white truncate">
+                            {group.prefix ?? t('playlists.categoriesOther')}
+                          </span>
+                          <span className="text-[11px] text-white/40 flex-shrink-0">
+                            {group.categories.length === 1
+                              ? t('playlists.categoriesGroupCountOne')
+                              : t('playlists.categoriesGroupCount', { count: group.categories.length })}
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleToggleGroup(group.categories, !groupChecked)}
@@ -247,16 +321,6 @@ export function CategoryPicker({
                         const checked = selection[activeKind].includes(category.categoryId);
                         return (
                           <li key={category.categoryId}>
-                            {/*
-                              Un <button> plutôt qu'une <input type="checkbox">
-                              accompagnée d'un <label> : la zone cliquable
-                              couvre alors toute la ligne. Une case de 16 px
-                              est injouable à la télécommande.
-
-                              `aria-pressed` transmet l'état coché aux
-                              technologies d'assistance, que le rôle de
-                              bouton ne porte pas nativement.
-                            */}
                             <button
                               type="button"
                               aria-pressed={checked}
@@ -299,7 +363,9 @@ export function CategoryPicker({
                     </ul>
                   </section>
                 );
-              })
+                    })
+                )}
+              </>
             )}
           </div>
 

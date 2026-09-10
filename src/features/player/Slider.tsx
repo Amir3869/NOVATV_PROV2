@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import {
   ratioFromPointer,
+  ratioFromPointerVertical,
   valueFromRatio,
   percentFromValue,
   sliderKeyIntent,
@@ -34,15 +35,18 @@ interface SliderProps {
    * pour un doigt sur telephone. Le volume reste plus fin.
    */
   thick?: boolean;
+  /** Horizontal par defaut. Vertical : haut = fort (Netflix / Canal+). */
+  orientation?: 'horizontal' | 'vertical';
+  /** `accent` pour la progression, `light` pour volume / luminosite. */
+  tone?: 'accent' | 'light';
 }
 
 /**
- * Curseur horizontal utilisable a la souris, au doigt et a la
- * telecommande.
+ * Curseur utilisable a la souris, au doigt et a la telecommande.
  *
- * Un seul composant sert a la progression video et au volume : les deux
- * repondent au meme besoin (choisir une valeur entre zero et un
- * maximum), et les dupliquer garantirait qu'ils divergent.
+ * Un seul composant sert a la progression video, au volume et a la
+ * luminosite : les trois repondent au meme besoin (choisir une valeur
+ * entre zero et un maximum), et les dupliquer garantirait qu'ils divergent.
  *
  * Trois choix structurants :
  *
@@ -70,9 +74,13 @@ export function Slider({
   className,
   disabled = false,
   thick = false,
+  orientation = 'horizontal',
+  tone = 'accent',
 }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragValue, setDragValue] = useState<number | null>(null);
+  const vertical = orientation === 'vertical';
+  const fillClass = tone === 'light' ? 'bg-white' : 'bg-accent';
 
   // Pendant le glissement, la barre suit le doigt et non la video :
   // sans cela, chaque image decodee ramenerait le curseur en arriere.
@@ -80,12 +88,15 @@ export function Slider({
   const percent = percentFromValue(shown, max);
   const usable = !disabled && max > 0;
 
-  const valueAt = useCallback((clientX: number): number => {
+  const valueAt = useCallback((clientX: number, clientY: number): number => {
     const track = trackRef.current;
     if (!track) return 0;
     const bounds = track.getBoundingClientRect();
-    return valueFromRatio(ratioFromPointer(clientX, bounds.left, bounds.width), max);
-  }, [max]);
+    const ratio = vertical
+      ? ratioFromPointerVertical(clientY, bounds.top, bounds.height)
+      : ratioFromPointer(clientX, bounds.left, bounds.width);
+    return valueFromRatio(ratio, max);
+  }, [max, vertical]);
 
   /*
     Capture et relachement du pointeur.
@@ -126,14 +137,14 @@ export function Slider({
     // defilement, qui volerait les mouvements suivants.
     event.preventDefault();
     capturePointer(event.currentTarget, event.pointerId);
-    const next = valueAt(event.clientX);
+    const next = valueAt(event.clientX, event.clientY);
     setDragValue(next);
     onPreview?.(next);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (dragValue === null) return;
-    const next = valueAt(event.clientX);
+    const next = valueAt(event.clientX, event.clientY);
     setDragValue(next);
     onPreview?.(next);
   };
@@ -166,7 +177,7 @@ export function Slider({
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!usable) return;
-    const intent = sliderKeyIntent(event.key, step);
+    const intent = sliderKeyIntent(event.key, step, orientation);
     if (!intent) return; // Laisse passer les autres touches.
     event.preventDefault();
     // `stopPropagation` : le lecteur ecoute les memes fleches au niveau
@@ -192,6 +203,7 @@ export function Slider({
       role="slider"
       tabIndex={usable ? 0 : -1}
       aria-label={label}
+      aria-orientation={orientation}
       aria-valuemin={0}
       aria-valuemax={Math.round(max)}
       aria-valuenow={Math.round(shown)}
@@ -204,32 +216,41 @@ export function Slider({
       onKeyDown={handleKeyDown}
       className={cn(
         'relative rounded-full bg-white/20 group touch-none',
-        // Zone de saisie verticale elargie : viser une barre de 4 px au
-        // doigt est impossible, alors que la zone sensible peut etre
-        // plus haute que le trait visible.
-        thick ? 'py-3.5 -my-3.5 cursor-pointer' : 'py-2.5 -my-2.5 cursor-pointer',
-        // Focus vu a trois metres, regle du projet.
+        vertical
+          ? 'px-3.5 -mx-3.5 cursor-pointer w-1.5'
+          : thick
+            ? 'py-3.5 -my-3.5 cursor-pointer'
+            : 'py-2.5 -my-2.5 cursor-pointer',
         'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
         !usable && 'opacity-40 cursor-default',
         className
       )}
     >
-      <div className={cn('rounded-full bg-white/20 overflow-hidden', thick ? 'h-2' : 'h-1.5')}>
-        <div className="h-full bg-accent rounded-full" style={{ width: `${percent}%` }} />
-      </div>
-      {/* Pastille : toujours visible pendant le glissement et au focus,
-          sinon elle disparaitrait sous le doigt au moment ou elle sert.
-          En mode epais (progression), elle reste affichee : un pouce
-          a besoin d'un point d'appui, pas seulement d'un trait. */}
       <div
         className={cn(
-          'absolute top-1/2 rounded-full bg-accent shadow-md pointer-events-none transition-opacity',
-          thick ? 'w-5 h-5' : 'w-3.5 h-3.5',
-          dragValue !== null || thick
+          'rounded-full bg-white/20 overflow-hidden relative',
+          vertical ? 'h-full w-1.5' : thick ? 'h-2' : 'h-1.5'
+        )}
+      >
+        <div
+          className={cn('rounded-full', fillClass, vertical ? 'absolute bottom-0 left-0 right-0' : 'h-full')}
+          style={vertical ? { height: `${percent}%` } : { width: `${percent}%` }}
+        />
+      </div>
+      <div
+        className={cn(
+          'absolute rounded-full shadow-md pointer-events-none transition-opacity',
+          fillClass,
+          thick || vertical ? 'w-5 h-5' : 'w-3.5 h-3.5',
+          dragValue !== null || thick || vertical
             ? 'opacity-100'
             : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
         )}
-        style={{ left: `${percent}%`, transform: 'translate(-50%, -50%)' }}
+        style={
+          vertical
+            ? { left: '50%', bottom: `${percent}%`, transform: 'translate(-50%, 50%)' }
+            : { top: '50%', left: `${percent}%`, transform: 'translate(-50%, -50%)' }
+        }
       />
     </div>
   );

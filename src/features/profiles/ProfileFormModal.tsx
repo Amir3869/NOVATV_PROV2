@@ -128,7 +128,6 @@ export function ProfileFormModal({
               onChange={(e) => setName(e.target.value)}
               placeholder={t('profiles.firstName')}
               maxLength={20}
-              autoFocus
               className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
             />
           </div>

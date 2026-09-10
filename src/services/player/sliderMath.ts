@@ -28,6 +28,15 @@ export function ratioFromPointer(clientX: number, left: number, width: number): 
   return clamp01((clientX - left) / width);
 }
 
+/**
+ * Ratio sur une piste verticale : le haut vaut 1 (fort), le bas 0.
+ * Comme Netflix / Canal+ : glisser vers le haut augmente.
+ */
+export function ratioFromPointerVertical(clientY: number, top: number, height: number): number {
+  if (height <= 0) return 0;
+  return clamp01(1 - (clientY - top) / height);
+}
+
 /** Valeur absolue correspondant a un ratio, bornee par `max`. */
 export function valueFromRatio(ratio: number, max: number): number {
   if (max <= 0) return 0;
@@ -62,7 +71,15 @@ export type SliderKeyIntent =
  * lecteur elles reglent le volume, et les capturer ici priverait
  * l'utilisateur du reglage des qu'il poserait le focus sur la barre.
  */
-export function sliderKeyIntent(key: string, step: number): SliderKeyIntent | null {
+export function sliderKeyIntent(
+  key: string,
+  step: number,
+  orientation: 'horizontal' | 'vertical' = 'horizontal'
+): SliderKeyIntent | null {
+  if (orientation === 'vertical') {
+    if (key === 'ArrowUp') return { kind: 'delta', amount: step };
+    if (key === 'ArrowDown') return { kind: 'delta', amount: -step };
+  }
   switch (key) {
     case 'ArrowRight':
       return { kind: 'delta', amount: step };

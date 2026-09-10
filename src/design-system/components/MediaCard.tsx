@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { Play, Heart, Star, Clock, Info, Lock } from 'lucide-react';
+import { Play, Heart, Star, Clock, Info, Lock, Tv } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { ImageWithFallback } from './ImageWithFallback';
 import { Badge } from './Badge';
@@ -26,7 +26,6 @@ interface MovieCardProps {
 }
 
 export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
-  const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(movie.id));
   const { hasHover } = useDeviceType();
@@ -37,18 +36,13 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
     <div className={cn('catalog-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/movies?id=${encodeURIComponent(movie.id)}`}>
         <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
-          {movie.logo && !imgError ? (
-            <img
-              src={movie.logo}
-              alt={movie.name}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-3 to-surface-1">
-              <Play className="w-8 h-8 text-white/20" />
-            </div>
-          )}
+          <ImageWithFallback
+            src={movie.logo}
+            alt={movie.name}
+            className="w-full h-full object-cover"
+            fallbackClassName="w-full h-full bg-gradient-to-br from-surface-3 to-surface-1"
+            fallback={<Play className="w-8 h-8 text-white/20" />}
+          />
 
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300" />
@@ -118,7 +112,6 @@ interface SeriesCardProps {
 }
 
 export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) {
-  const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(series.id));
   const { hasHover } = useDeviceType();
@@ -128,18 +121,13 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
     <div className={cn('catalog-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/series?id=${encodeURIComponent(series.id)}`}>
         <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
-          {series.cover && !imgError ? (
-            <img
-              src={series.cover}
-              alt={series.name}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-3 to-surface-1">
-              <Play className="w-8 h-8 text-white/20" />
-            </div>
-          )}
+          <ImageWithFallback
+            src={series.cover}
+            alt={series.name}
+            className="w-full h-full object-cover"
+            fallbackClassName="w-full h-full bg-gradient-to-br from-surface-3 to-surface-1"
+            fallback={<Play className="w-8 h-8 text-white/20" />}
+          />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300" />
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300">
@@ -195,7 +183,6 @@ interface ChannelCardProps {
 
 export function ChannelCard({ channel, className, variant = 'list', listId }: ChannelCardProps) {
   const { t } = useTranslation();
-  const [imgError, setImgError] = useState(false);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(channel.id));
   const channelRenames = useAppStore((s) => s.channelRenames);
@@ -247,6 +234,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
             <div className="relative aspect-video flex items-center justify-center bg-black/10 p-2 md:p-5 overflow-hidden">
               {artwork ? (
                 <img
+                  key={artwork}
                   src={artwork}
                   alt=""
                   className="absolute inset-0 h-full w-full object-cover opacity-35"
@@ -254,20 +242,15 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
                   decoding="async"
                 />
               ) : null}
-              {channel.logo && !imgError ? (
-                <img
+              <div className="relative z-[1] flex max-h-12 max-w-full items-center justify-center">
+                <ImageWithFallback
                   src={channel.logo}
                   alt={displayName}
-                  className="relative z-[1] max-h-12 max-w-full object-contain filter drop-shadow-lg"
-                  referrerPolicy="no-referrer"
-                  decoding="async"
-                  onError={() => setImgError(true)}
+                  className="max-h-12 max-w-full object-contain filter drop-shadow-lg"
+                  fallbackClassName="w-12 h-8 rounded bg-white/5"
+                  fallback={<Tv className="w-5 h-5 text-white/20" />}
                 />
-              ) : (
-                <div className="relative z-[1] w-12 h-8 rounded bg-white/5 flex items-center justify-center">
-                  <Tv className="w-5 h-5 text-white/20" />
-                </div>
-              )}
+              </div>
               {blocked && (
                 <span className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center text-white/80">
                   <Lock className="w-3.5 h-3.5" />
@@ -317,18 +300,13 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
         }}
       >
       <div className={cn('w-16 h-10 rounded-lg bg-surface-3 flex items-center justify-center flex-shrink-0 overflow-hidden', blocked && 'opacity-50')}>
-        {channel.logo && !imgError ? (
-          <img
-            src={channel.logo}
-            alt={displayName}
-            className="max-h-8 max-w-14 object-contain"
-            referrerPolicy="no-referrer"
-            decoding="async"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <Tv className="w-5 h-5 text-white/20" />
-        )}
+        <ImageWithFallback
+          src={channel.logo || artwork}
+          alt={displayName}
+          className="max-h-8 max-w-14 object-contain"
+          fallbackClassName="w-16 h-10"
+          fallback={<Tv className="w-5 h-5 text-white/20" />}
+        />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -367,9 +345,6 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
     </div>
   );
 }
-
-// Need Tv import
-import { Tv } from 'lucide-react';
 
 // ─── Continue Watching Card ────────────────────
 interface ContinueWatchingCardProps {

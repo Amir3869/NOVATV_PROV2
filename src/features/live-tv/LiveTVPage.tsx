@@ -189,7 +189,10 @@ export function LiveTVPage() {
           title={
             search || activeCategory
               ? t('common.results', { count: filtered.length })
-              : t('liveTV.channelCount', { count: filtered.length })
+              : t('liveTV.catalogStats', {
+                  categories: laidOutCategories.length,
+                  channels: allChannels.length,
+                })
           }
           accent
           className="mb-3"

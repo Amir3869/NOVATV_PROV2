@@ -9,14 +9,28 @@
  *
  * Le scroll n'est pas sur la page : il est sur `#contenu-principal`
  * (ClientLayout). On s'abonne à cet ancêtre, pas à `window`.
+ *
+ * ── Fluidité ──
+ * Recalculer React à chaque pixel de scroll faisait saccader et
+ * recyclait les images trop tôt (« affiches qui s'entremêlent »).
+ * On ne publie un nouveau rendu que si la fenêtre d'items change.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { catalogColumnCount, visibleItemRange } from './virtualRange';
+import { catalogColumnCount, visibleItemRange, type VisibleRange } from './virtualRange';
 
 function scrollRoot(): HTMLElement | Window {
   if (typeof document === 'undefined') return window;
   return document.getElementById('contenu-principal') ?? window;
+}
+
+function sameRange(a: VisibleRange, b: VisibleRange): boolean {
+  return (
+    a.start === b.start &&
+    a.end === b.end &&
+    a.paddingTop === b.paddingTop &&
+    a.totalHeight === b.totalHeight
+  );
 }
 
 export function VirtualGrid<T>({
@@ -24,7 +38,7 @@ export function VirtualGrid<T>({
   getKey,
   renderItem,
   layout = 'grid',
-  overscan = 3,
+  overscan = 6,
   className,
 }: {
   items: readonly T[];
@@ -35,63 +49,99 @@ export function VirtualGrid<T>({
   className?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [viewportWidth, setViewportWidth] = useState(1024);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(800);
-  const [origin, setOrigin] = useState(0);
-  const [rowStride, setRowStride] = useState(layout === 'list' ? 96 : 240);
+  const metricsRef = useRef({
+    origin: 0,
+    viewportHeight: 800,
+    viewportWidth: 1024,
+    rowStride: layout === 'list' ? 96 : 240,
+    scrollTop: 0,
+  });
+  const itemCount = items.length;
 
-  const columns = layout === 'list' ? 1 : catalogColumnCount(viewportWidth);
+  const [range, setRange] = useState<VisibleRange>(() =>
+    visibleItemRange({
+      itemCount,
+      columns: layout === 'list' ? 1 : 3,
+      rowStride: layout === 'list' ? 96 : 240,
+      scrollTop: 0,
+      viewportHeight: 800,
+      origin: 0,
+      overscan,
+    })
+  );
 
-  const measure = useCallback(() => {
+  const publish = useCallback(() => {
+    const m = metricsRef.current;
+    const next = visibleItemRange({
+      itemCount,
+      columns: layout === 'list' ? 1 : catalogColumnCount(m.viewportWidth),
+      rowStride: m.rowStride,
+      scrollTop: m.scrollTop,
+      viewportHeight: m.viewportHeight,
+      origin: m.origin,
+      overscan,
+    });
+    setRange((prev) => (sameRange(prev, next) ? prev : next));
+  }, [itemCount, layout, overscan]);
+
+  const measureLayout = useCallback(() => {
     const root = scrollRoot();
     const wrap = wrapRef.current;
-    if (!wrap) return;
+    if (!wrap) {
+      publish();
+      return;
+    }
+    const m = metricsRef.current;
 
     if (root === window) {
-      setScrollTop(window.scrollY);
-      setViewportHeight(window.innerHeight);
-      setOrigin(wrap.getBoundingClientRect().top + window.scrollY);
+      m.scrollTop = window.scrollY;
+      m.viewportHeight = window.innerHeight;
+      m.origin = wrap.getBoundingClientRect().top + window.scrollY;
     } else {
       const el = root as HTMLElement;
       const rootBox = el.getBoundingClientRect();
       const wrapBox = wrap.getBoundingClientRect();
-      setScrollTop(el.scrollTop);
-      setViewportHeight(el.clientHeight);
-      setOrigin(wrapBox.top - rootBox.top + el.scrollTop);
+      m.scrollTop = el.scrollTop;
+      m.viewportHeight = el.clientHeight;
+      m.origin = wrapBox.top - rootBox.top + el.scrollTop;
     }
-    setViewportWidth(window.innerWidth);
+    m.viewportWidth = window.innerWidth;
 
     const sample = wrap.querySelector('[data-virtual-cell]') as HTMLElement | null;
     if (sample) {
       const gap = layout === 'list' ? 12 : window.innerWidth >= 768 ? 40 : 32;
       const next = Math.round(sample.getBoundingClientRect().height + gap);
-      if (next > 40) setRowStride(next);
+      // Un écart de 1 px au scroll ne doit pas tout recalculer.
+      if (next > 40 && Math.abs(next - m.rowStride) >= 4) {
+        m.rowStride = next;
+      }
     }
-  }, [layout]);
+    publish();
+  }, [layout, publish]);
 
   useEffect(() => {
     const root = scrollRoot();
-    const onScroll = () => measure();
-    root.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    const frame = window.requestAnimationFrame(() => measure());
-    return () => {
-      window.cancelAnimationFrame(frame);
-      root.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const current = scrollRoot();
+        metricsRef.current.scrollTop =
+          current === window ? window.scrollY : (current as HTMLElement).scrollTop;
+        publish();
+      });
     };
-  }, [measure, items.length]);
-
-  const range = visibleItemRange({
-    itemCount: items.length,
-    columns,
-    rowStride,
-    scrollTop,
-    viewportHeight,
-    origin,
-    overscan,
-  });
+    root.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', measureLayout);
+    const start = window.requestAnimationFrame(() => measureLayout());
+    return () => {
+      window.cancelAnimationFrame(start);
+      if (frame) window.cancelAnimationFrame(frame);
+      root.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', measureLayout);
+    };
+  }, [measureLayout, publish]);
 
   const slice = items.slice(range.start, range.end);
 

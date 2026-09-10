@@ -440,8 +440,8 @@ export interface UserPreferences {
   profileId: string;
   /**
    * Thème de l'interface.
-   * `system` suit le réglage du système d'exploitation, qui bascule
-   * souvent en sombre le soir. C'est la valeur par défaut.
+   * `dark` est la valeur d'usine. `system` suit le système
+   * d'exploitation ; `light` force le clair.
    */
   theme: 'light' | 'dark' | 'system';
   /**

@@ -106,12 +106,14 @@ export const fr = {
       'Votre source est enregistrée mais ne contient aucun élément. Lancez une synchronisation pour récupérer votre catalogue.',
     noContentAction: 'Gérer mes sources',
     myFavorites: 'Mes favoris',
+    myChannels: 'Mes chaînes',
   },
 
   // ── TV en direct ──
   liveTV: {
     title: 'TV en direct',
     channelCount: '{count} chaînes disponibles',
+    catalogStats: '{categories} catégories · {channels} chaînes',
     categories: 'Catégories',
     allChannels: 'Toutes les chaînes',
     recent: 'Récemment regardées',
@@ -408,6 +410,8 @@ export const fr = {
     categoriesSave: 'Enregistrer et synchroniser',
     categoriesAllSelected: 'Toutes les catégories sont importées.',
     categoriesCountHint: 'Le nombre de chaînes par catégorie n\'est connu qu\'après le téléchargement.',
+    categoriesGroupCount: '{count} catégories',
+    categoriesGroupCountOne: '1 catégorie',
     categoriesReloadFailed: 'Impossible de lire les catégories de ce compte.',
     renameCategories: 'Renommer les catégories',
     catalogManage: 'Gestion du catalogue',
@@ -635,6 +639,7 @@ export const fr = {
     mute: 'Couper le son',
     unmute: 'Rétablir le son',
     volume: 'Volume',
+    brightness: 'Luminosité',
     subtitleSettingsTitle: 'Réglages des sous-titres',
     subtitleToggle: 'Activer les sous-titres',
     subtitleTrack: 'Piste de sous-titres',

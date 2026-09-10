@@ -3,6 +3,7 @@ import {
   fetchCategoryCatalog,
   syncXtreamCatalog,
   toSourceErrorKind,
+  absoluteMediaUrl,
   mapLiveChannels,
   mapMovies,
   mapSeries,
@@ -740,5 +741,21 @@ describe('fetchCategoryCatalog', () => {
     await expect(
       fetchCategoryCatalog(creds, { signal: controller.signal })
     ).rejects.toThrow();
+  });
+});
+
+describe('absoluteMediaUrl', () => {
+  it('laisse une URL absolue intacte', () => {
+    expect(absoluteMediaUrl('http://s.com', 'http://cdn/a.png')).toBe('http://cdn/a.png');
+  });
+
+  it('résout un chemin relatif contre le serveur', () => {
+    expect(absoluteMediaUrl('http://s.com:8080', '/images/tf1.png')).toBe(
+      'http://s.com:8080/images/tf1.png'
+    );
+  });
+
+  it('rend undefined pour une chaîne vide', () => {
+    expect(absoluteMediaUrl('http://s.com', '  ')).toBeUndefined();
   });
 });

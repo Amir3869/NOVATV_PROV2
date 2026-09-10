@@ -93,9 +93,9 @@ export function AppDialog({
     previousFocusRef.current = document.activeElement as HTMLElement | null;
 
     const panel = panelRef.current;
-    const input = panel?.querySelector<HTMLElement>('input, textarea, select');
-    const focusTarget =
-      initialFocusRef?.current ?? input ?? panel?.querySelector<HTMLElement>(FOCUSABLE);
+    // Sur téléphone, focuser un champ ouvre le clavier tout de suite.
+    // On pose le focus sur le panneau ; l'utilisateur tape le champ.
+    const focusTarget = initialFocusRef?.current ?? panel;
     focusTarget?.focus();
 
     const previousOverflow = document.body.style.overflow;
@@ -151,6 +151,7 @@ export function AppDialog({
 
       <div
         ref={panelRef}
+        tabIndex={-1}
         role={role}
         aria-modal="true"
         aria-labelledby={titleId}

@@ -686,6 +686,20 @@ describe('migratePersistedState', () => {
     expect(r.preferences.animationsEnabled).toBeNull();
   });
 
+  it('passe le thème d usine de system à dark', () => {
+    const s = stockageV3();
+    s.preferences.theme = 'system';
+    const r = migratePersistedState(s, 14);
+    expect(r.preferences.theme).toBe('dark');
+  });
+
+  it('conserve un thème clair déjà choisi', () => {
+    const s = stockageV3();
+    s.preferences.theme = 'light';
+    const r = migratePersistedState(s, 14);
+    expect(r.preferences.theme).toBe('light');
+  });
+
   it('injecte des surnoms vides depuis une version antérieure à 10', () => {
     const r = migratePersistedState(stockageV3(), 9);
     expect(r.categoryRenames).toEqual({});

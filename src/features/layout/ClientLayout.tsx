@@ -108,7 +108,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             className={
               isImmersive
                 ? 'flex-1 overflow-hidden'
-                : 'flex-1 overflow-y-auto overflow-x-hidden pb-28 lg:pb-0'
+                : 'flex-1 overflow-y-auto overflow-x-hidden scrollbar-none pb-28 lg:pb-0'
             }
           >
             {children}

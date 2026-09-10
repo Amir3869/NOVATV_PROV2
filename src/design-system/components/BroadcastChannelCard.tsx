@@ -71,6 +71,7 @@ export function BroadcastChannelCard({
         >
           {art ? (
             <img
+              key={art}
               src={art}
               alt=""
               className="absolute inset-0 h-full w-full object-cover opacity-35"

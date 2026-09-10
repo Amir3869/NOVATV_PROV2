@@ -313,29 +313,30 @@ export function filterCategories(
  *
  * Renvoie `null` quand aucun préfixe crédible ne se dégage.
  */
+/**
+ * Jetons de qualité : ce ne sont pas des langues.
+ *
+ * Sans ça, « HD | UK Sport » et « FHD FRANCE » formaient des groupes
+ * HD / FHD, et des chaînes anglaises se retrouvaient collées à du FR.
+ */
+const QUALITY_TOKENS = new Set([
+  'HD', 'FHD', 'UHD', 'SD', '4K', '8K', 'HDR', 'HEVC', 'H265', 'H264', 'RAW', 'BACKUP',
+]);
+
 export function categoryPrefix(name: string): string | null {
   const trimmed = name.trim();
   if (trimmed.length === 0) return null;
 
-  // Le premier mot, quel que soit le séparateur employé par le portail.
-  const match = /^([^\s|:\-–—]+)/.exec(trimmed);
-  if (!match) return null;
-
-  const token = match[1];
-  if (token.length < 2 || token.length > 4) return null;
-
-  // Majuscules et chiffres seulement : « The » ou « Les » ne sont pas
-  // des codes de pays, et les regrouper n'aurait aucun sens.
-  if (!/^[A-Z0-9]+$/.test(token)) return null;
-
-  // Un préfixe purement numérique désigne un numéro, pas une langue.
-  if (/^[0-9]+$/.test(token)) return null;
-
-  // Le nom doit contenir autre chose que son préfixe : une catégorie
-  // qui s'appelle « VIP » tout court n'est pas un groupe.
-  if (trimmed.length === token.length) return null;
-
-  return token;
+  const tokens = trimmed.split(/[\s|:\-–—]+/).filter(Boolean);
+  for (const token of tokens) {
+    if (QUALITY_TOKENS.has(token)) continue;
+    if (token.length < 2 || token.length > 4) return null;
+    if (!/^[A-Z0-9]+$/.test(token)) return null;
+    if (/^[0-9]+$/.test(token)) return null;
+    if (trimmed.length === token.length) return null;
+    return token;
+  }
+  return null;
 }
 
 /** Un groupe de catégories partageant le même préfixe. */
@@ -363,14 +364,43 @@ function sortByName(list: XtreamCategory[]): XtreamCategory[] {
   );
 }
 
+/** Codes langue / pays courants des panneaux Xtream. */
+const LANG_PREFIXES = new Set([
+  'FR', 'EN', 'UK', 'GB', 'US', 'AR', 'ES', 'DE', 'IT', 'PT', 'NL', 'BE', 'TR',
+  'PL', 'RU', 'GR', 'IN', 'PK', 'BR', 'CA', 'AU', 'CH', 'AT', 'SE', 'NO', 'DK',
+  'FI', 'CZ', 'RO', 'HU', 'BG', 'UA', 'AL', 'BA', 'HR', 'RS', 'MK', 'SI', 'SK',
+  'IE', 'NZ', 'MX', 'EG', 'MA', 'TN', 'DZ', 'SA', 'AE', 'QA', 'KW', 'LB', 'IQ',
+  'JP', 'KR', 'CN', 'TW', 'HK', 'TH', 'VN', 'ID', 'MY', 'PH', 'SG', 'ZA', 'IL',
+  'INT', 'EU',
+]);
+
+function languagePrefix(name: string): string | null {
+  const prefix = categoryPrefix(name);
+  return prefix && LANG_PREFIXES.has(prefix) ? prefix : null;
+}
+
 /**
- * Regroupe par parent Xtream (`parent_id`) quand le portail en envoie.
- *
- * Beaucoup de panneaux exposent une famille (« France », « Sport »)
- * puis des enfants qui portent vraiment les chaînes / films. Sans ça,
- * parents et enfants se mélangent en une liste plate mal triée.
+ * Un nom de série (« Breaking Bad ») n'est pas une catégorie.
+ * Un dossier (« FR | Action », « Netflix ») l'est.
  */
-function groupByParent(categories: XtreamCategory[]): CategoryGroup[] | null {
+function looksLikeTitle(name: string): boolean {
+  if (categoryPrefix(name)) return false;
+  if (/[|:–—]/.test(name)) return false;
+  return /\s/.test(name) || name.length > 28;
+}
+
+function shouldCollapseChildren(kids: XtreamCategory[]): boolean {
+  if (kids.length < 8) return false;
+  const titles = kids.filter((k) => looksLikeTitle(k.categoryName)).length;
+  return titles / kids.length >= 0.6;
+}
+
+function parentBuckets(categories: XtreamCategory[]): {
+  byNumericId: Map<number, XtreamCategory>;
+  children: Map<number, XtreamCategory[]>;
+  roots: XtreamCategory[];
+  nested: number;
+} {
   const byNumericId = new Map<number, XtreamCategory>();
   for (const category of categories) {
     const id = Number(category.categoryId);
@@ -391,24 +421,34 @@ function groupByParent(categories: XtreamCategory[]): CategoryGroup[] | null {
       roots.push(category);
     }
   }
+  return { byNumericId, children, roots, nested };
+}
 
-  if (nested === 0) return null;
+/**
+ * Aplatit l'arbre : on ne sélectionne que des feuilles, sauf quand
+ * les enfants sont en réalité des titres (séries) — on coche alors
+ * le parent, et `expandWithChildren` ramènera les enfants à l'import.
+ */
+function selectableCategories(categories: XtreamCategory[]): XtreamCategory[] {
+  const { children, roots, nested } = parentBuckets(categories);
+  if (nested === 0) return categories;
 
-  const groups: CategoryGroup[] = [];
-  const loose: XtreamCategory[] = [];
-
-  for (const root of roots) {
-    const id = Number(root.categoryId);
+  const out: XtreamCategory[] = [];
+  const walk = (node: XtreamCategory) => {
+    const id = Number(node.categoryId);
     const kids = (Number.isFinite(id) ? children.get(id) : undefined) ?? [];
     if (kids.length === 0) {
-      loose.push(root);
-      continue;
+      out.push(node);
+      return;
     }
-    groups.push({ prefix: root.categoryName, categories: sortByName(kids) });
-  }
-
-  if (loose.length > 0) groups.push({ prefix: null, categories: sortByName(loose) });
-  return groups;
+    if (shouldCollapseChildren(kids)) {
+      out.push(node);
+      return;
+    }
+    for (const kid of kids) walk(kid);
+  };
+  for (const root of roots) walk(root);
+  return out.length > 0 ? out : categories;
 }
 
 function groupByPrefix(categories: XtreamCategory[]): CategoryGroup[] {
@@ -417,7 +457,7 @@ function groupByPrefix(categories: XtreamCategory[]): CategoryGroup[] {
   const order: string[] = [];
 
   for (const category of categories) {
-    const prefix = categoryPrefix(category.categoryName);
+    const prefix = languagePrefix(category.categoryName) ?? categoryPrefix(category.categoryName);
     if (prefix === null) {
       loose.push(category);
       continue;
@@ -436,7 +476,11 @@ function groupByPrefix(categories: XtreamCategory[]): CategoryGroup[] {
 
   for (const prefix of order) {
     const bucket = byPrefix.get(prefix) ?? [];
-    if (bucket.length > 1) {
+    // Une langue reste un groupe même à une seule ligne : coller
+    // « FR | TF1 » et « ES | TVE » dans Autres, c'est les mélanger.
+    // Les préfixes non-langue (BE4K…) n'ont un en-tête que s'ils
+    // couvrent au moins deux catégories.
+    if (bucket.length > 1 || LANG_PREFIXES.has(prefix)) {
       groups.push({ prefix, categories: sortByName(bucket) });
     } else {
       orphans.push(...bucket);
@@ -449,7 +493,7 @@ function groupByPrefix(categories: XtreamCategory[]): CategoryGroup[] {
 }
 
 export function groupCategories(categories: XtreamCategory[]): CategoryGroup[] {
-  return groupByParent(categories) ?? groupByPrefix(categories);
+  return groupByPrefix(selectableCategories(categories));
 }
 
 // ─────────────────────────────────────────────────────────────────────

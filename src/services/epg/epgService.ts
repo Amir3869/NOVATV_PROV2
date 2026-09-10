@@ -397,7 +397,7 @@ export function parseXMLTVDate(input: string): Date | null {
  * immédiate.
  */
 export function matchChannelsWithEPG(
-  playlistChannels: Array<{ id: string; name: string; tvgId?: string }>,
+  playlistChannels: Array<{ id: string; name: string; tvgId?: string; streamId?: number }>,
   epgChannels: ParsedEPGChannel[]
 ): Map<string, string> {
   const mapping = new Map<string, string>();
@@ -422,6 +422,15 @@ export function matchChannelsWithEPG(
 
   for (const ch of playlistChannels) {
     const tvgId = ch.tvgId?.trim();
+
+    if (ch.streamId && ch.streamId > 0) {
+      const sid = String(ch.streamId);
+      const byStream = byExactId.get(sid) ?? byLowerId.get(sid);
+      if (byStream) {
+        mapping.set(ch.id, byStream);
+        continue;
+      }
+    }
 
     if (tvgId) {
       const exact = byExactId.get(tvgId);

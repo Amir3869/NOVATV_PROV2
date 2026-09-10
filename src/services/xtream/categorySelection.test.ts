@@ -263,6 +263,11 @@ describe('categoryPrefix', () => {
     expect(categoryPrefix('FRANCE Sport')).toBeNull();
   });
 
+  it('ignore un jeton de qualité en tête', () => {
+    expect(categoryPrefix('HD | UK Documentary')).toBe('UK');
+    expect(categoryPrefix('FHD FRANCE')).toBeNull();
+  });
+
   it('refuse un nom réduit à son seul préfixe', () => {
     expect(categoryPrefix('VIP')).toBeNull();
     expect(categoryPrefix('  VIP  ')).toBeNull();
@@ -297,21 +302,26 @@ describe('groupCategories', () => {
     expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['2']);
   });
 
-  it('ne crée pas de groupe pour un préfixe unique', () => {
+  it('garde un groupe par langue, même à une seule catégorie', () => {
     const groups = groupCategories([cat('1', 'FR | TF1'), cat('2', 'DE Sport')]);
-    expect(groups.map((g) => g.prefix)).toEqual([null]);
-    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['2', '1']);
+    expect(groups.map((g) => g.prefix)).toEqual(['FR', 'DE']);
   });
 
-  it('range les préfixes solitaires avec les autres, triés', () => {
+  it('ne crée pas de groupe pour un préfixe non-langue unique', () => {
+    const groups = groupCategories([cat('1', 'BE4K Sports'), cat('2', 'Cinéma')]);
+    expect(groups.map((g) => g.prefix)).toEqual([null]);
+    expect(groups[0].categories.map((c) => c.categoryId).sort()).toEqual(['1', '2']);
+  });
+
+  it('range un préfixe langue solitaire à part du fourre-tout', () => {
     const groups = groupCategories([
       cat('1', 'DE Sport'),
       cat('2', 'FR | TF1'),
       cat('3', 'Autre chose'),
       cat('4', 'FR | M6'),
     ]);
-    expect(groups.map((g) => g.prefix)).toEqual(['FR', null]);
-    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['3', '1']);
+    expect(groups.map((g) => g.prefix)).toEqual(['DE', 'FR', null]);
+    expect(groups[2].categories.map((c) => c.categoryId)).toEqual(['3']);
   });
 
   it('regroupe les enfants sous le parent Xtream', () => {
@@ -320,9 +330,37 @@ describe('groupCategories', () => {
     const m6 = { ...cat('12', 'M6 HD'), parentId: 10 };
     const sport = cat('20', 'Sport');
     const groups = groupCategories([tf1, france, m6, sport]);
-    expect(groups.map((g) => g.prefix)).toEqual(['France', null]);
-    expect(groups[0].categories.map((c) => c.categoryId)).toEqual(['12', '11']);
-    expect(groups[1].categories.map((c) => c.categoryId)).toEqual(['20']);
+    // Feuilles seulement : France n'est plus listée. TF1 / M6 n'ont
+    // pas de préfixe langue à deux, donc fourre-tout avec Sport.
+    const ids = groups.flatMap((g) => g.categories.map((c) => c.categoryId)).sort();
+    expect(ids).toEqual(['11', '12', '20']);
+    expect(ids).not.toContain('10');
+  });
+
+  it('sépare FR et ES même sous un même parent', () => {
+    const pack = cat('1', 'Pack Europe');
+    const fr = { ...cat('2', 'FR | TF1'), parentId: 1 };
+    const es = { ...cat('3', 'ES | TVE'), parentId: 1 };
+    const groups = groupCategories([pack, fr, es]);
+    expect(groups.map((g) => g.prefix).sort()).toEqual(['ES', 'FR']);
+  });
+
+  it('replie une ribambelle de titres de séries sous le parent', () => {
+    const fr = cat('1', 'FR | Séries');
+    const kids = [
+      'Breaking Bad',
+      'Game of Thrones',
+      'Stranger Things',
+      'The Last of Us',
+      'Better Call Saul',
+      'House of the Dragon',
+      'The White Lotus',
+      'Slow Horses',
+    ].map((name, i) => ({ ...cat(String(10 + i), name), parentId: 1 }));
+    const groups = groupCategories([fr, ...kids]);
+    const ids = groups.flatMap((g) => g.categories.map((c) => c.categoryId));
+    expect(ids).toEqual(['1']);
+    expect(ids).not.toContain('10');
   });
 
   it('rend une liste vide pour une entrée vide', () => {

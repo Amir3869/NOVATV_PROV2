@@ -375,6 +375,7 @@ export async function syncEPG(
       // Un portail Xtream renseigne `epgChannelId` ; un M3U renseigne
       // `tvgId`. On accepte les deux, le premier disponible gagne.
       tvgId: c.epgChannelId ?? c.tvgId,
+      streamId: c.streamId,
     })),
     parsed.channels
   );
@@ -383,12 +384,19 @@ export async function syncEPG(
 
   report('done', 1);
 
+  const fromPrograms: Record<string, string> = {};
+  for (const program of programs) {
+    if (program.icon && !fromPrograms[program.channelId]) {
+      fromPrograms[program.channelId] = program.icon;
+    }
+  }
+
   return {
     programs,
     matchedChannels: mapping.size,
     unmatchedChannels: channels.length - mapping.size,
     warnings: parsed.errors,
-    logoFallbacks: logoFallbacksFromEpg(mapping, parsed.channels),
+    logoFallbacks: { ...fromPrograms, ...logoFallbacksFromEpg(mapping, parsed.channels) },
   };
 }
 

@@ -62,13 +62,13 @@ export const viewport: Viewport = {
  * lit la préférence enregistrée et pose la bonne classe tout de suite.
  * Il est volontairement enveloppé dans un try/catch : si `localStorage`
  * est inaccessible (navigation privée stricte, cookies bloqués), on
- * retombe silencieusement sur le réglage système plutôt que de casser
+ * retombe silencieusement sur le thème sombre plutôt que de casser
  * la page.
  */
 const themeInitScript = `
 (function () {
   try {
-    var theme = 'system';
+    var theme = 'dark';
     var raw = localStorage.getItem('novatv-storage');
     if (raw) {
       var saved = JSON.parse(raw);

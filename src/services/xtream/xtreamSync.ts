@@ -240,6 +240,24 @@ function orUndefined(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/**
+ * Les logos Xtream arrivent souvent en chemin relatif (`/images/tf1.png`).
+ * Sans base, la WebView les cherche sur elle-même : image absente,
+ * alors que Smarters les affiche.
+ */
+export function absoluteMediaUrl(serverUrl: string, raw: string | undefined): string | undefined {
+  const value = orUndefined(raw);
+  if (!value) return undefined;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith('//')) return `http:${value}`;
+  try {
+    const base = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
+    return new URL(value, base).href;
+  } catch {
+    return value;
+  }
+}
+
 /** Unix secondes ou date lisible → ISO. Sinon rien. */
 export function addedAtFrom(raw: string | undefined): string | undefined {
   const trimmed = raw?.trim();
@@ -295,7 +313,7 @@ export function mapLiveChannels(
     name: s.name,
     streamUrl: xtreamService.getLiveStreamUrl(creds, s.streamId, format),
     streamType: streamTypeFor(format),
-    logo: orUndefined(s.streamIcon),
+    logo: absoluteMediaUrl(creds.serverUrl, s.streamIcon),
     categoryId: s.categoryId
       ? scopedId(playlistId, 'livecat', s.categoryId)
       : undefined,
@@ -332,7 +350,7 @@ export function mapMovies(
     id: scopedId(playlistId, 'movie', s.streamId),
     name: s.name,
     streamUrl: xtreamService.getVodStreamUrl(creds, s.streamId, s.containerExtension),
-    logo: orUndefined(s.streamIcon),
+    logo: absoluteMediaUrl(creds.serverUrl, s.streamIcon),
     rating: orUndefined(s.rating),
     categoryId: orUndefined(s.categoryId),
     categoryName: categoryNames.get(s.categoryId),

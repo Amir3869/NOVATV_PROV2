@@ -17,6 +17,7 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { HeroSkeleton, SectionSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { useTranslation } from '@/i18n';
 import { pickFeatured } from '@/features/home/pickFeatured';
+import { pickHomeChannels } from '@/features/home/pickHomeChannels';
 import { historyEntryHref, historyEpisodeSeriesId, historyProfileId } from '@/features/history/historyLinks';
 import { useClock } from '@/hooks/useClock';
 import { enrichLiveChannels } from '@/services/epg/epgSync';
@@ -36,16 +37,46 @@ export function HomePage() {
 
   const { channels, movies, series, epgPrograms, activePlaylistId } = useActiveCatalog();
   const nowMs = useClock();
-  const homeChannels = React.useMemo(
-    () => enrichLiveChannels(channels.slice(0, 20), epgPrograms, nowMs),
-    [channels, epgPrograms, nowMs]
-  );
   const playlists = useAppStore((s) => s.playlists);
   const watchHistory = useAppStore((s) => s.watchHistory);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const isFavorite = useAppStore((s) => s.isFavorite);
+  const favorites = useAppStore((s) => s.favorites);
+  const customLists = useAppStore((s) => s.customLists);
   const catalogReady = useAppStore((s) => s.catalogReady);
   const profileId = historyProfileId(activeProfileId);
+
+  const homePick = React.useMemo(() => {
+    const listChannelIds: string[] = [];
+    for (const list of customLists) {
+      if (list.profileId !== profileId) continue;
+      for (const item of list.items) {
+        if (item.mediaType === 'channel') listChannelIds.push(item.mediaId);
+      }
+    }
+    const favoriteChannelIds: string[] = [];
+    for (const fav of favorites) {
+      if (fav.profileId !== profileId) continue;
+      if (fav.mediaType === 'channel') favoriteChannelIds.push(fav.mediaId);
+    }
+    return pickHomeChannels(channels, listChannelIds, favoriteChannelIds, 20);
+  }, [channels, customLists, favorites, profileId]);
+
+  const homeChannels = React.useMemo(
+    () => enrichLiveChannels(homePick.items, epgPrograms, nowMs),
+    [homePick.items, epgPrograms, nowMs]
+  );
+  const homeHasListChannels = customLists.some(
+    (list) =>
+      list.profileId === profileId &&
+      list.items.some((item) => item.mediaType === 'channel')
+  );
+  const homeSeeAll =
+    homePick.source === 'personal'
+      ? homeHasListChannels
+        ? '/lists'
+        : '/favorites'
+      : '/live';
 
   // Les données enregistrées sont relues après le premier rendu.
   // Tant que ce n'est pas fait, on ne sait pas si l'utilisateur a une
@@ -164,12 +195,16 @@ export function HomePage() {
           </section>
         )}
 
-        {channels.length > 0 && (
+        {homeChannels.length > 0 && (
           <section>
             <SectionHeader
-              title={t('liveTV.channelCount', { count: channels.length })}
+              title={
+                homePick.source === 'personal'
+                  ? t('home.myChannels')
+                  : t('liveTV.channelCount', { count: channels.length })
+              }
               accent
-              onSeeAll={() => router.push('/live')}
+              onSeeAll={() => router.push(homeSeeAll)}
               className="mb-4"
             />
             <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">

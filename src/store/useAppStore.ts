@@ -274,7 +274,7 @@ function dedupeById<T extends { id: string }>(list: T[]): T[] {
 
 const defaultPreferences: UserPreferences = {
   profileId: '',
-  theme: 'system',
+  theme: 'dark',
   // `null` = jamais choisi : le comportement dépendra de l'appareil.
   // Voir `resolveGlass` dans src/hooks/useGlass.ts.
   glassEnabled: null,
@@ -604,6 +604,21 @@ export function migratePersistedState(
       categoryPins,
       categoryOrder,
       activeProfileId: state.activeProfileId ?? firstId ?? null,
+    };
+  }
+
+  // Version 14 : le thème d'usine passe de `system` à `dark`.
+  // `system` n'était pas un choix d'écran pour la plupart : c'était
+  // la valeur écrite par défaut. On ne touche pas à `light` ni `dark`.
+  if (version < 15) {
+    const theme = state.preferences?.theme;
+    state = {
+      ...state,
+      preferences: {
+        ...defaultPreferences,
+        ...state.preferences,
+        theme: theme === 'light' || theme === 'dark' ? theme : 'dark',
+      },
     };
   }
 
@@ -1273,7 +1288,7 @@ export const useAppStore = create<AppState>()(
        * À chaque incrément, Zustand appelle `migrate` ci-dessous pour
        * convertir les données déjà enregistrées au nouveau format.
        */
-      version: 14,
+      version: 15,
       migrate: migratePersistedState,
       partialize: (state) => ({
         profiles: state.profiles,

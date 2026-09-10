@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   clamp01,
   ratioFromPointer,
+  ratioFromPointerVertical,
   valueFromRatio,
   percentFromValue,
   sliderKeyIntent,
@@ -58,6 +59,20 @@ describe('ratioFromPointer', () => {
 
   it('renvoie zero sur une largeur negative', () => {
     expect(ratioFromPointer(150, 100, -50)).toBe(0);
+  });
+});
+
+describe('ratioFromPointerVertical', () => {
+  it('donne un en haut de la piste', () => {
+    expect(ratioFromPointerVertical(100, 100, 100)).toBe(1);
+  });
+
+  it('donne zero en bas de la piste', () => {
+    expect(ratioFromPointerVertical(200, 100, 100)).toBe(0);
+  });
+
+  it('donne le milieu au centre', () => {
+    expect(ratioFromPointerVertical(150, 100, 100)).toBe(0.5);
   });
 });
 

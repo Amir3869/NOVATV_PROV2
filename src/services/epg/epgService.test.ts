@@ -119,6 +119,14 @@ describe('matchChannelsWithEPG', () => {
     expect(m.has('e')).toBe(false);
   });
 
+  it('rapproche par identifiant de flux Xtream', () => {
+    const m = matchChannelsWithEPG(
+      [{ id: 'f', name: 'TF1', streamId: 1042 }],
+      [{ id: '1042', displayName: 'TF1 HD' }]
+    );
+    expect(m.get('f')).toBe('1042');
+  });
+
   /**
    * Garde-fou de performance. L'ancienne version parcourait toute la
    * liste EPG pour chaque chaîne : 2 559 ms mesurées sur ce jeu de

@@ -9,7 +9,7 @@ import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize,
   SkipBack, SkipForward, ArrowLeft, Radio, AlertTriangle, RotateCcw,
   ChevronLeft, ChevronRight, Settings, List, Ratio, Captions,
-  Heart, Lock, LockOpen, Timer, Gauge
+  Heart, Lock, LockOpen, Timer, Gauge, Sun
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Badge } from '@/design-system/components/Badge';
@@ -36,6 +36,7 @@ import { SleepMenu, SpeedMenu } from './PlayerExtraMenus';
 import { qualityLabel } from '@/services/player/qualityLadder';
 import { findNextEpisode, shouldAutoAdvance, episodeCode } from '@/services/player/episodeQueue';
 import { Slider } from './Slider';
+import { SkipArcButton } from './SkipArcButton';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 import { buildChannelEpgMap, buildPlayerEpgView } from '@/services/player/playerEpg';
 import { hasSelectableTracks } from '@/services/player/trackController';
@@ -715,6 +716,8 @@ function PlayerContent() {
    * n'a pas encore eu lieu.
    */
   const [seekPreview, setSeekPreview] = useState<number | null>(null);
+  /** 100 = image intacte. Pas la luminosité système : un voile sur la vidéo. */
+  const [brightness, setBrightness] = useState(100);
 
   const displayedTime = seekPreview ?? player.currentTime;
 
@@ -886,6 +889,14 @@ function PlayerContent() {
           `pointer-events-none` laisse les gestes traverser. Pour la
           lecture native il ne s'affiche pas : `player.subtitles.active`
           reste faux, le navigateur assurant seul son propre rendu. */}
+      {streamUrl && brightness < 100 && (
+        <div
+          className="absolute inset-0 z-[15] bg-black pointer-events-none"
+          style={{ opacity: ((100 - brightness) / 100) * 0.72 }}
+          aria-hidden
+        />
+      )}
+
       {player.subtitles.active && (
         <SubtitleOverlay
           cues={player.subtitles.cues}
@@ -1122,26 +1133,60 @@ function PlayerContent() {
           </div>
         </div>
 
+        <div
+          className="absolute start-[max(0.35rem,env(safe-area-inset-left))] top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Slider
+            orientation="vertical"
+            tone="light"
+            value={brightness}
+            max={100}
+            step={5}
+            onPreview={setBrightness}
+            onCommit={setBrightness}
+            label={t('player.brightness')}
+            valueText={`${Math.round(brightness)} %`}
+            className="h-28"
+          />
+          <Sun className="h-4 w-4 text-white/80" aria-hidden />
+        </div>
+
+        <div
+          className="absolute end-[max(0.35rem,env(safe-area-inset-right))] top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Slider
+            orientation="vertical"
+            tone="light"
+            value={player.isMuted ? 0 : player.volume}
+            max={100}
+            step={5}
+            onPreview={player.setVolume}
+            onCommit={player.setVolume}
+            label={t('player.volume')}
+            valueText={`${Math.round(player.isMuted ? 0 : player.volume)} %`}
+            className="h-28"
+          />
+          <Volume2 className="h-4 w-4 text-white/80" aria-hidden />
+        </div>
+
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
           <div className="flex items-center gap-8 sm:gap-14">
             {!isLive && (
-              <button
-                className="w-16 h-16 rounded-full bg-black/70 backdrop-blur-md flex flex-col items-center justify-center text-white pointer-events-auto disabled:opacity-30 border border-white/25 shadow-lg"
+              <SkipArcButton
+                direction="back"
+                label={t('player.rewind')}
+                disabled={!streamUrl}
                 onClick={(event) => {
                   event.stopPropagation();
                   player.seekBy(-10);
                   resetControlsTimer();
                 }}
-                disabled={!streamUrl}
-                type="button"
-                aria-label={t('player.rewind')}
-              >
-                <SkipBack className="w-7 h-7" />
-                <span className="text-xs font-bold tabular-nums leading-none mt-0.5">−10</span>
-              </button>
+              />
             )}
             <button
-              className="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-white transition-all hover:bg-accent-hover pointer-events-auto border border-white/20 shadow-xl disabled:opacity-30"
+              className="flex h-20 w-20 items-center justify-center rounded-full bg-white text-black shadow-xl pointer-events-auto transition-all hover:bg-white/90 disabled:opacity-30"
               onClick={(event) => {
                 event.stopPropagation();
                 player.togglePlay();
@@ -1151,23 +1196,23 @@ function PlayerContent() {
               type="button"
               aria-label={player.isPlaying ? t('common.pause') : t('player.playAction')}
             >
-              {player.isPlaying ? <Pause className="w-9 h-9" /> : <Play className="w-9 h-9 ml-1 fill-white" />}
+              {player.isPlaying ? (
+                <Pause className="h-9 w-9 text-black" />
+              ) : (
+                <Play className="ml-1 h-9 w-9 fill-black text-black" />
+              )}
             </button>
             {!isLive && (
-              <button
-                className="w-16 h-16 rounded-full bg-black/70 backdrop-blur-md flex flex-col items-center justify-center text-white pointer-events-auto disabled:opacity-30 border border-white/25 shadow-lg"
+              <SkipArcButton
+                direction="forward"
+                label={t('player.forward')}
+                disabled={!streamUrl}
                 onClick={(event) => {
                   event.stopPropagation();
                   player.seekBy(10);
                   resetControlsTimer();
                 }}
-                disabled={!streamUrl}
-                type="button"
-                aria-label={t('player.forward')}
-              >
-                <SkipForward className="w-7 h-7" />
-                <span className="text-xs font-bold tabular-nums leading-none mt-0.5">+10</span>
-              </button>
+              />
             )}
           </div>
         </div>
@@ -1188,48 +1233,55 @@ function PlayerContent() {
             qui annonce exactement cela aux lecteurs d'ecran.
           */}
           {isLive && epgView && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-white/70 w-14 tabular-nums">
-                  {epgView.startLabel}
-                </span>
-                <div
-                  role="progressbar"
-                  aria-label={t('player.epgProgress')}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={epgView.percent}
-                  aria-valuetext={`${epgView.percent} %`}
-                  className="flex-1 h-2 rounded-full bg-white/20 overflow-hidden"
-                >
-                  <div
-                    className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
-                    style={{ width: `${epgView.percent}%` }}
-                  />
-                </div>
-                <span className="text-sm text-white/70 w-14 text-right tabular-nums">
-                  {epgView.endLabel}
-                </span>
-              </div>
-
-              {/* Titre, temps restant, puis l'emission suivante en
-                  retrait : trois informations de poids decroissant, donc
-                  trois intensites de blanc decroissantes. */}
-              <p className="text-xs text-white/70">
-                <span className="font-semibold text-white">{epgView.title}</span>
-                {epgView.remainingMinutes !== null && (
-                  <> · {t('player.epgRemaining', { count: epgView.remainingMinutes })}</>
-                )}
-                {epgView.nextTitle && epgView.nextStartLabel && (
-                  <span className="text-white/45">
-                    {'  '}
-                    {t('player.epgNextUp', {
-                      title: epgView.nextTitle,
-                      time: epgView.nextStartLabel,
-                    })}
+            <div className="flex items-end gap-3">
+              {channel && (
+                <ImageWithFallback
+                  src={channel.logo}
+                  alt=""
+                  className="h-14 w-14 flex-shrink-0 rounded-xl object-contain bg-white/10"
+                  fallbackClassName="h-14 w-14 flex-shrink-0 rounded-xl bg-white/10 flex items-center justify-center text-white/25"
+                  fallback={<Radio className="h-5 w-5" />}
+                />
+              )}
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-white/70 w-14 tabular-nums">
+                    {epgView.startLabel}
                   </span>
-                )}
-              </p>
+                  <div
+                    role="progressbar"
+                    aria-label={t('player.epgProgress')}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={epgView.percent}
+                    aria-valuetext={`${epgView.percent} %`}
+                    className="flex-1 h-2 rounded-full bg-white/20 overflow-hidden"
+                  >
+                    <div
+                      className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
+                      style={{ width: `${epgView.percent}%` }}
+                    />
+                  </div>
+                  <span className="text-sm text-white/70 w-14 text-right tabular-nums">
+                    {epgView.endLabel}
+                  </span>
+                </div>
+                <p className="text-xs text-white/70">
+                  <span className="font-semibold text-white">{epgView.title}</span>
+                  {epgView.remainingMinutes !== null && (
+                    <> · {t('player.epgRemaining', { count: epgView.remainingMinutes })}</>
+                  )}
+                  {epgView.nextTitle && epgView.nextStartLabel && (
+                    <span className="text-white/45">
+                      {'  '}
+                      {t('player.epgNextUp', {
+                        title: epgView.nextTitle,
+                        time: epgView.nextStartLabel,
+                      })}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
           )}
 
@@ -1420,16 +1472,6 @@ function PlayerContent() {
               >
                 {player.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
-              <Slider
-                value={player.isMuted ? 0 : player.volume}
-                max={100}
-                step={5}
-                onPreview={player.setVolume}
-                onCommit={player.setVolume}
-                label={t('player.volume')}
-                valueText={`${Math.round(player.isMuted ? 0 : player.volume)} %`}
-                className="w-24 hidden sm:block"
-              />
 
               <span aria-hidden="true" className="w-px h-5 bg-white/15 flex-shrink-0 mx-0.5" />
 
