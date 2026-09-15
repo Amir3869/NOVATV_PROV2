@@ -13,6 +13,7 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { channelDisplayName } from '@/lib/displayNames';
+import { livePlayerHref } from '@/services/player/livePlayerHref';
 import { broadcastArtworkUrl } from '@/services/epg/epgSync';
 import type { LiveChannel } from '@/types';
 
@@ -26,10 +27,14 @@ export function BroadcastChannelCard({
   channel,
   className,
   listId,
+  from,
+  categoryId,
 }: {
   channel: LiveChannel;
   className?: string;
   listId?: string;
+  from?: 'favorites';
+  categoryId?: string;
 }) {
   const { t } = useTranslation();
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
@@ -39,7 +44,7 @@ export function BroadcastChannelCard({
   const { isChannelBlocked, ensureUnlocked } = useParental();
   const blocked = isChannelBlocked(channel);
   const displayName = channelDisplayName(channel.id, channel.name, channelRenames);
-  const playHref = `/player?type=live&id=${encodeURIComponent(channel.id)}${listId ? `&listId=${encodeURIComponent(listId)}` : ''}`;
+  const playHref = livePlayerHref(channel.id, { listId, from, catId: categoryId });
   const infoHref = `/live?id=${encodeURIComponent(channel.id)}`;
   const longPress = useLongPress(infoHref, isTV);
   const art = broadcastArtworkUrl(channel);

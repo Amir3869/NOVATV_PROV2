@@ -29,7 +29,7 @@ import {
 } from '@/services/xtream/categorySelection';
 import { CategoryPicker } from './CategoryPicker';
 import { CatalogManager } from '@/features/categories/CatalogManager';
-import { ERROR_KEYS, STEP_KEYS, EPG_STEP_KEYS } from './syncMessages';
+import { ERROR_KEYS, STEP_KEYS, EPG_STEP_KEYS, EPG_ERROR_KEYS } from './syncMessages';
 import { XtreamForm } from './forms/XtreamForm';
 import { M3UUrlForm } from './forms/M3UUrlForm';
 import { M3UFileForm } from './forms/M3UFileForm';
@@ -283,7 +283,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
         toast.error(t('playlists.epgNoMatch'));
       } else {
         toast.success(
-          t('playlists.epgSummary', {
+          t('playlists.epgReady', {
             programs: result.programs.length,
             channels: result.matchedChannels,
           })
@@ -294,8 +294,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
       if (kind !== 'aborted') {
         toast.error(
           kind === 'network'
-            ? `${t('errors.network')} ${t('errors.corsHint')}`
-            : t(ERROR_KEYS[kind])
+            ? `${t('playlists.epgNetwork')} ${t('errors.corsHint')}`
+            : t(EPG_ERROR_KEYS[kind])
         );
       }
     } finally {

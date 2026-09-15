@@ -3,22 +3,23 @@
 /**
  * Import d'une liste M3U depuis un lien.
  *
- * Extrait de `PlaylistsPage.tsx` sans modification de comportement.
+ * Même fenêtre que l'ajout Xtream : `AppDialog`, fermeture à la
+ * réussite, toast de confirmation. Un lien déjà enregistré est refusé.
  */
 
 import React, { useState } from 'react';
-import { Link as LinkIcon, X, Check, AlertCircle, Plus } from 'lucide-react';
-import { GlassCard } from '@/design-system/components/GlassCard';
+import { Plus, AlertCircle } from 'lucide-react';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { syncM3UFromUrl } from '@/services/m3u/m3uSync';
 import { useTranslation, type MessageKey } from '@/i18n';
-import { useM3UImport, M3UProgress, M3UWarnings } from './useM3UImport';
+import { useM3UImport, M3UProgress } from './useM3UImport';
 
 export function M3UUrlForm({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [epgUrl, setEpgUrl] = useState('');
-  const { busy, progress, error, warnings, run, cancel } = useM3UImport('m3u_url', onClose);
+  const { busy, progress, error, run, cancel } = useM3UImport('m3u_url', onClose);
 
   const handleImport = () =>
     run(name, { url: url.trim(), epgUrl: epgUrl.trim() || undefined }, (id, signal, onProgress) =>
@@ -26,17 +27,15 @@ export function M3UUrlForm({ onClose }: { onClose: () => void }) {
     );
 
   return (
-    <GlassCard variant="glass" padding="lg">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-bold text-white flex items-center gap-2">
-          <LinkIcon className="w-4 h-4 text-accent" />
-          {t('playlists.addM3UTitle')}
-        </h2>
-        <button type="button" onClick={onClose} aria-label={t('common.close')} className="text-white/40 hover:text-white transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
+    <AppDialog
+      open
+      onClose={onClose}
+      title={t('playlists.addM3UTitle')}
+      size="md"
+      busy={busy}
+      closeOnOverlay={!busy}
+      showClose={!busy}
+    >
       <div className="space-y-4">
         {[
           { labelKey: 'playlists.playlistName', value: name, onChange: setName, placeholder: t('playlists.defaultM3UName'), hint: undefined },
@@ -46,7 +45,7 @@ export function M3UUrlForm({ onClose }: { onClose: () => void }) {
           <div key={field.labelKey}>
             <label className="text-xs text-white/50 font-medium uppercase tracking-wider block mb-1.5">{t(field.labelKey as MessageKey)}</label>
             <input
-              type="url"
+              type={field.labelKey === 'playlists.playlistName' ? 'text' : 'url'}
               value={field.value}
               onChange={(e) => field.onChange(e.target.value)}
               placeholder={field.placeholder}
@@ -66,8 +65,6 @@ export function M3UUrlForm({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {warnings.length > 0 && <M3UWarnings warnings={warnings} onClose={onClose} />}
-
         {busy && progress && <M3UProgress progress={progress} onCancel={cancel} />}
 
         <div className="flex gap-3">
@@ -85,6 +82,6 @@ export function M3UUrlForm({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-    </GlassCard>
+    </AppDialog>
   );
 }

@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Lock } from 'lucide-react';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { ChannelCard } from '@/design-system/components/MediaCard';
 import { BroadcastChannelCard } from '@/design-system/components/BroadcastChannelCard';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { VirtualGrid } from '@/design-system/components/VirtualGrid';
+import { SearchBar } from '@/design-system/components/SearchBar';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { useAppStore } from '@/store/useAppStore';
 import { resolveProfileId } from '@/lib/profileScope';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
@@ -15,15 +18,18 @@ import { useClock } from '@/hooks/useClock';
 import { Skeleton, ChannelCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
 import { CategoryRenamePanel } from '@/features/categories/CategoryRenamePanel';
-import { AppDialog } from '@/design-system/components/AppDialog';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { useTranslation } from '@/i18n';
+import { cn } from '@/utils/cn';
 import {
   EMPTY_CATEGORY_IDS,
   layoutCategories,
 } from '@/services/catalog/categoryLayout';
 import { channelMatchesCategory } from '@/services/catalog/categoryMatch';
 import { enrichLiveChannels } from '@/services/epg/epgSync';
+
+/** Sentinelle interne : afficher toutes les chaînes, pas la page d'arrivée. */
+const ALL_CHANNELS = '__all__';
 
 export function LiveTVPage() {
   const { t } = useTranslation();
@@ -33,6 +39,8 @@ export function LiveTVPage() {
   const catalogReady = useAppStore((s) => s.catalogReady);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [showCategories, setShowCategories] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickSearch, setPickSearch] = useState('');
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const favorites = useAppStore((s) => s.favorites);
@@ -55,7 +63,7 @@ export function LiveTVPage() {
 
   const filtered = useMemo(() => {
     let result = enrichedChannels;
-    if (activeCategory) {
+    if (activeCategory && activeCategory !== ALL_CHANNELS) {
       result = result.filter((ch) => channelMatchesCategory(ch.categoryId, activeCategory));
     }
     if (search) {
@@ -81,8 +89,56 @@ export function LiveTVPage() {
   }, [allCategories, categoryPins, categoryOrder, allChannels]);
   const pinnedIds = useMemo(() => new Set(categoryPins), [categoryPins]);
 
+  const toolbarCategories = useMemo(
+    () =>
+      laidOutCategories.map((cat) => ({
+        id: cat.id,
+        label: categoryDisplayName(cat.id, cat.name, categoryRenames),
+        blocked: isCategoryBlocked(cat),
+        pinned: pinnedIds.has(cat.id),
+      })),
+    [laidOutCategories, categoryRenames, isCategoryBlocked, pinnedIds],
+  );
+
+  const extraCategory = useMemo(() => {
+    if (!activeCategory || activeCategory === ALL_CHANNELS) return null;
+    return toolbarCategories.find((cat) => cat.id === activeCategory && !cat.pinned) ?? null;
+  }, [activeCategory, toolbarCategories]);
+
+  const restCount = toolbarCategories.filter((cat) => !cat.pinned).length;
+
+  const channelCountByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ch of allChannels) {
+      if (!ch.categoryId) continue;
+      map.set(ch.categoryId, (map.get(ch.categoryId) ?? 0) + 1);
+    }
+    return map;
+  }, [allChannels]);
+
+  const pickerCategories = useMemo(() => {
+    const q = pickSearch.trim().toLowerCase();
+    if (!q) return toolbarCategories;
+    return toolbarCategories.filter((cat) => cat.label.toLowerCase().includes(q));
+  }, [toolbarCategories, pickSearch]);
+
   const favoriteChannels = enrichedChannels.filter((ch) => favoriteChannelIds.includes(ch.id));
   const recentChannels = enrichedChannels.filter((ch) => ch.isRecent);
+  const landing = !search && !activeCategory;
+  const showCatalog = Boolean(search) || activeCategory != null;
+
+  const applyCategory = (id: string | null, toggleIfSame: boolean) => {
+    if (id && id !== ALL_CHANNELS) {
+      const cat = allCategories.find((c) => c.id === id);
+      if (cat && isCategoryBlocked(cat)) {
+        void ensureUnlocked();
+        return;
+      }
+    }
+    setActiveCategory(toggleIfSame && id === activeCategory ? null : id);
+    setShowPicker(false);
+    setPickSearch('');
+  };
 
   if (!hydrated || !catalogReady) {
     return (
@@ -113,23 +169,70 @@ export function LiveTVPage() {
         />
       </AppDialog>
 
+      <AppDialog
+        open={showPicker}
+        onClose={() => {
+          setShowPicker(false);
+          setPickSearch('');
+        }}
+        title={t('liveTV.pickCategory')}
+        size="md"
+      >
+        <SearchBar
+          value={pickSearch}
+          onChange={setPickSearch}
+          placeholder={t('liveTV.pickCategorySearch')}
+          className="mb-3"
+        />
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => applyCategory(ALL_CHANNELS, false)}
+            className={cn(
+              'flex h-11 w-full items-center justify-between rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              activeCategory === ALL_CHANNELS
+                ? 'bg-accent text-white'
+                : 'text-white/80 hover:bg-surface-3',
+            )}
+          >
+            <span>{t('liveTV.allChannels')}</span>
+            <span className="text-xs opacity-70">{allChannels.length}</span>
+          </button>
+          {pickerCategories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => applyCategory(cat.id, false)}
+              className={cn(
+                'flex h-11 w-full items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                cat.id === activeCategory
+                  ? 'bg-accent text-white'
+                  : 'text-white/80 hover:bg-surface-3',
+                cat.blocked && 'opacity-70',
+              )}
+            >
+              {cat.blocked && <Lock className="h-3.5 w-3.5 shrink-0" />}
+              <span className="min-w-0 flex-1 truncate text-start">{cat.label}</span>
+              <span className="shrink-0 text-xs opacity-70">
+                {t('liveTV.categoryChannelCount', {
+                  count: channelCountByCategory.get(cat.id) ?? 0,
+                })}
+              </span>
+            </button>
+          ))}
+          {pickerCategories.length === 0 && (
+            <p className="px-3 py-6 text-center text-sm text-white/40">{t('playlists.categoriesNoMatch')}</p>
+          )}
+        </div>
+      </AppDialog>
+
       <CatalogToolbar
         allLabel={t('liveTV.allCategories')}
-        categories={laidOutCategories.map((cat) => ({
-          id: cat.id,
-          label: categoryDisplayName(cat.id, cat.name, categoryRenames),
-          blocked: isCategoryBlocked(cat),
-          pinned: pinnedIds.has(cat.id),
-        }))}
-        activeId={activeCategory}
+        categories={toolbarCategories}
+        activeId={activeCategory && activeCategory !== ALL_CHANNELS ? activeCategory : null}
         onSelect={(id) => {
           if (id) {
-            const cat = allCategories.find((c) => c.id === id);
-            if (cat && isCategoryBlocked(cat)) {
-              void ensureUnlocked();
-              return;
-            }
-            setActiveCategory(id === activeCategory ? null : id);
+            applyCategory(id, true);
             return;
           }
           setActiveCategory(null);
@@ -144,28 +247,34 @@ export function LiveTVPage() {
         onViewChange={setView}
         listLabel={t('liveTV.listView')}
         gridLabel={t('liveTV.gridView')}
+        pinsPlus
+        extraCategory={extraCategory}
+        moreLabel={t('liveTV.moreCategories')}
+        moreCount={restCount}
+        onMore={() => setShowPicker(true)}
+        moreOpen={showPicker}
       />
 
-      {!search && !activeCategory && favoriteChannels.length > 0 && (
+      {landing && favoriteChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader title={t('liveTV.myFavoriteChannels')} accent className="mb-3" />
           {view === 'list' ? (
             <div className="space-y-1">
               {favoriteChannels.map((ch) => (
-                <BroadcastChannelCard key={ch.id} channel={ch} />
+                <BroadcastChannelCard key={ch.id} channel={ch} from="favorites" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {favoriteChannels.map((ch) => (
-                <ChannelCard key={ch.id} channel={ch} variant="grid" />
+                <ChannelCard key={ch.id} channel={ch} variant="grid" from="favorites" />
               ))}
             </div>
           )}
         </section>
       )}
 
-      {!search && !activeCategory && recentChannels.length > 0 && (
+      {landing && recentChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader title={t('liveTV.recent')} accent className="mb-3" />
           {view === 'list' ? (
@@ -184,42 +293,65 @@ export function LiveTVPage() {
         </section>
       )}
 
-      <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
-        <SectionHeader
-          title={
-            search || activeCategory
-              ? t('common.results', { count: filtered.length })
-              : t('liveTV.catalogStats', {
-                  categories: laidOutCategories.length,
-                  channels: allChannels.length,
-                })
-          }
-          accent
-          className="mb-3"
+      {landing && favoriteChannels.length === 0 && recentChannels.length === 0 && (
+        <EmptyState
+          emoji="📡"
+          title={t('liveTV.chooseCategory')}
+          description={t('liveTV.chooseCategoryDescription')}
+          action={{ label: t('liveTV.moreCategories'), onClick: () => setShowPicker(true) }}
         />
+      )}
 
-        {filtered.length === 0 ? (
-          <EmptyState
-            emoji="📡"
-            title={t('liveTV.noChannelsFound')}
-            description={t('liveTV.noChannelsFoundDescription')}
-            action={{ label: t('liveTV.managePlaylists'), onClick: () => {} }}
-          />
-        ) : (
-          <VirtualGrid
-            items={filtered}
-            layout={view === 'list' ? 'list' : 'grid'}
-            getKey={(ch) => ch.id}
-            renderItem={(ch) =>
-              view === 'list' ? (
-                <BroadcastChannelCard channel={ch} />
-              ) : (
-                <ChannelCard channel={ch} variant="grid" className="w-full" />
-              )
+      {showCatalog && (
+        <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
+          <SectionHeader
+            title={
+              search || (activeCategory && activeCategory !== ALL_CHANNELS)
+                ? t('common.results', { count: filtered.length })
+                : t('liveTV.catalogStats', {
+                    categories: laidOutCategories.length,
+                    channels: allChannels.length,
+                  })
             }
+            accent
+            className="mb-3"
           />
-        )}
-      </section>
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              emoji="📡"
+              title={t('liveTV.noChannelsFound')}
+              description={t('liveTV.noChannelsFoundDescription')}
+              action={{ label: t('liveTV.managePlaylists'), onClick: () => {} }}
+            />
+          ) : (
+            <VirtualGrid
+              items={filtered}
+              layout={view === 'list' ? 'list' : 'grid'}
+              getKey={(ch) => ch.id}
+              renderItem={(ch) =>
+                view === 'list' ? (
+                  <BroadcastChannelCard
+                    channel={ch}
+                    categoryId={
+                      activeCategory && activeCategory !== ALL_CHANNELS ? activeCategory : undefined
+                    }
+                  />
+                ) : (
+                  <ChannelCard
+                    channel={ch}
+                    variant="grid"
+                    className="w-full"
+                    categoryId={
+                      activeCategory && activeCategory !== ALL_CHANNELS ? activeCategory : undefined
+                    }
+                  />
+                )
+              }
+            />
+          )}
+        </section>
+      )}
     </div>
   );
 }

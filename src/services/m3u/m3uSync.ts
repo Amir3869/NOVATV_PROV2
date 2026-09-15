@@ -63,6 +63,8 @@ export interface M3USyncResult {
   warnings: string[];
   /** Nombre d'entrées écartées parce qu'un doublon existait déjà. */
   duplicatesRemoved: number;
+  /** Guide lu dans l'en-tête M3U, s'il y en a un. */
+  epgUrl?: string;
 }
 
 /**

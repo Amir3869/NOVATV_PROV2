@@ -5,20 +5,28 @@
  * fait contre elles. Appelé en fond après un ajout / une synchro
  * Xtream ou M3U, et à la demande depuis le bouton calendrier.
  *
- * Ne connaît pas React : lit le store, écrit le store. Un échec
- * silencieux (`schedulePlaylistEpg`) ne doit jamais masquer un
- * catalogue déjà utilisable.
+ * Un échec n'efface pas le catalogue. Il est annoncé par un toast
+ * (phrase lisible, jamais une clé technique).
  */
 
+import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/useAppStore';
 import { secureStore } from '@/lib/secureStore';
 import {
   syncEPG,
   buildXtreamEPGUrl,
   applyLogoFallbacks,
+  toEPGErrorKind,
   type EPGSyncOptions,
   type EPGSyncResult,
 } from '@/services/epg/epgSync';
+import { DEFAULT_LOCALE, isLocale, phrase, translate } from '@/i18n';
+import { EPG_ERROR_KEYS } from './syncMessages';
+
+function currentLocale() {
+  const language = useAppStore.getState().preferences.language;
+  return isLocale(language) ? language : DEFAULT_LOCALE;
+}
 
 export async function runPlaylistEpg(
   playlistId: string,
@@ -61,14 +69,45 @@ export async function runPlaylistEpg(
 }
 
 /**
- * Lance le guide en fond : jamais de rejet non géré.
- *
- * Un échec ne masque pas le catalogue. L'écran Guide propose un
- * bouton « Réessayer » quand aucun programme n'est en mémoire.
+ * Lance le guide en fond. Un échec n'empêche pas d'utiliser les chaînes.
+ * On dit clairement ce qui s'est passé : plus de silence.
  */
 export function schedulePlaylistEpg(playlistId: string): void {
-  void runPlaylistEpg(playlistId).catch(() => {
-    // Silence volontaire : un toast ici partirait pendant l'ajout
-    // d'une source, trop tôt. L'écran Guide porte le message.
-  });
+  void runPlaylistEpg(playlistId)
+    .then((result) => {
+      if (!result) return;
+      const locale = currentLocale();
+      if (result.programs.length === 0) {
+        toast.error(
+          phrase(
+            locale,
+            'playlists.epgNoMatch',
+            undefined,
+            'Guide téléchargé, mais aucune chaîne n’a pu être associée.',
+          ),
+        );
+        return;
+      }
+      toast.success(
+        phrase(
+          locale,
+          'playlists.epgReady',
+          { programs: result.programs.length, channels: result.matchedChannels },
+          'Guide récupéré : {programs} programmes sur {channels} chaînes.',
+        ),
+      );
+    })
+    .catch((err) => {
+      const kind = toEPGErrorKind(err);
+      if (kind === 'aborted') return;
+      const locale = currentLocale();
+      toast.error(
+        phrase(
+          locale,
+          EPG_ERROR_KEYS[kind],
+          undefined,
+          'Le guide des programmes n’a pas pu être récupéré.',
+        ),
+      );
+    });
 }

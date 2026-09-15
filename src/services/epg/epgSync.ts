@@ -196,11 +196,11 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
   // se rabat sur la lecture directe : le contrôle déclaratif ci-dessus
   // reste la seule protection dans ce cas.
   if (!resp.body) {
-    const text = await resp.text();
-    if (text.length > MAX_EPG_BYTES) {
+    const raw = new Uint8Array(await resp.arrayBuffer());
+    if (raw.byteLength > MAX_EPG_BYTES) {
       throw new EPGSyncError('bad_response', tooLargeMessage());
     }
-    return text;
+    return decodeXmltvBytes(raw);
   }
 
   const reader = resp.body.getReader();
@@ -229,7 +229,41 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
     offset += chunk.byteLength;
   }
 
-  return new TextDecoder('utf-8').decode(merged);
+  return decodeXmltvBytes(merged);
+}
+
+/** Gzip (magic `1f 8b`) même sans en-tête `Content-Encoding` — cas iptv-org et beaucoup de xmltv.php. */
+export function isGzipBuffer(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+export async function decodeXmltvBytes(bytes: Uint8Array): Promise<string> {
+  if (!isGzipBuffer(bytes)) {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  if (typeof DecompressionStream !== 'function') {
+    throw new EPGSyncError(
+      'parse',
+      'Le guide est compressé (gzip) et cet appareil ne peut pas le lire.',
+    );
+  }
+
+  try {
+    // Copie dans un `ArrayBuffer` neuf : `Uint8Array` vu depuis un
+    // `SharedArrayBuffer` n'est pas un `BlobPart` pour TypeScript 5.9.
+    const gzipCopy = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(gzipCopy).set(bytes);
+    const stream = new Blob([gzipCopy]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
+    if (inflated.byteLength > MAX_EPG_BYTES) {
+      throw new EPGSyncError('bad_response', tooLargeMessage());
+    }
+    return new TextDecoder('utf-8').decode(inflated);
+  } catch (err) {
+    if (err instanceof EPGSyncError) throw err;
+    throw new EPGSyncError('parse', 'Le fichier du guide compressé est illisible.');
+  }
 }
 
 function tooLargeMessage(): string {

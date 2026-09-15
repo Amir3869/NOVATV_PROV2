@@ -51,3 +51,20 @@ export const EPG_STEP_KEYS: Record<EPGSyncStep, MessageKey> = {
   match: 'playlists.epgStepMatch',
   done: 'playlists.stepDone',
 };
+
+/**
+ * Erreurs du guide : phrases propres, pas les textes Xtream
+ * (`errors.badResponse` parlerait d'un serveur Codes).
+ */
+export const EPG_ERROR_KEYS: Record<SourceErrorKind, MessageKey> = {
+  invalid_url: 'playlists.epgFailed',
+  network: 'playlists.epgNetwork',
+  timeout: 'playlists.epgTimeout',
+  aborted: 'errors.aborted',
+  auth: 'errors.auth',
+  account_inactive: 'errors.accountInactive',
+  http: 'playlists.epgFailed',
+  bad_response: 'playlists.epgTooLarge',
+  parse: 'playlists.epgCorrupt',
+  unknown: 'playlists.epgFailed',
+};

@@ -141,6 +141,12 @@ export const es: Messages = {
     restoredChannel: "Nombre original restaurado: « {name} »",
     now: 'Ahora',
     noProgram: 'Programa no disponible',
+    moreCategories: 'Otras categorías',
+    pickCategory: 'Elegir una categoría',
+    pickCategorySearch: 'Buscar una categoría…',
+    chooseCategory: 'Elige una categoría',
+    chooseCategoryDescription:
+      'Los canales se muestran por categoría. Fija 4 para tenerlas a mano.',
   },
 
   movies: {
@@ -162,6 +168,8 @@ export const es: Messages = {
     genre: 'Género',
     similarMovies: 'Películas similares',
     watchedPercent: '{percent} % visto',
+    uncategorized: 'Otros',
+    railCount: '{count} películas',
   },
 
   series: {
@@ -184,6 +192,8 @@ export const es: Messages = {
     seasonCountPlural: '{count} temporadas',
     loadingEpisodes: 'Cargando episodios…',
     episodesLoadError: 'No se han podido cargar los episodios.',
+    uncategorized: 'Otros',
+    railCount: '{count} series',
   },
 
   epg: {
@@ -438,6 +448,16 @@ export const es: Messages = {
     fileRenameOnly: 'Solo se puede cambiar el nombre de esta fuente de archivo.',
     editCredentialsHint: 'Misma fuente: el identificador no cambia. Se exige una prueba correcta antes de guardar.',
     reimportFileHint: 'Para cambiar el archivo, elimine esta fuente e importe otra.',
+    duplicateXtream:
+      'Esta cuenta Xtream ya está guardada como « {name} ». No puede añadirla una segunda vez.',
+    duplicateM3u:
+      'Esta lista M3U ya está guardada como « {name} ». No puede añadirla una segunda vez.',
+    epgNetwork: 'No se pudo descargar la guía. Compruebe la conexión e inténtelo de nuevo.',
+    epgTimeout: 'La guía tarda demasiado en llegar. Inténtelo de nuevo.',
+    epgCorrupt: 'El archivo de la guía es ilegible (dañado o comprimido de un modo no reconocido).',
+    epgTooLarge: 'La guía es demasiado grande para cargarla en este dispositivo.',
+    epgFailed: 'No se pudo obtener la guía de programación.',
+    epgReady: 'Guía obtenida: {programs} programas en {channels} canales.',
   },
 
   profiles: {
@@ -565,6 +585,7 @@ export const es: Messages = {
     epgUntil: 'hasta las {time}',
     epgRemaining: 'quedan {count} min',
     epgNextUp: 'A continuación: {title} — {time}',
+    epgFollows: 'A continuación {time} — {title}',
     epgProgress: 'Progreso del programa',
     nextEpisodeTitle: 'Siguiente episodio',
     nextEpisodeGo: 'Episodio siguiente: {code}',

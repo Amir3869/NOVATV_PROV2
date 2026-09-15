@@ -150,6 +150,12 @@ export const ar: Messages = {
     restoredChannel: 'تمت استعادة الاسم الأصلي: « {name} »',
     now: 'الآن',
     noProgram: 'لا يوجد برنامج',
+    moreCategories: 'فئات أخرى',
+    pickCategory: 'اختيار فئة',
+    pickCategorySearch: 'البحث عن فئة…',
+    chooseCategory: 'اختر فئة',
+    chooseCategoryDescription:
+      'تظهر القنوات حسب الفئة. ثبّت أربعاً للوصول السريع.',
   },
 
   movies: {
@@ -171,6 +177,8 @@ export const ar: Messages = {
     genre: 'النوع',
     similarMovies: 'أفلام مشابهة',
     watchedPercent: 'شوهد {percent}%',
+    uncategorized: 'أخرى',
+    railCount: '{count} فيلم',
   },
 
   series: {
@@ -193,6 +201,8 @@ export const ar: Messages = {
     seasonCountPlural: '{count} مواسم',
     loadingEpisodes: 'جارٍ تحميل الحلقات…',
     episodesLoadError: 'تعذّر تحميل الحلقات.',
+    uncategorized: 'أخرى',
+    railCount: '{count} مسلسل',
   },
 
   epg: {
@@ -447,6 +457,16 @@ export const ar: Messages = {
     fileRenameOnly: 'يمكن تغيير اسم مصدر الملف هذا فقط.',
     editCredentialsHint: 'نفس المصدر: المعرّف لا يتغير. يلزم اختبار ناجح قبل الحفظ.',
     reimportFileHint: 'لتغيير الملف، احذف هذا المصدر ثم استورد ملفًا آخر.',
+    duplicateXtream:
+      'حساب Xtream هذا محفوظ مسبقاً باسم « {name} ». لا يمكن إضافته مرة ثانية.',
+    duplicateM3u:
+      'قائمة M3U هذه محفوظة مسبقاً باسم « {name} ». لا يمكن إضافتها مرة ثانية.',
+    epgNetwork: 'تعذّر تنزيل دليل البرامج. تحقق من الاتصال ثم أعد المحاولة.',
+    epgTimeout: 'دليل البرامج يستغرق وقتاً طويلاً. أعد المحاولة.',
+    epgCorrupt: 'ملف الدليل غير قابل للقراءة (تالف أو مضغوط بطريقة غير معروفة).',
+    epgTooLarge: 'الدليل أكبر من أن يُحمَّل على هذا الجهاز.',
+    epgFailed: 'تعذّر جلب دليل البرامج.',
+    epgReady: 'تم جلب الدليل: {programs} برنامجاً على {channels} قناة.',
   },
 
   profiles: {
@@ -573,6 +593,7 @@ export const ar: Messages = {
     epgUntil: 'حتى {time}',
     epgRemaining: 'يتبقى {count} دقيقة',
     epgNextUp: 'التالي: {title} — {time}',
+    epgFollows: 'التالي {time} — {title}',
     epgProgress: 'تقدم البرنامج',
     nextEpisodeTitle: 'الحلقة التالية',
     nextEpisodeGo: 'الحلقة التالية: {code}',

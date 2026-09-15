@@ -4,8 +4,9 @@ import React, { useState, useMemo } from 'react';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, MediaCardSkeleton } from '@/design-system/components/LoadingSkeleton';
-import { Star, Film } from 'lucide-react';
+import { Star, Film, ChevronLeft } from 'lucide-react';
 import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
+import { CatalogRail } from '@/design-system/components/CatalogRail';
 import { MovieCard } from '@/design-system/components/MediaCard';
 import { VirtualGrid } from '@/design-system/components/VirtualGrid';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
@@ -13,6 +14,7 @@ import { EmptyState } from '@/design-system/components/EmptyState';
 import Link from 'next/link';
 import { useTranslation } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
+import { groupByName, RAIL_PREVIEW } from '@/services/catalog/groupByName';
 
 // La valeur « ALL_CATEGORY » sert de sentinelle interne (jamais affichée) :
 // elle ne doit pas être traduite, sinon le filtre casse au changement de langue.
@@ -25,15 +27,11 @@ export function MoviesPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [category, setCategory] = useState(ALL_CATEGORY);
 
-  // Les catégories proviennent du catalogue de l'utilisateur : proposer
-  // des genres figés afficherait des filtres sans aucun résultat.
-  const CATEGORIES = useMemo(() => {
-    const names = new Set<string>();
-    for (const m of allMovies) {
-      if (m.categoryName) names.add(m.categoryName);
-    }
-    return [ALL_CATEGORY, ...[...names].sort((a, b) => a.localeCompare(b))];
-  }, [allMovies]);
+  const uncategorized = t('movies.uncategorized');
+  const rails = useMemo(
+    () => groupByName(allMovies, (m) => m.categoryName, uncategorized),
+    [allMovies, uncategorized],
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -57,6 +55,7 @@ export function MoviesPage() {
   // les données enregistrées.
   const hydrated = useHydrated();
 
+  const browsing = !search && category === ALL_CATEGORY;
 
   if (!hydrated) {
     return (
@@ -72,15 +71,14 @@ export function MoviesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-10 md:space-y-12">
+    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
       <CatalogToolbar
+        heading={t('movies.title')}
+        hideCategories
         allLabel={t('common.all')}
-        categories={CATEGORIES.filter((cat) => cat !== ALL_CATEGORY).map((cat) => ({
-          id: cat,
-          label: cat,
-        }))}
-        activeId={category === ALL_CATEGORY ? null : category}
-        onSelect={(id) => setCategory(id ?? ALL_CATEGORY)}
+        categories={[]}
+        activeId={null}
+        onSelect={() => {}}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t('movies.searchPlaceholder')}
@@ -91,55 +89,93 @@ export function MoviesPage() {
         gridLabel={t('liveTV.gridView')}
       />
 
-
-      {/* Grid / List */}
-      <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
-        <SectionHeader title={
-            search || category !== ALL_CATEGORY
-              ? t('common.results', { count: filtered.length })
-              : t('movies.allMovies')
-          } accent className="mb-4" />
-
-        {filtered.length === 0 ? (
+      {browsing ? (
+        allMovies.length === 0 ? (
           <EmptyState emoji="🎬" title={t('movies.noResults')} description={t('movies.noResultsDescription')} />
-        ) : view === 'grid' ? (
-          <VirtualGrid
-            items={filtered}
-            getKey={(movie) => movie.id}
-            renderItem={(movie) => <MovieCard movie={movie} size="md" className="w-full" />}
-          />
         ) : (
           <VirtualGrid
-            items={filtered}
+            items={rails}
             layout="list"
-            getKey={(movie) => movie.id}
-            renderItem={(movie) => (
-              <Link href={`/movies?id=${encodeURIComponent(movie.id)}`} className="flex gap-4 p-3 rounded-xl hover:bg-white/4 transition-colors group">
-                <ImageWithFallback
-                  src={movie.logo}
-                  alt={movie.name}
-                  className="w-16 h-24 object-cover rounded-lg flex-shrink-0"
-                  fallbackClassName="w-16 h-24 rounded-lg flex-shrink-0 bg-surface-3"
-                  fallback={<Film className="w-5 h-5 text-white/20" />}
-                />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-white group-hover:text-white/80 transition-colors">{movie.name}</h3>
-                  <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    {movie.year && <span className="text-xs text-white/40">{movie.year}</span>}
-                    {movie.rating && (
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-xs text-amber-400">{movie.rating}</span>
-                      </div>
-                    )}
-                    {movie.genre && <span className="text-xs text-white/40">{movie.genre.split(',')[0]}</span>}
-                  </div>
-                </div>
-              </Link>
+            getKey={(rail) => rail.name}
+            renderItem={(rail) => (
+              <CatalogRail
+                title={rail.name}
+                subtitle={t('movies.railCount', { count: rail.items.length })}
+                onSeeAll={() => setCategory(rail.name)}
+                seeAllLabel={t('common.seeAll')}
+              >
+                {rail.items.slice(0, RAIL_PREVIEW).map((movie) => (
+                  <MovieCard key={movie.id} movie={movie} size="md" />
+                ))}
+              </CatalogRail>
             )}
           />
-        )}
-      </section>
+        )
+      ) : (
+        <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-3">
+            {category !== ALL_CATEGORY && !search && (
+              <button
+                type="button"
+                onClick={() => setCategory(ALL_CATEGORY)}
+                className="flex h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm font-medium text-white/60 transition hover:bg-surface-2 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
+                {t('common.back')}
+              </button>
+            )}
+            <SectionHeader
+              title={
+                search || category !== ALL_CATEGORY
+                  ? t('common.results', { count: filtered.length })
+                  : t('movies.allMovies')
+              }
+              accent
+              className="mb-0 min-w-0 flex-1"
+            />
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState emoji="🎬" title={t('movies.noResults')} description={t('movies.noResultsDescription')} />
+          ) : view === 'grid' ? (
+            <VirtualGrid
+              items={filtered}
+              getKey={(movie) => movie.id}
+              renderItem={(movie) => <MovieCard movie={movie} size="md" className="w-full" />}
+            />
+          ) : (
+            <VirtualGrid
+              items={filtered}
+              layout="list"
+              getKey={(movie) => movie.id}
+              renderItem={(movie) => (
+                <Link href={`/movies?id=${encodeURIComponent(movie.id)}`} className="flex gap-4 p-3 rounded-xl hover:bg-white/4 transition-colors group">
+                  <ImageWithFallback
+                    src={movie.logo}
+                    alt={movie.name}
+                    className="w-16 h-24 object-cover rounded-lg flex-shrink-0"
+                    fallbackClassName="w-16 h-24 rounded-lg flex-shrink-0 bg-surface-3"
+                    fallback={<Film className="w-5 h-5 text-white/20" />}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-white group-hover:text-white/80 transition-colors">{movie.name}</h3>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      {movie.year && <span className="text-xs text-white/40">{movie.year}</span>}
+                      {movie.rating && (
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          <span className="text-xs text-amber-400">{movie.rating}</span>
+                        </div>
+                      )}
+                      {movie.genre && <span className="text-xs text-white/40">{movie.genre.split(',')[0]}</span>}
+                    </div>
+                  </div>
+                </Link>
+              )}
+            />
+          )}
+        </section>
+      )}
     </div>
   );
 }

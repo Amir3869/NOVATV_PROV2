@@ -3,16 +3,16 @@
 /**
  * Import d'une liste M3U depuis un fichier de l'appareil.
  *
- * Extrait de `PlaylistsPage.tsx` sans modification de comportement.
+ * Même fenêtre que l'ajout Xtream : `AppDialog`, fermeture à la
+ * réussite, toast de confirmation.
  */
 
-import React, { useRef, useState } from 'react';
-import { FileText, X, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
-import { cn } from '@/utils/cn';
-import { GlassCard } from '@/design-system/components/GlassCard';
+import React, { useState } from 'react';
+import { Upload, AlertCircle } from 'lucide-react';
+import { AppDialog } from '@/design-system/components/AppDialog';
 import { syncM3UFromText } from '@/services/m3u/m3uSync';
 import { useTranslation } from '@/i18n';
-import { useM3UImport, M3UProgress, M3UWarnings } from './useM3UImport';
+import { useM3UImport, M3UProgress } from './useM3UImport';
 
 /** Taille au-delà de laquelle on refuse un fichier local. */
 const MAX_FILE_MB = 50;
@@ -28,7 +28,7 @@ export function M3UFileForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const { busy, progress, error, warnings, run, cancel } = useM3UImport('m3u_file', onClose);
+  const { busy, progress, error, run, cancel } = useM3UImport('m3u_file', onClose);
 
   const handleFile = (chosen: File | null) => {
     setFileError(null);
@@ -58,17 +58,15 @@ export function M3UFileForm({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <GlassCard variant="glass" padding="lg">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-bold text-white flex items-center gap-2">
-          <FileText className="w-4 h-4 text-accent" />
-          {t('playlists.m3uFileTitle')}
-        </h2>
-        <button type="button" onClick={onClose} aria-label={t('common.close')} className="text-white/40 hover:text-white transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
+    <AppDialog
+      open
+      onClose={onClose}
+      title={t('playlists.m3uFileTitle')}
+      size="md"
+      busy={busy}
+      closeOnOverlay={!busy}
+      showClose={!busy}
+    >
       <div className="space-y-4">
         <div>
           <label htmlFor="m3u-file" className="text-xs text-white/50 font-medium uppercase tracking-wider block mb-1.5">
@@ -119,8 +117,6 @@ export function M3UFileForm({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {warnings.length > 0 && <M3UWarnings warnings={warnings} onClose={onClose} />}
-
         {busy && progress && <M3UProgress progress={progress} onCancel={cancel} />}
 
         <div className="flex gap-3">
@@ -138,6 +134,6 @@ export function M3UFileForm({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-    </GlassCard>
+    </AppDialog>
   );
 }

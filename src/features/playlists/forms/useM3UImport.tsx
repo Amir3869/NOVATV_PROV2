@@ -11,7 +11,7 @@
 
 import React, { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { X, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { generateId } from '@/utils/cn';
 import { useAppStore } from '@/store/useAppStore';
 import {
@@ -22,9 +22,10 @@ import {
   type M3USyncResult,
 } from '@/services/m3u/m3uSync';
 import type { Playlist } from '@/types';
-import { useTranslation } from '@/i18n';
+import { phrase, useTranslation } from '@/i18n';
 import { ERROR_KEYS } from '../syncMessages';
 import { schedulePlaylistEpg } from '../runPlaylistEpg';
+import { findDuplicateSource } from '@/services/playlists/sourceIdentity';
 
 /**
  * Logique commune aux deux imports M3U.
@@ -36,11 +37,10 @@ import { schedulePlaylistEpg } from '../runPlaylistEpg';
  * qu'une.
  */
 export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<M3USyncProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
 
   const addPlaylist = useAppStore((s) => s.addPlaylist);
   const setCatalog = useAppStore((s) => s.setCatalog);
@@ -57,9 +57,26 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
     connection: { url?: string; fileName?: string; epgUrl?: string },
     importer: (id: string, signal: AbortSignal, onProgress: (p: M3USyncProgress) => void) => Promise<M3USyncResult>
   ) => {
+    if (type === 'm3u_url' && connection.url) {
+      const duplicate = findDuplicateSource(useAppStore.getState().playlists, {
+        kind: 'm3u_url',
+        url: connection.url,
+      });
+      if (duplicate) {
+        const message = phrase(
+          locale,
+          'playlists.duplicateM3u',
+          { name: duplicate.name },
+          'Cette liste M3U est déjà enregistrée sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+        );
+        setError(message);
+        toast.error(message);
+        return;
+      }
+    }
+
     setBusy(true);
     setError(null);
-    setWarnings([]);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -86,7 +103,10 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
         seriesCount: 0,
         createdAt: now,
         updatedAt: now,
-        m3u: connection,
+        m3u: {
+          ...connection,
+          epgUrl: connection.epgUrl || result.epgUrl,
+        },
       };
 
       addPlaylist(playlist);
@@ -101,14 +121,7 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
           ? ` — ${t('playlists.duplicatesRemoved', { count: result.duplicatesRemoved })}`
           : '';
       toast.success(summary + extra);
-
-      // Le fichier s'est importé mais comportait des lignes bancales :
-      // on n'annule pas pour autant, on le signale.
-      if (result.warnings.length > 0) {
-        setWarnings(result.warnings);
-      } else {
-        onClose();
-      }
+      onClose();
     } catch (err) {
       const kind = toM3UErrorKind(err);
       setError(
@@ -126,7 +139,6 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
     busy,
     progress,
     error,
-    warnings,
     run,
     cancel: () => abortRef.current?.abort(),
     dismiss: onClose,

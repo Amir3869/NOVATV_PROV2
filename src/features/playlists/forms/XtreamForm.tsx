@@ -36,13 +36,14 @@ import {
 import { CategoryPicker } from '../CategoryPicker';
 import { SyncProgress } from '../SyncProgress';
 import type { Playlist } from '@/types';
-import { useTranslation, type MessageKey } from '@/i18n';
+import { phrase, useTranslation, type MessageKey } from '@/i18n';
 import { ERROR_KEYS } from '../syncMessages';
 import { PasswordField } from '@/design-system/components/PasswordField';
 import { schedulePlaylistEpg } from '../runPlaylistEpg';
+import { findDuplicateSource } from '@/services/playlists/sourceIdentity';
 
 export function XtreamForm({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [name, setName] = useState('');
   const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
@@ -132,6 +133,23 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
    */
   const handleLoadCategories = async () => {
     if (!name || !serverUrl || !username || !password) return;
+    const duplicate = findDuplicateSource(useAppStore.getState().playlists, {
+      kind: 'xtream',
+      serverUrl,
+      username,
+    });
+    if (duplicate) {
+      const message = phrase(
+        locale,
+        'playlists.duplicateXtream',
+        { name: duplicate.name },
+        'Ce compte Xtream est déjà enregistré sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+      );
+      setTestResult('error');
+      setTestMessage(message);
+      toast.error(message);
+      return;
+    }
     setLoadingCategories(true);
     setTestResult(null);
     setTestMessage(null);
@@ -165,6 +183,23 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
   /** Enregistre la source puis télécharge les catégories retenues. */
   const handleAdd = async () => {
     if (!name || !serverUrl || !username || !password) return;
+    const duplicate = findDuplicateSource(useAppStore.getState().playlists, {
+      kind: 'xtream',
+      serverUrl,
+      username,
+    });
+    if (duplicate) {
+      const message = phrase(
+        locale,
+        'playlists.duplicateXtream',
+        { name: duplicate.name },
+        'Ce compte Xtream est déjà enregistré sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+      );
+      setTestResult('error');
+      setTestMessage(message);
+      toast.error(message);
+      return;
+    }
     setAdding(true);
     setProgress({ step: 'auth', ratio: 0 });
     setTestResult(null);

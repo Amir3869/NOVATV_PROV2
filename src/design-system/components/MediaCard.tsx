@@ -15,6 +15,7 @@ import { useDeviceType } from '@/hooks/useDeviceType';
 import { useLongPress } from '@/hooks/useLongPress';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { channelDisplayName } from '@/lib/displayNames';
+import { livePlayerHref } from '@/services/player/livePlayerHref';
 import { ScrollingText } from './ScrollingText';
 import { broadcastArtworkUrl } from '@/services/epg/epgSync';
 
@@ -179,9 +180,11 @@ interface ChannelCardProps {
   className?: string;
   variant?: 'list' | 'grid';
   listId?: string;
+  from?: 'favorites';
+  categoryId?: string;
 }
 
-export function ChannelCard({ channel, className, variant = 'list', listId }: ChannelCardProps) {
+export function ChannelCard({ channel, className, variant = 'list', listId, from, categoryId }: ChannelCardProps) {
   const { t } = useTranslation();
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(channel.id));
@@ -206,7 +209,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId }: Ch
   // Cliquer une chaîne la LANCE. Auparavant on ouvrait sa fiche, et il
   // fallait un second clic sur « Regarder en direct » : deux gestes pour
   // une intention évidente.
-  const playHref = `/player?type=live&id=${encodeURIComponent(channel.id)}${listId ? `&listId=${encodeURIComponent(listId)}` : ''}`;
+  const playHref = livePlayerHref(channel.id, { listId, from, catId: categoryId });
   const infoHref = `/live?id=${encodeURIComponent(channel.id)}`;
 
   // La fiche reste joignable, par un chemin adapté à l'appareil :

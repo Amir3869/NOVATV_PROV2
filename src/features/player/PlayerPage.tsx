@@ -9,7 +9,7 @@ import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize,
   SkipBack, SkipForward, ArrowLeft, Radio, AlertTriangle, RotateCcw,
   ChevronLeft, ChevronRight, Settings, List, Ratio, Captions,
-  Heart, Lock, LockOpen, Timer, Gauge, Sun
+  Heart, Lock, LockOpen, Timer, Gauge
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Badge } from '@/design-system/components/Badge';
@@ -23,11 +23,15 @@ import { SubtitleOverlay, type SubtitleAppearance } from './SubtitleOverlay';
 import { AudioSubtitleMenu } from './AudioSubtitleMenu';
 import { ChannelBrowser } from './ChannelBrowser';
 import { listCategoryId } from '@/services/player/channelBrowser';
+import { decodePlayerMediaId, livePlayerHref } from '@/services/player/livePlayerHref';
+import { findCatalogItem } from '@/features/custom-lists/resolveListMedia';
 import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
 import {
   EMPTY_CATEGORY_IDS,
   layoutCategories,
 } from '@/services/catalog/categoryLayout';
+import { channelMatchesCategory } from '@/services/catalog/categoryMatch';
+import { Capacitor } from '@capacitor/core';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePlayerLandscapeLock } from '@/hooks/usePlayerLandscapeLock';
 import { usePlayerImmersive } from '@/hooks/usePlayerImmersive';
@@ -37,6 +41,7 @@ import { qualityLabel } from '@/services/player/qualityLadder';
 import { findNextEpisode, shouldAutoAdvance, episodeCode } from '@/services/player/episodeQueue';
 import { Slider } from './Slider';
 import { SkipArcButton } from './SkipArcButton';
+import { EdgeLevelHud } from './EdgeLevelHud';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 import { buildChannelEpgMap, buildPlayerEpgView } from '@/services/player/playerEpg';
 import { hasSelectableTracks } from '@/services/player/trackController';
@@ -97,7 +102,10 @@ const AUTO_NEXT_DELAY_SECONDS = 10;
 
 function PlayerContent() {
   const { t, locale } = useTranslation();
-  const { isReady } = useDeviceType();
+  const { isReady, isTV } = useDeviceType();
+  const isNativeApp = Capacitor.isNativePlatform();
+  const showMuteButton = !isTV;
+  const showFullscreenButton = !isTV && !isNativeApp;
   /** Plus de verrou paysage : le lecteur s'ouvre dans le sens du téléphone. */
   usePlayerLandscapeLock(false);
   usePlayerImmersive(isReady);
@@ -128,8 +136,12 @@ function PlayerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const type = searchParams.get('type') as 'live' | 'movie' | 'episode' | null;
-  const id = searchParams.get('id');
+  const id = decodePlayerMediaId(searchParams.get('id'));
+  const catalogReady = useAppStore((s) => s.catalogReady);
+  const storeChannels = useAppStore((s) => s.channels);
   const listId = searchParams.get('listId');
+  const fromParam = searchParams.get('from');
+  const catId = searchParams.get('catId');
   const customLists = useAppStore((s) => s.customLists);
   const categoryRenames = useAppStore((s) => s.categoryRenames);
   const channelRenames = useAppStore((s) => s.channelRenames);
@@ -195,7 +207,9 @@ function PlayerContent() {
   // Ces trois informations viennent du catalogue synchronisé. Une URL
   // absente signifie que la source n'a pas été branchée, pas que la
   // lecture a échoué : les deux cas méritent un message différent.
-  const channel = isLive && id ? allChannels.find((c) => c.id === id) : undefined;
+  const channel = isLive && id
+    ? (findCatalogItem(id, allChannels) ?? findCatalogItem(id, storeChannels))
+    : undefined;
   const movie = type === 'movie' && id ? allMovies.find((m) => m.id === id) : undefined;
   const episode = type === 'episode' && id ? allEpisodes.find((e) => e.id === id) : undefined;
 
@@ -470,11 +484,12 @@ function PlayerContent() {
   }, [sourceList]);
   const pinnedCategories = useMemo(() => {
     if (!sourceList || !listChannelIds) return undefined;
-    const present = new Set(allChannels.map((c) => c.id));
-    const count = listChannelIds.filter((channelId) => present.has(channelId)).length;
+    const count = listChannelIds.filter((channelId) =>
+      Boolean(findCatalogItem(channelId, allChannels) ?? findCatalogItem(channelId, storeChannels))
+    ).length;
     if (count === 0) return undefined;
     return [{ id: listCategoryId(sourceList.id), name: sourceList.name, count }];
-  }, [sourceList, listChannelIds, allChannels]);
+  }, [sourceList, listChannelIds, allChannels, storeChannels]);
   const liveCategoriesForBrowser = useMemo(() => {
     const { pinned, rest } = layoutCategories(
       allLiveCategories,
@@ -496,6 +511,31 @@ function PlayerContent() {
   );
   const canBrowseChannels = isLive && allChannels.length > 0;
   const showChannelBrowser = browserOpen && canBrowseChannels;
+  const liveZapContext = { listId, from: fromParam, catId };
+
+  /**
+   * Voisins du zapping : ceux du contexte d'ouverture, pas tout le
+   * catalogue. Liste perso (ordre de la liste), favoris, ou catégorie.
+   */
+  const zapChannels = useMemo(() => {
+    if (listChannelIds && listChannelIds.length > 0) {
+      return listChannelIds
+        .map((channelId) => findCatalogItem(channelId, allChannels) ?? findCatalogItem(channelId, storeChannels))
+        .filter((channel): channel is LiveChannel => Boolean(channel));
+    }
+    if (fromParam === 'favorites') {
+      const ids = new Set(
+        favorites
+          .filter((fav) => fav.mediaType === 'channel' && fav.profileId === (activeProfileId ?? 'profile-1'))
+          .map((fav) => fav.mediaId)
+      );
+      return allChannels.filter((channel) => ids.has(channel.id));
+    }
+    if (catId) {
+      return allChannels.filter((channel) => channelMatchesCategory(channel.categoryId, catId));
+    }
+    return allChannels;
+  }, [allChannels, storeChannels, listChannelIds, fromParam, catId, favorites, activeProfileId]);
 
   /**
    * Programme en cours de chaque chaîne, pour le panneau de zapping.
@@ -571,19 +611,24 @@ function PlayerContent() {
   // dernier canal revient au premier, personne ne s'attend a un
   // cul-de-sac. Si le catalogue est vide ou ne contient qu'une chaine,
   // les deux boutons restent inertes et sont donc desactives.
-  const channelIndex = isLive && id ? allChannels.findIndex((c) => c.id === id) : -1;
-  const canZap = isLive && channelIndex !== -1 && allChannels.length > 1;
+  const channelIndex = isLive && id ? zapChannels.findIndex((c) => c.id === id) : -1;
+  const canZap = isLive && channelIndex !== -1 && zapChannels.length > 1;
+  const prevChannel = canZap
+    ? zapChannels[(channelIndex - 1 + zapChannels.length) % zapChannels.length]
+    : undefined;
+  const nextChannel = canZap
+    ? zapChannels[(channelIndex + 1) % zapChannels.length]
+    : undefined;
 
   const goToChannel = (offset: number) => {
     if (!canZap) return;
-    const total = allChannels.length;
-    const next = allChannels[(channelIndex + offset + total) % total];
+    const total = zapChannels.length;
+    const next = zapChannels[(channelIndex + offset + total) % total];
     if (!next) return;
     // `replace` et non `push` : sans cela, zapper quinze fois empilerait
     // quinze entrees dans l'historique, et le bouton Retour obligerait a
     // les remonter une par une avant de sortir du lecteur.
-    const href = `/player?type=live&id=${encodeURIComponent(next.id)}`;
-    router.replace(listId ? `${href}&listId=${encodeURIComponent(listId)}` : href);
+    router.replace(livePlayerHref(next.id, liveZapContext));
   };
 
   /*
@@ -600,8 +645,8 @@ function PlayerContent() {
   const handleSelectChannel = (next: LiveChannel) => {
     setBrowserOpen(false);
     if (next.id === id) return;
-    const href = `/player?type=live&id=${encodeURIComponent(next.id)}`;
-    router.replace(listId ? `${href}&listId=${encodeURIComponent(listId)}` : href);
+    const inRing = zapChannels.some((channel) => channel.id === next.id);
+    router.replace(livePlayerHref(next.id, inRing ? liveZapContext : undefined));
   };
 
   // Auto-hide controls
@@ -671,7 +716,68 @@ function PlayerContent() {
     return qualityLabel(level, index);
   })();
 
+  const edgeKindAt = (clientX: number): 'brightness' | 'volume' | null => {
+    const box = containerRef.current?.getBoundingClientRect();
+    if (!box || box.width <= 0) return null;
+    const rel = (clientX - box.left) / box.width;
+    if (rel <= 0.16) return 'brightness';
+    if (rel >= 0.84) return 'volume';
+    return null;
+  };
+
+  const applyEdgeValue = (kind: 'volume' | 'brightness', raw: number) => {
+    const value = Math.max(0, Math.min(100, raw));
+    if (kind === 'brightness') setBrightness(value);
+    else player.setVolume(value);
+    setEdgeHud({ kind, value });
+  };
+
+  const handleEdgePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (controlsLocked) return;
+    if (showChannelBrowser) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, a, [role="slider"], [role="dialog"], input')) return;
+    const kind = edgeKindAt(event.clientX);
+    if (!kind) return;
+    edgeDragRef.current = {
+      kind,
+      startY: event.clientY,
+      startValue: kind === 'brightness' ? brightness : player.isMuted ? 0 : player.volume,
+      active: false,
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture refusee : le glissement s'arretera en quittant l'ecran.
+    }
+  };
+
+  const handleEdgePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = edgeDragRef.current;
+    if (!drag) return;
+    const dy = drag.startY - event.clientY;
+    if (!drag.active && Math.abs(dy) < 12) return;
+    drag.active = true;
+    skipClickRef.current = true;
+    const box = containerRef.current?.getBoundingClientRect();
+    const range = box && box.height > 0 ? box.height * 0.42 : 280;
+    applyEdgeValue(drag.kind, drag.startValue + (dy / range) * 100);
+    if (edgeHideTimer.current) clearTimeout(edgeHideTimer.current);
+  };
+
+  const handleEdgePointerUp = () => {
+    const drag = edgeDragRef.current;
+    edgeDragRef.current = null;
+    if (!drag?.active) return;
+    if (edgeHideTimer.current) clearTimeout(edgeHideTimer.current);
+    edgeHideTimer.current = setTimeout(() => setEdgeHud(null), 900);
+  };
+
   const handleSurfaceClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (skipClickRef.current) {
+      skipClickRef.current = false;
+      return;
+    }
     if (controlsLocked) {
       setShowUnlockHint(true);
       return;
@@ -718,6 +824,15 @@ function PlayerContent() {
   const [seekPreview, setSeekPreview] = useState<number | null>(null);
   /** 100 = image intacte. Pas la luminosité système : un voile sur la vidéo. */
   const [brightness, setBrightness] = useState(100);
+  const [edgeHud, setEdgeHud] = useState<{ kind: 'volume' | 'brightness'; value: number } | null>(null);
+  const edgeDragRef = useRef<{
+    kind: 'volume' | 'brightness';
+    startY: number;
+    startValue: number;
+    active: boolean;
+  } | null>(null);
+  const skipClickRef = useRef(false);
+  const edgeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const displayedTime = seekPreview ?? player.currentTime;
 
@@ -754,6 +869,9 @@ function PlayerContent() {
   // plus dix pour cent d'une barre décorative.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // Panneau Chaînes ouvert : ses propres écouteurs gèrent clavier et saisie.
+      if (showChannelBrowser) return;
+
       // Ne pas détourner les touches quand l'utilisateur saisit du texte.
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
@@ -832,7 +950,7 @@ function PlayerContent() {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player, isLive, router, resetControlsTimer, toggleFullscreen, nextCountdown]);
+  }, [player, isLive, router, resetControlsTimer, toggleFullscreen, nextCountdown, showChannelBrowser]);
 
   // Voir useHydrated : le titre du média est cherché dans le catalogue.
   // Avant relecture des données enregistrées ce catalogue est vide, donc
@@ -840,7 +958,7 @@ function PlayerContent() {
   // indicateur de chargement que celui du Suspense, pour la continuité.
   const hydrated = useHydrated();
 
-  if (!hydrated) {
+  if (!hydrated || !catalogReady) {
     return (
       <div className="cinema min-h-dvh bg-black flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-2 border-accent border-t-transparent animate-spin" />
@@ -862,6 +980,10 @@ function PlayerContent() {
         resetControlsTimer();
       }}
       onClick={handleSurfaceClick}
+      onPointerDown={handleEdgePointerDown}
+      onPointerMove={handleEdgePointerMove}
+      onPointerUp={handleEdgePointerUp}
+      onPointerCancel={handleEdgePointerUp}
       onTouchStart={() => {
         lastTouchAtRef.current = Date.now();
       }}
@@ -896,6 +1018,8 @@ function PlayerContent() {
           aria-hidden
         />
       )}
+
+      {edgeHud && <EdgeLevelHud kind={edgeHud.kind} value={edgeHud.value} />}
 
       {player.subtitles.active && (
         <SubtitleOverlay
@@ -1009,10 +1133,9 @@ function PlayerContent() {
             onClick={() => router.back()}
             type="button"
             aria-label={t('common.back')}
-            className="flex items-center gap-2 min-h-12 px-3.5 rounded-full bg-black/40 backdrop-blur-sm text-white/80 hover:text-white transition-colors"
+            className="w-12 h-12 flex-shrink-0 rounded-full bg-black/35 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/50 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium hidden sm:inline">{t('common.back')}</span>
           </button>
 
           {/*
@@ -1133,44 +1256,6 @@ function PlayerContent() {
           </div>
         </div>
 
-        <div
-          className="absolute start-[max(0.35rem,env(safe-area-inset-left))] top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <Slider
-            orientation="vertical"
-            tone="light"
-            value={brightness}
-            max={100}
-            step={5}
-            onPreview={setBrightness}
-            onCommit={setBrightness}
-            label={t('player.brightness')}
-            valueText={`${Math.round(brightness)} %`}
-            className="h-28"
-          />
-          <Sun className="h-4 w-4 text-white/80" aria-hidden />
-        </div>
-
-        <div
-          className="absolute end-[max(0.35rem,env(safe-area-inset-right))] top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2 pointer-events-auto"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <Slider
-            orientation="vertical"
-            tone="light"
-            value={player.isMuted ? 0 : player.volume}
-            max={100}
-            step={5}
-            onPreview={player.setVolume}
-            onCommit={player.setVolume}
-            label={t('player.volume')}
-            valueText={`${Math.round(player.isMuted ? 0 : player.volume)} %`}
-            className="h-28"
-          />
-          <Volume2 className="h-4 w-4 text-white/80" aria-hidden />
-        </div>
-
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
           <div className="flex items-center gap-8 sm:gap-14">
             {!isLive && (
@@ -1186,7 +1271,7 @@ function PlayerContent() {
               />
             )}
             <button
-              className="flex h-20 w-20 items-center justify-center rounded-full bg-white text-black shadow-xl pointer-events-auto transition-all hover:bg-white/90 disabled:opacity-30"
+              className="flex h-20 w-20 items-center justify-center bg-transparent text-white pointer-events-auto transition-opacity hover:opacity-80 disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white"
               onClick={(event) => {
                 event.stopPropagation();
                 player.togglePlay();
@@ -1197,9 +1282,9 @@ function PlayerContent() {
               aria-label={player.isPlaying ? t('common.pause') : t('player.playAction')}
             >
               {player.isPlaying ? (
-                <Pause className="h-9 w-9 text-black" />
+                <Pause className="h-11 w-11 fill-white text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]" />
               ) : (
-                <Play className="ml-1 h-9 w-9 fill-black text-black" />
+                <Play className="ml-1 h-11 w-11 fill-white text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]" />
               )}
             </button>
             {!isLive && (
@@ -1218,75 +1303,69 @@ function PlayerContent() {
         </div>
 
         {/* Bottom controls */}
-        <div className="space-y-4">
-          {/*
-            Direct : la barre suit le PROGRAMME, pas le flux.
-
-            Un direct n'a ni debut ni fin connus, une barre de lecture
-            n'y aurait aucun sens. Celle du guide en a un : elle situe
-            l'emission entre son heure de debut et son heure de fin.
-            C'est la decision AJ, actee mais restee lettre morte.
-
-            Volontairement un simple affichage et non un `Slider` : on ne
-            peut pas se deplacer dans un direct, offrir une poignee
-            promettrait une action impossible. D'ou `role="progressbar"`,
-            qui annonce exactement cela aux lecteurs d'ecran.
-          */}
-          {isLive && epgView && (
-            <div className="flex items-end gap-3">
-              {channel && (
-                <ImageWithFallback
-                  src={channel.logo}
-                  alt=""
-                  className="h-14 w-14 flex-shrink-0 rounded-xl object-contain bg-white/10"
-                  fallbackClassName="h-14 w-14 flex-shrink-0 rounded-xl bg-white/10 flex items-center justify-center text-white/25"
-                  fallback={<Radio className="h-5 w-5" />}
-                />
-              )}
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-white/70 w-14 tabular-nums">
-                    {epgView.startLabel}
-                  </span>
-                  <div
-                    role="progressbar"
-                    aria-label={t('player.epgProgress')}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={epgView.percent}
-                    aria-valuetext={`${epgView.percent} %`}
-                    className="flex-1 h-2 rounded-full bg-white/20 overflow-hidden"
-                  >
-                    <div
-                      className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
-                      style={{ width: `${epgView.percent}%` }}
-                    />
-                  </div>
-                  <span className="text-sm text-white/70 w-14 text-right tabular-nums">
-                    {epgView.endLabel}
-                  </span>
+        <div className="space-y-3">
+          {isLive && (
+            <div className="rounded-[1.4rem] bg-black/55 backdrop-blur-md px-4 py-3">
+              <div className="flex items-center gap-3">
+                {channel && (
+                  <ImageWithFallback
+                    src={channel.logo}
+                    alt=""
+                    className="h-12 w-12 flex-shrink-0 rounded-xl object-contain bg-white/10"
+                    fallbackClassName="h-12 w-12 flex-shrink-0 rounded-xl bg-white/10 flex items-center justify-center text-white/25"
+                    fallback={<Radio className="h-5 w-5" />}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  {epgView ? (
+                    <>
+                      <p className="truncate text-[15px] font-semibold text-white">
+                        {epgView.title}
+                        {epgView.remainingMinutes !== null && (
+                          <span className="font-normal text-white/55">
+                            {' '}· {t('player.epgRemaining', { count: epgView.remainingMinutes })}
+                          </span>
+                        )}
+                      </p>
+                      {epgView.nextTitle && epgView.nextStartLabel && (
+                        <p className="mt-0.5 truncate text-[13px] text-white/50">
+                          {t('player.epgFollows', {
+                            title: epgView.nextTitle,
+                            time: epgView.nextStartLabel,
+                          })}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="w-10 flex-shrink-0 text-[11px] tabular-nums text-white/50">
+                          {epgView.startLabel}
+                        </span>
+                        <div
+                          role="progressbar"
+                          aria-label={t('player.epgProgress')}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={epgView.percent}
+                          aria-valuetext={`${epgView.percent} %`}
+                          className="h-1 flex-1 overflow-hidden rounded-full bg-white/20"
+                        >
+                          <div
+                            className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
+                            style={{ width: `${epgView.percent}%` }}
+                          />
+                        </div>
+                        <span className="w-10 flex-shrink-0 text-right text-[11px] tabular-nums text-white/50">
+                          {epgView.endLabel}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="truncate text-[15px] font-semibold text-white">{mediaTitle}</p>
+                  )}
                 </div>
-                <p className="text-xs text-white/70">
-                  <span className="font-semibold text-white">{epgView.title}</span>
-                  {epgView.remainingMinutes !== null && (
-                    <> · {t('player.epgRemaining', { count: epgView.remainingMinutes })}</>
-                  )}
-                  {epgView.nextTitle && epgView.nextStartLabel && (
-                    <span className="text-white/45">
-                      {'  '}
-                      {t('player.epgNextUp', {
-                        title: epgView.nextTitle,
-                        time: epgView.nextStartLabel,
-                      })}
-                    </span>
-                  )}
-                </p>
               </div>
             </div>
           )}
 
-          {/* Barre de lecture : reservee aux contenus a la demande, les
-              seuls ou se deplacer dans le temps a un sens. */}
           {!isLive && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-white/70 w-14 tabular-nums">
@@ -1310,226 +1389,181 @@ function PlayerContent() {
             </div>
           )}
 
-          {/*
-            Ligne de commandes, rangee par NATURE et non au fil de
-            l'ajout.
-
-            A gauche ce qu'on fait DU CONTENU : lire, changer de chaine,
-            ouvrir la liste. A droite les reglages de CONFORT : son et
-            plein ecran. Un trait vertical separe les deux familles.
-
-            Le volume vivait auparavant a gauche, colle au zapping, ce
-            qui melangeait « je change de chaine » et « je baisse le
-            son ». Deplace a droite, il rejoint le plein ecran : deux
-            reglages qui ne touchent pas au contenu.
-
-            Les trois commandes de zapping sont desormais soudees, la
-            liste ENTRE les deux fleches. C'est le meme geste mental —
-            choisir sa chaine — et l'oeil n'a plus a traverser l'ecran
-            pour passer du suivant a la liste.
-          */}
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              {!isLive && (
-                <button
-                  onClick={() => player.seekBy(-10)}
-                  disabled={!streamUrl}
-                  type="button"
-                  aria-label={t('player.rewind')}
-                  className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                >
-                  <SkipBack className="w-5 h-5" />
-                </button>
-              )}
-
-              {/* Play/Pause compact */}
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-none">
+            {!isLive && (
               <button
-                onClick={player.togglePlay}
+                onClick={() => player.seekBy(-10)}
                 disabled={!streamUrl}
                 type="button"
-                aria-label={player.isPlaying ? t('common.pause') : t('player.playAction')}
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                aria-label={t('player.rewind')}
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                {player.isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+                <SkipBack className="w-5 h-5" />
               </button>
+            )}
 
-              {!isLive && (
+            <button
+              onClick={player.togglePlay}
+              disabled={!streamUrl}
+              type="button"
+              aria-label={player.isPlaying ? t('common.pause') : t('player.playAction')}
+              className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/70 transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              {player.isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+            </button>
+
+            {!isLive && (
+              <button
+                onClick={() => player.seekBy(10)}
+                disabled={!streamUrl}
+                type="button"
+                aria-label={t('player.forward')}
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                <SkipForward className="w-5 h-5" />
+              </button>
+            )}
+
+            {isLive && (
+              <>
                 <button
-                  onClick={() => player.seekBy(10)}
-                  disabled={!streamUrl}
                   type="button"
-                  aria-label={t('player.forward')}
-                  className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  aria-label={t('player.previousChannel')}
+                  disabled={!canZap}
+                  onClick={() => goToChannel(-1)}
+                  className="h-12 max-w-[9.5rem] flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md px-3.5 flex items-center gap-1.5 text-white hover:bg-black/70 transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
-                  <SkipForward className="w-5 h-5" />
+                  <ChevronLeft className="w-5 h-5 flex-shrink-0" />
+                  <span className="min-w-0 truncate text-[13px] font-semibold">
+                    {prevChannel
+                      ? channelDisplayName(prevChannel.id, prevChannel.name, channelRenames)
+                      : t('player.previousChannel')}
+                  </span>
                 </button>
-              )}
 
-              {/* Bloc zapping : precedente, liste, suivante.
-                  Separe de la lecture par un trait, car changer de
-                  chaine n'est pas commander la lecture en cours. */}
-              {isLive && (
-                <>
-                  <span aria-hidden="true" className="w-px h-5 bg-white/15 flex-shrink-0 mx-0.5" />
-
+                {canBrowseChannels && (
                   <button
                     type="button"
-                    aria-label={t('player.previousChannel')}
-                    disabled={!canZap}
-                    onClick={() => goToChannel(-1)}
-                    className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-white/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    onClick={() => setBrowserOpen(true)}
+                    aria-label={t('player.channelListOpen')}
+                    aria-haspopup="dialog"
+                    aria-expanded={browserOpen}
+                    className={cn(
+                      'h-12 flex-shrink-0 px-4 rounded-full backdrop-blur-md flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                      browserOpen
+                        ? 'bg-accent text-white'
+                        : 'bg-black/50 text-white hover:bg-black/70'
+                    )}
                   >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-
-                  {/*
-                    Bouton large plutot que carre : c'est la porte
-                    d'entree du zapping, celle qu'on vise a la
-                    telecommande. Son libelle disparait sur petit ecran,
-                    ou l'icone suffit et la place manque.
-
-                    `aria-expanded` reste porte par le bouton, et son
-                    fond s'allume tant que le panneau est ouvert : on
-                    voit d'ou vient le panneau.
-                  */}
-                  {canBrowseChannels && (
-                    <button
-                      type="button"
-                      onClick={() => setBrowserOpen(true)}
-                      aria-label={t('player.channelListOpen')}
-                      aria-haspopup="dialog"
-                      aria-expanded={browserOpen}
-                      className={cn(
-                        'h-12 flex-shrink-0 px-3.5 rounded-full backdrop-blur-sm flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                        browserOpen
-                          ? 'bg-accent text-white'
-                          : 'bg-black/40 text-white/70 hover:text-white'
-                      )}
-                    >
-                      <List className="w-5 h-5" />
-                      <span className="text-xs font-semibold hidden sm:inline">
-                        {t('common.channels')}
-                      </span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    aria-label={t('player.nextChannel')}
-                    disabled={!canZap}
-                    onClick={() => goToChannel(1)}
-                    className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors disabled:opacity-30 disabled:hover:text-white/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                </>
-              )}
-
-              {/*
-                Passer a l'episode suivant, a tout moment.
-
-                Il n'existait jusqu'ici que dans la carte de decompte, en
-                toute fin d'episode : abandonner un episode en cours de
-                route pour lancer le suivant obligeait a ressortir du
-                lecteur et a rouvrir la fiche de la serie.
-
-                Place exactement la ou se trouve « chaine suivante » en
-                direct : meme zone, meme geste, « passer a la suite ».
-                Le code de l'episode est affiche, on sait donc ou l'on
-                va. Retire — et non grise — en fin de saison, doctrine
-                deja suivie ailleurs dans cette barre.
-              */}
-              {nextEpisode && (
-                <>
-                  <span aria-hidden="true" className="w-px h-5 bg-white/15 flex-shrink-0 mx-0.5" />
-
-                  <button
-                    type="button"
-                    onClick={goToNextEpisode}
-                    aria-label={t('player.nextEpisodeGo', { code: episodeCode(nextEpisode) })}
-                    className="h-12 flex-shrink-0 px-3.5 rounded-full bg-black/40 backdrop-blur-sm flex items-center gap-2 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  >
-                    <SkipForward className="w-5 h-5" />
-                    <span className="text-xs font-semibold hidden sm:inline">
-                      {episodeCode(nextEpisode)}
+                    <List className="w-5 h-5" />
+                    <span className="text-[13px] font-semibold">
+                      {t('common.channels')}
                     </span>
                   </button>
-                </>
-              )}
-            </div>
+                )}
 
-            {/* Reglages de confort : son, puis plein ecran. */}
-            <div className="flex items-center gap-2.5 flex-shrink-0">
-              {/* Volume : bouton muet + curseur.
-                  Le curseur affiche zero quand le son est coupe, sinon
-                  il montrerait un niveau que l'on n'entend pas. */}
-              <button
-                onClick={player.toggleMute}
-                type="button"
-                aria-label={player.isMuted ? t('player.unmute') : t('player.mute')}
-                aria-pressed={player.isMuted}
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-              >
-                {player.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-              </button>
-
-              <span aria-hidden="true" className="w-px h-5 bg-white/15 flex-shrink-0 mx-0.5" />
-
-              {!isLive && (
                 <button
                   type="button"
-                  onClick={() => setSpeedMenuOpen(true)}
-                  aria-label={t('player.speedTitle')}
-                  aria-haspopup="dialog"
-                  className="h-12 flex-shrink-0 px-3 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  aria-label={t('player.nextChannel')}
+                  disabled={!canZap}
+                  onClick={() => goToChannel(1)}
+                  className="h-12 max-w-[9.5rem] flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md px-3.5 flex items-center gap-1.5 text-white hover:bg-black/70 transition-colors disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
-                  <Gauge className="w-5 h-5" />
-                  <span className="text-[11px] font-semibold tabular-nums">
-                    {t('player.speedValue', { rate: String(playbackRate).replace('.', ',') })}
+                  <span className="min-w-0 truncate text-[13px] font-semibold">
+                    {nextChannel
+                      ? channelDisplayName(nextChannel.id, nextChannel.name, channelRenames)
+                      : t('player.nextChannel')}
                   </span>
+                  <ChevronRight className="w-5 h-5 flex-shrink-0" />
                 </button>
-              )}
+              </>
+            )}
 
+            {nextEpisode && (
               <button
                 type="button"
-                onClick={() => setSleepMenuOpen(true)}
-                aria-label={t('player.sleepTitle')}
+                onClick={goToNextEpisode}
+                aria-label={t('player.nextEpisodeGo', { code: episodeCode(nextEpisode) })}
+                className="h-12 flex-shrink-0 px-3.5 rounded-full bg-black/50 backdrop-blur-md flex items-center gap-2 text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                <SkipForward className="w-5 h-5" />
+                <span className="text-[13px] font-semibold hidden sm:inline">
+                  {episodeCode(nextEpisode)}
+                </span>
+              </button>
+            )}
+            </div>
+
+            <div className="flex flex-shrink-0 items-center gap-2">
+            {showMuteButton && (
+            <button
+              onClick={player.toggleMute}
+              type="button"
+              aria-label={player.isMuted ? t('player.unmute') : t('player.mute')}
+              aria-pressed={player.isMuted}
+              className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              {player.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+            )}
+
+            {!isLive && (
+              <button
+                type="button"
+                onClick={() => setSpeedMenuOpen(true)}
+                aria-label={t('player.speedTitle')}
                 aria-haspopup="dialog"
-                className={cn(
-                  'h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center gap-1 text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-                  sleepRemainingSeconds !== null ? 'px-3' : 'w-12'
-                )}
+                className="h-12 flex-shrink-0 px-3 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center gap-1 text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                <Timer className="w-5 h-5" />
-                {sleepRemainingSeconds !== null && (
-                  <span className="text-[11px] font-semibold tabular-nums">
-                    {formatTime(sleepRemainingSeconds)}
-                  </span>
-                )}
+                <Gauge className="w-5 h-5" />
+                <span className="text-[11px] font-semibold tabular-nums">
+                  {t('player.speedValue', { rate: String(playbackRate).replace('.', ',') })}
+                </span>
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setControlsLocked(true);
-                  setShowControls(false);
-                  setShowUnlockHint(true);
-                }}
-                aria-label={t('player.lockControls')}
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-              >
-                <Lock className="w-5 h-5" />
-              </button>
+            <button
+              type="button"
+              onClick={() => setSleepMenuOpen(true)}
+              aria-label={t('player.sleepTitle')}
+              aria-haspopup="dialog"
+              className={cn(
+                'h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center gap-1 text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+                sleepRemainingSeconds !== null ? 'px-3' : 'w-12'
+              )}
+            >
+              <Timer className="w-5 h-5" />
+              {sleepRemainingSeconds !== null && (
+                <span className="text-[11px] font-semibold tabular-nums">
+                  {formatTime(sleepRemainingSeconds)}
+                </span>
+              )}
+            </button>
 
-              {/* Fullscreen */}
-              <button
-                onClick={toggleFullscreen}
-                type="button"
-                aria-label={isFullscreen ? t('player.exitFullscreen') : t('player.fullscreen')}
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-              >
-                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-              </button>
+            <button
+              type="button"
+              onClick={() => {
+                setControlsLocked(true);
+                setShowControls(false);
+                setShowUnlockHint(true);
+              }}
+              aria-label={t('player.lockControls')}
+              className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              <Lock className="w-5 h-5" />
+            </button>
+
+            {showFullscreenButton && (
+            <button
+              onClick={toggleFullscreen}
+              type="button"
+              aria-label={isFullscreen ? t('player.exitFullscreen') : t('player.fullscreen')}
+              className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+            </button>
+            )}
             </div>
           </div>
         </div>
@@ -1608,7 +1642,7 @@ function PlayerContent() {
           channels={channelsForBrowser}
           categories={liveCategoriesForBrowser}
           pinnedCategories={pinnedCategories}
-          listChannelIds={listChannelIds}
+          listChannelIds={listId ? zapChannels.map((channel) => channel.id) : listChannelIds}
           currentChannelId={id}
           epgByChannel={channelEpgMap}
           onSelect={handleSelectChannel}

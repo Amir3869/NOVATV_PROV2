@@ -23,9 +23,10 @@ import { syncXtreamCatalog, toSourceErrorKind } from '@/services/xtream/xtreamSy
 import { normalizeSelection } from '@/services/xtream/categorySelection';
 import { syncM3UFromUrl, toM3UErrorKind } from '@/services/m3u/m3uSync';
 import { schedulePlaylistEpg } from './runPlaylistEpg';
+import { findDuplicateSource } from '@/services/playlists/sourceIdentity';
 import { ERROR_KEYS } from './syncMessages';
 import type { Playlist } from '@/types';
-import { useTranslation } from '@/i18n';
+import { phrase, useTranslation } from '@/i18n';
 
 export function EditSourceDialog({
   playlist,
@@ -34,7 +35,7 @@ export function EditSourceDialog({
   playlist: Playlist;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const updatePlaylist = useAppStore((s) => s.updatePlaylist);
   const setCatalog = useAppStore((s) => s.setCatalog);
 
@@ -99,6 +100,24 @@ export function EditSourceDialog({
     try {
       const secret = await resolveXtreamPassword();
       if (!secret) throw new Error('missing_password');
+
+      const duplicate = findDuplicateSource(
+        useAppStore.getState().playlists,
+        { kind: 'xtream', serverUrl, username },
+        playlist.id
+      );
+      if (duplicate) {
+        const text = phrase(
+          locale,
+          'playlists.duplicateXtream',
+          { name: duplicate.name },
+          'Ce compte Xtream est déjà enregistré sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+        );
+        setTestResult('error');
+        setMessage(text);
+        toast.error(text);
+        return;
+      }
 
       const { userInfo } = await xtreamService.getAccountInfo({
         serverUrl,
@@ -165,6 +184,24 @@ export function EditSourceDialog({
     setBusy(true);
     setMessage(null);
     try {
+      const duplicate = findDuplicateSource(
+        useAppStore.getState().playlists,
+        { kind: 'm3u_url', url: m3uUrl.trim() },
+        playlist.id
+      );
+      if (duplicate) {
+        const text = phrase(
+          locale,
+          'playlists.duplicateM3u',
+          { name: duplicate.name },
+          'Cette liste M3U est déjà enregistrée sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+        );
+        setTestResult('error');
+        setMessage(text);
+        toast.error(text);
+        return;
+      }
+
       const nextM3u = {
         ...playlist.m3u,
         url: m3uUrl.trim(),

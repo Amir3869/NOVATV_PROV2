@@ -5,7 +5,7 @@ import { cn } from '@/utils/cn';
 
 /**
  * Bouton −10 s / +10 s : un mini-arc autour du chiffre, pas une flèche.
- * Même geste que Canal+ / Netflix.
+ * Le signe (+ / −) est dans le texte, sinon on ne le voit pas.
  */
 export function SkipArcButton({
   seconds = 10,
@@ -20,6 +20,8 @@ export function SkipArcButton({
   disabled?: boolean;
   label: string;
 }) {
+  const signed = direction === 'back' ? `−${seconds}` : `+${seconds}`;
+
   return (
     <button
       type="button"
@@ -30,26 +32,28 @@ export function SkipArcButton({
     >
       <svg
         viewBox="0 0 48 48"
-        className={cn('absolute inset-1', direction === 'forward' && '-scale-x-100')}
+        className={cn('absolute inset-0.5 text-white/80', direction === 'forward' && '-scale-x-100')}
         aria-hidden
       >
         <path
-          d="M13 18.4a13.2 13.2 0 1 0 7.6-6.2"
+          d="M12.5 18.8a13.6 13.6 0 1 0 8.2-6.6"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.5"
+          strokeWidth="2.2"
           strokeLinecap="round"
         />
         <path
-          d="M11.2 12.2v6.8h6.8"
+          d="M10.6 12.4v7.2h7.2"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.5"
+          strokeWidth="2.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
       </svg>
-      <span className="relative text-sm font-bold tabular-nums leading-none">{seconds}</span>
+      <span className="relative z-[1] text-[15px] font-extrabold tabular-nums leading-none tracking-tight">
+        {signed}
+      </span>
     </button>
   );
 }

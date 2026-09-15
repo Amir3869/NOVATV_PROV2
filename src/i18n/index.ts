@@ -95,6 +95,23 @@ export function translate(
 }
 
 /**
+ * Texte pour l'écran : jamais une clé technique (`playlists.duplicateM3u`).
+ *
+ * Si la traduction manque (fichiers pas recopiés, cache), on affiche
+ * `fallback`, déjà rédigé pour un humain.
+ */
+export function phrase(
+  locale: Locale,
+  key: MessageKey,
+  values: MessageValues | undefined,
+  fallback: string,
+): string {
+  const text = translate(locale, key, values);
+  if (!text || text === key) return formatMessage(fallback, values);
+  return text;
+}
+
+/**
  * Applique la langue à la balise <html>.
  *
  * Deux attributs, deux rôles distincts :

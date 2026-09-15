@@ -8,6 +8,7 @@ import { EmptyState } from '@/design-system/components/EmptyState';
 import { ChannelCard } from '@/design-system/components/MediaCard';
 import { useAppStore } from '@/store/useAppStore';
 import { resolveProfileId } from '@/lib/profileScope';
+import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { resolveListItems } from '@/features/custom-lists/resolveListMedia';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
@@ -19,9 +20,11 @@ import { useTranslation } from '@/i18n';
 
 export function CustomListsPage() {
   const { t } = useTranslation();
-  const allMovies = useAppStore((s) => s.movies);
-  const allSeries = useAppStore((s) => s.series);
-  const allChannels = useAppStore((s) => s.channels);
+  const {
+    channels: allChannels,
+    movies: allMovies,
+    series: allSeries,
+  } = useActiveCatalog();
   const catalogReady = useAppStore((s) => s.catalogReady);
   const customLists = useAppStore((s) => s.customLists);
   const activeProfileId = useAppStore((s) => s.activeProfileId);

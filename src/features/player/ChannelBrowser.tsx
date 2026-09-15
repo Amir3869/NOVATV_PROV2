@@ -104,6 +104,7 @@ export function ChannelBrowser({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const channelListRef = useRef<HTMLDivElement>(null);
   const categoryListRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const currentChannel = useMemo(
     () => channels.find((c) => c.id === currentChannelId),
@@ -203,10 +204,10 @@ export function ChannelBrowser({
     previousFocusRef.current = document.activeElement as HTMLElement | null;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
       if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack') {
         // Ne pas intercepter Retour arrière pendant une saisie : la
         // touche doit effacer un caractère, pas fermer le panneau.
-        const target = event.target as HTMLElement | null;
         if (event.key === 'Backspace' && target?.tagName === 'INPUT') return;
 
         event.preventDefault();
@@ -228,7 +229,9 @@ export function ChannelBrowser({
         le plein écran. On ne coupe que ces touches-là — la saisie
         dans le champ de recherche doit rester intacte.
       */
-      if (PLAYER_KEYS.has(event.key)) {
+      // Pas dans le champ recherche : sinon `m`, `f` et Espace n'arrivent
+      // jamais à l'input (le lecteur les réserve au muet / plein écran).
+      if (PLAYER_KEYS.has(event.key) && target?.tagName !== 'INPUT') {
         event.stopPropagation();
       }
 
@@ -237,7 +240,6 @@ export function ChannelBrowser({
         JSX : le `stopPropagation` ci-dessus a deja mis fin au voyage de
         l'evenement, aucun gestionnaire React ne le verra passer.
       */
-      const target = event.target as HTMLElement | null;
       if (handleArrowKey(event.key, target)) {
         event.preventDefault();
         return;
@@ -339,15 +341,33 @@ export function ChannelBrowser({
         </header>
 
         <div className="px-5 py-3 border-b border-white/8 flex-shrink-0">
-          <div className="relative">
+          <div
+            className="relative select-text"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              searchRef.current?.focus();
+            }}
+          >
             <Search className="w-4 h-4 text-white/30 absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
-              type="search"
+              ref={searchRef}
+              type="text"
+              inputMode="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                event.currentTarget.focus();
+              }}
               placeholder={t('player.channelListSearch')}
               aria-label={t('player.channelListSearch')}
-              className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 transition-all"
+              className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 transition-all select-text"
+              style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
             />
           </div>
         </div>

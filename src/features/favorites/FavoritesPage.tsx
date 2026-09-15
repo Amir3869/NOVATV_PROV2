@@ -87,7 +87,7 @@ export function FavoritesPage() {
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           {activeTab === 'all' && <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><Tv className="w-4 h-4 text-accent" />{t('common.channels')}</h2>}
           <div className="space-y-1">
-            {favChannels.map((ch) => <ChannelCard key={ch.id} channel={ch} />)}
+            {favChannels.map((ch) => <ChannelCard key={ch.id} channel={ch} from="favorites" />)}
           </div>
         </section>
       )}

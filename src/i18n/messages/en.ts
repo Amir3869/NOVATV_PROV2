@@ -147,6 +147,12 @@ export const en: Messages = {
     restoredChannel: "Original name restored: « {name} »",
     now: 'Now',
     noProgram: 'No programme',
+    moreCategories: 'More categories',
+    pickCategory: 'Choose a category',
+    pickCategorySearch: 'Search a category…',
+    chooseCategory: 'Choose a category',
+    chooseCategoryDescription:
+      'Channels are shown by category. Pin 4 of them to keep them at hand.',
   },
 
   movies: {
@@ -168,6 +174,8 @@ export const en: Messages = {
     genre: 'Genre',
     similarMovies: 'Similar movies',
     watchedPercent: '{percent}% watched',
+    uncategorized: 'Other',
+    railCount: '{count} movies',
   },
 
   series: {
@@ -190,6 +198,8 @@ export const en: Messages = {
     seasonCountPlural: '{count} seasons',
     loadingEpisodes: 'Loading episodes…',
     episodesLoadError: 'Could not load episodes.',
+    uncategorized: 'Other',
+    railCount: '{count} series',
   },
 
   epg: {
@@ -444,6 +454,16 @@ export const en: Messages = {
     fileRenameOnly: 'Only the name of this file source can be changed.',
     editCredentialsHint: 'Same source: the id does not change. A successful test is required before saving.',
     reimportFileHint: 'To change the file, delete this source then import another.',
+    duplicateXtream:
+      'This Xtream account is already saved as “{name}”. You cannot add it a second time.',
+    duplicateM3u:
+      'This M3U list is already saved as “{name}”. You cannot add it a second time.',
+    epgNetwork: 'Could not download the TV guide. Check your connection, then try again.',
+    epgTimeout: 'The TV guide is taking too long to arrive. Try again.',
+    epgCorrupt: 'The guide file is unreadable (damaged or compressed in an unrecognized way).',
+    epgTooLarge: 'The guide is too large to load on this device.',
+    epgFailed: 'The TV guide could not be retrieved.',
+    epgReady: 'Guide loaded: {programs} programmes on {channels} channels.',
   },
 
   profiles: {
@@ -571,6 +591,7 @@ export const en: Messages = {
     epgUntil: 'until {time}',
     epgRemaining: '{count} min left',
     epgNextUp: 'Up next: {title} — {time}',
+    epgFollows: 'Up next {time} — {title}',
     epgProgress: 'Programme progress',
     nextEpisodeTitle: 'Next episode',
     nextEpisodeGo: 'Next episode: {code}',

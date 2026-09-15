@@ -28,6 +28,11 @@ export interface ParseResult {
   errors: string[];
   lineCount: number;
   duration: number;
+  /**
+   * Adresse du guide lue dans l'en-tête `#EXTM3U` (`x-tvg-url`,
+   * `url-tvg` ou `tvg-url`). Absente si le fichier n'en déclare pas.
+   */
+  epgUrl?: string;
 }
 
 export interface ParseOptions {
@@ -71,6 +76,8 @@ export async function parseM3U(
   if (lines.length === 0) {
     return { entries, errors: ['Le fichier est vide.'], lineCount: 0, duration: 0 };
   }
+
+  const epgUrl = extractPlaylistEpgUrl(lines[0].text);
 
   if (!lines[0].text.startsWith('#EXTM3U')) {
     errors.push(
@@ -164,7 +171,28 @@ export async function parseM3U(
     errors,
     lineCount: lines.length,
     duration: Date.now() - startTime,
+    epgUrl,
   };
+}
+
+/**
+ * Guide déclaré dans `#EXTM3U x-tvg-url="…"` (iptv-org, GSE, Smarters).
+ * Plusieurs adresses séparées par des virgules : on prend la première.
+ */
+export function extractPlaylistEpgUrl(headerLine: string): string | undefined {
+  const line = headerLine.trim();
+  if (!line.toUpperCase().startsWith('#EXTM3U')) return undefined;
+
+  ATTR_REGEX.lastIndex = 0;
+  const attrs: Record<string, string> = {};
+  let match: RegExpExecArray | null;
+  while ((match = ATTR_REGEX.exec(line)) !== null) {
+    attrs[match[1].toLowerCase()] = match[2];
+  }
+  const raw = attrs['x-tvg-url'] || attrs['url-tvg'] || attrs['tvg-url'];
+  if (!raw) return undefined;
+  const first = raw.split(',')[0]?.trim();
+  return first || undefined;
 }
 
 function parseExtinfLine(extinf: string, urlLine: string): M3UEntry | null {

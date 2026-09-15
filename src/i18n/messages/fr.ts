@@ -158,6 +158,12 @@ export const fr = {
     restoredChannel: "Nom d'origine restauré : « {name} »",
     now: 'Maintenant',
     noProgram: 'Programme indisponible',
+    moreCategories: 'Autres catégories',
+    pickCategory: 'Choisir une catégorie',
+    pickCategorySearch: 'Rechercher une catégorie…',
+    chooseCategory: 'Choisissez une catégorie',
+    chooseCategoryDescription:
+      'Les chaînes s’affichent par catégorie. Épinglez-en 4 pour les avoir sous la main.',
   },
 
   // ── Films ──
@@ -180,6 +186,8 @@ export const fr = {
     genre: 'Genre',
     similarMovies: 'Films similaires',
     watchedPercent: '{percent} % visionné',
+    uncategorized: 'Autres',
+    railCount: '{count} films',
   },
 
   // ── Séries ──
@@ -203,6 +211,8 @@ export const fr = {
     seasonCountPlural: '{count} saisons',
     loadingEpisodes: 'Chargement des épisodes…',
     episodesLoadError: 'Impossible de charger les épisodes.',
+    uncategorized: 'Autres',
+    railCount: '{count} séries',
   },
 
   // ── Guide des programmes ──
@@ -462,6 +472,16 @@ export const fr = {
     fileRenameOnly: 'Seul le nom de cette source fichier peut être modifié.',
     editCredentialsHint: 'Même source : l’identifiant ne change pas. Un test réussi est exigé avant l’enregistrement.',
     reimportFileHint: 'Pour changer le fichier, supprimez cette source puis importez-en un autre.',
+    duplicateXtream:
+      'Ce compte Xtream est déjà enregistré sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+    duplicateM3u:
+      'Cette liste M3U est déjà enregistrée sous le nom « {name} ». Vous ne pouvez pas l’ajouter une deuxième fois.',
+    epgNetwork: 'Impossible de télécharger le guide des programmes. Vérifiez votre connexion, puis réessayez.',
+    epgTimeout: 'Le guide des programmes met trop de temps à arriver. Réessayez.',
+    epgCorrupt: 'Le fichier du guide est illisible (endommagé ou compressé d’une façon non reconnue).',
+    epgTooLarge: 'Le guide est trop volumineux pour être chargé sur cet appareil.',
+    epgFailed: 'Le guide des programmes n’a pas pu être récupéré.',
+    epgReady: 'Guide récupéré : {programs} programmes sur {channels} chaînes.',
   },
 
   // ── Profils ──
@@ -591,8 +611,9 @@ export const fr = {
   player: {
     progress: 'Progression de la lecture',
     epgUntil: "jusqu'à {time}",
-    epgRemaining: 'encore {count} min',
+    epgRemaining: '{count} min restantes',
     epgNextUp: 'À suivre : {title} — {time}',
+    epgFollows: 'À suivre {time} — {title}',
     epgProgress: 'Progression du programme',
     nextEpisodeTitle: 'Épisode suivant',
     nextEpisodeGo: 'Épisode suivant : {code}',

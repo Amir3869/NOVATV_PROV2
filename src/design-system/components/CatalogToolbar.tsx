@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LayoutGrid, List, Lock, Pencil, Search, Star } from 'lucide-react';
+import { ChevronDown, LayoutGrid, List, Lock, Pencil, Search, Star } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { SearchBar } from '@/design-system/components/SearchBar';
 
@@ -58,6 +58,14 @@ export function CatalogToolbar({
   onViewChange,
   listLabel,
   gridLabel,
+  hideCategories = false,
+  heading,
+  pinsPlus = false,
+  extraCategory,
+  moreLabel,
+  moreCount = 0,
+  onMore,
+  moreOpen = false,
 }: {
   allLabel: string;
   categories: ReadonlyArray<CatalogToolbarCategory>;
@@ -75,11 +83,30 @@ export function CatalogToolbar({
   onViewChange: (view: CatalogView) => void;
   listLabel: string;
   gridLabel: string;
+  /**
+   * Films / Séries en rails : pas de pastilles. Le titre de page
+   * (`heading`) prend la place à gauche.
+   */
+  hideCategories?: boolean;
+  heading?: string;
+  /**
+   * Live option D : seulement les épingles (max 4) + un bouton
+   * « autres catégories ». Plus de rangée infinie.
+   */
+  pinsPlus?: boolean;
+  extraCategory?: CatalogToolbarCategory | null;
+  moreLabel?: string;
+  moreCount?: number;
+  onMore?: () => void;
+  moreOpen?: boolean;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const showField = searchOpen || search.length > 0;
   const pinned = categories.filter((cat) => cat.pinned);
   const rest = categories.filter((cat) => !cat.pinned);
+  const extra =
+    extraCategory && !pinned.some((cat) => cat.id === extraCategory.id) ? extraCategory : null;
+  const showMore = pinsPlus && Boolean(onMore);
 
   return (
     <div className="flex items-center gap-2">
@@ -102,6 +129,50 @@ export function CatalogToolbar({
           autoFocus={searchOpen}
           className="min-w-0 flex-1"
         />
+      ) : hideCategories ? (
+        heading ? (
+          <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-white">{heading}</h1>
+        ) : (
+          <div className="min-w-0 flex-1" />
+        )
+      ) : pinsPlus ? (
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none">
+          {pinned.map((cat) => (
+            <CategoryChip
+              key={cat.id}
+              cat={cat}
+              active={cat.id === activeId}
+              onSelect={(id) => onSelect(id)}
+            />
+          ))}
+          {extra && (
+            <CategoryChip
+              cat={extra}
+              active={extra.id === activeId}
+              onSelect={(id) => onSelect(id)}
+            />
+          )}
+          {showMore && (
+            <button
+              type="button"
+              onClick={onMore}
+              aria-label={moreLabel}
+              aria-expanded={moreOpen}
+              className={cn(
+                'flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                moreOpen
+                  ? 'bg-accent text-white'
+                  : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white'
+              )}
+            >
+              <span aria-hidden className="text-base leading-none">
+                ⋯
+              </span>
+              {moreCount > 0 && <span>{moreCount}</span>}
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
       ) : (
         <>
           {pinned.length > 0 && (
