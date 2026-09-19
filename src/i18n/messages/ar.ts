@@ -622,6 +622,7 @@ export const ar: Messages = {
     fitCoverDescription: 'يملأ الشاشة بقص الحواف. يزيل الأشرطة السوداء.',
     fitFill: 'تمديد',
     fitFillDescription: 'يغطي الشاشة بالكامل مع تشويه الصورة.',
+    pictureInPicture: 'صورة داخل صورة',
     qualityTitle: 'جودة الفيديو',
     qualityAuto: 'تلقائي',
     tracksTitle: 'المسارات والترجمات',

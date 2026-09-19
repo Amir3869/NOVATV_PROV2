@@ -34,9 +34,9 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
-    <div className={cn('catalog-card group relative flex-shrink-0', widthClass, className)}>
+    <div className={cn('catalog-card media-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/movies?id=${encodeURIComponent(movie.id)}`}>
-        <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
+        <div className="media-card-poster relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
           <ImageWithFallback
             src={movie.logo}
             alt={movie.name}
@@ -46,10 +46,10 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
           />
 
           {/* Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300" />
+          <div className="media-card-poster-overlay absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300" />
 
           {/* Play button */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300">
+          <div className="media-card-play-action absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300">
             <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/20">
               <Play className="w-4 h-4 text-white fill-white ml-0.5" />
             </div>
@@ -57,7 +57,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
 
           {/* Rating */}
           {movie.rating && (
-            <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
+            <div className="media-card-poster-rating absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
               <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
               <span className="text-[10px] text-amber-400 font-medium">{movie.rating}</span>
             </div>
@@ -65,7 +65,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
 
           {/* Progress */}
           {movie.watchProgress !== undefined && movie.watchProgress > 0 && movie.watchProgress < 100 && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
+            <div className="media-card-poster-progress absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
               <div
                 className="h-full bg-accent"
                 style={{ width: `${movie.watchProgress}%` }}
@@ -75,32 +75,46 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
         </div>
       </Link>
 
-      {/* Info */}
-      <div className="mt-2 px-0.5">
-        <h3 className="text-xs font-semibold text-white/90 truncate leading-tight">{movie.name}</h3>
-        <div className="flex items-center gap-1.5 mt-1">
-          {movie.year && <span className="text-[10px] text-white/40">{movie.year}</span>}
-          {movie.duration && (
-            <span className="text-[10px] text-white/40">{formatDuration(movie.duration)}</span>
-          )}
+      {/* Info : sur mobile les actions et métadonnées sortent de l'affiche.
+          L'image reste ainsi lisible, sans gradient ni contrôle superposé. */}
+      <div className="media-card-info mt-2 px-0.5">
+        <div className="media-card-info-row flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xs font-semibold text-white/90 truncate leading-tight">{movie.name}</h3>
+            <div className="flex items-center gap-1.5 mt-1">
+              {movie.year && <span className="text-[10px] text-white/40">{movie.year}</span>}
+              {movie.duration && (
+                <span className="text-[10px] text-white/40">{formatDuration(movie.duration)}</span>
+              )}
+              {movie.rating && (
+                <span className="media-card-mobile-rating inline-flex items-center gap-1 text-[10px] text-amber-400">
+                  <Star className="w-2.5 h-2.5 fill-amber-400" />
+                  {movie.rating}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); toggleFavorite(movie.id, 'movie'); }}
+            aria-label={isFav ? `Retirer ${movie.name} des favoris` : `Ajouter ${movie.name} aux favoris`}
+            aria-pressed={isFav}
+            className={cn(
+              'media-card-favorite absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
+              hasHover
+                ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
+                : 'opacity-100',
+            )}
+          >
+            <Heart className={cn('w-3.5 h-3.5', isFav ? 'fill-accent text-accent' : 'text-white')} />
+          </button>
         </div>
-      </div>
-
-      {/* Favorite */}
-      <button
-        type="button"
-        onClick={(e) => { e.preventDefault(); toggleFavorite(movie.id, 'movie'); }}
-        aria-label={isFav ? `Retirer ${movie.name} des favoris` : `Ajouter ${movie.name} aux favoris`}
-        aria-pressed={isFav}
-        className={cn(
-          'absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
-          hasHover
-            ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
-            : 'opacity-100',
+        {movie.watchProgress !== undefined && movie.watchProgress > 0 && movie.watchProgress < 100 && (
+          <div className="media-card-mobile-progress mt-2 h-0.5 rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${movie.watchProgress}%` }} />
+          </div>
         )}
-      >
-        <Heart className={cn('w-3.5 h-3.5', isFav ? 'fill-accent text-accent' : 'text-white')} />
-      </button>
+      </div>
     </div>
   );
 }
@@ -119,9 +133,9 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
-    <div className={cn('catalog-card group relative flex-shrink-0', widthClass, className)}>
+    <div className={cn('catalog-card media-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/series?id=${encodeURIComponent(series.id)}`}>
-        <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
+        <div className="media-card-poster relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
           <ImageWithFallback
             src={series.cover}
             alt={series.name}
@@ -130,15 +144,15 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
             fallback={<Play className="w-8 h-8 text-white/20" />}
           />
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300" />
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300">
+          <div className="media-card-poster-overlay absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300" />
+          <div className="media-card-play-action absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity duration-300">
             <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/20">
               <Play className="w-4 h-4 text-white fill-white ml-0.5" />
             </div>
           </div>
 
           {series.rating && (
-            <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
+            <div className="media-card-poster-rating absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
               <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
               <span className="text-[10px] text-amber-400 font-medium">{series.rating}</span>
             </div>
@@ -146,30 +160,39 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
         </div>
       </Link>
 
-      <div className="mt-2 px-0.5">
-        <h3 className="text-xs font-semibold text-white/90 truncate leading-tight">{series.name}</h3>
-        <div className="flex items-center gap-1.5 mt-1">
-          {series.year && <span className="text-[10px] text-white/40">{series.year}</span>}
-          {series.episodeCount && (
-            <span className="text-[10px] text-white/40">{series.episodeCount} épisodes</span>
-          )}
+      <div className="media-card-info mt-2 px-0.5">
+        <div className="media-card-info-row flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xs font-semibold text-white/90 truncate leading-tight">{series.name}</h3>
+            <div className="flex items-center gap-1.5 mt-1">
+              {series.year && <span className="text-[10px] text-white/40">{series.year}</span>}
+              {series.episodeCount && (
+                <span className="text-[10px] text-white/40">{series.episodeCount} épisodes</span>
+              )}
+              {series.rating && (
+                <span className="media-card-mobile-rating inline-flex items-center gap-1 text-[10px] text-amber-400">
+                  <Star className="w-2.5 h-2.5 fill-amber-400" />
+                  {series.rating}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); toggleFavorite(series.id, 'series'); }}
+            aria-label={isFav ? `Retirer ${series.name} des favoris` : `Ajouter ${series.name} aux favoris`}
+            aria-pressed={isFav}
+            className={cn(
+              'media-card-favorite absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
+              hasHover
+                ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
+                : 'opacity-100',
+            )}
+          >
+            <Heart className={cn('w-3.5 h-3.5', isFav ? 'fill-accent text-accent' : 'text-white')} />
+          </button>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={(e) => { e.preventDefault(); toggleFavorite(series.id, 'series'); }}
-        aria-label={isFav ? `Retirer ${series.name} des favoris` : `Ajouter ${series.name} aux favoris`}
-        aria-pressed={isFav}
-        className={cn(
-          'absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
-          hasHover
-            ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
-            : 'opacity-100',
-        )}
-      >
-        <Heart className={cn('w-3.5 h-3.5', isFav ? 'fill-accent text-accent' : 'text-white')} />
-      </button>
     </div>
   );
 }
@@ -266,7 +289,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId, from
                 <p className="mt-1 truncate text-[11px] text-white/50">{channel.currentProgram.title}</p>
               )}
             </div>
-            <Badge variant="live" size="xs" pulse className="absolute top-2 right-2">{t('common.liveShort')}</Badge>
+            <Badge variant="live" size="xs" pulse className="channel-live-badge absolute top-2 right-2">{t('common.liveShort')}</Badge>
           </div>
         </Link>
         {/* Bouton d'information : frère du lien, jamais son enfant — un
@@ -315,7 +338,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId, from
         <div className="flex items-center gap-2 min-w-0">
           <ScrollingText text={displayName} className={cn('flex-1 text-sm font-semibold text-white', blocked && 'opacity-60')} />
           {blocked && <Lock className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
-          <Badge variant="live" size="xs" pulse>{t('common.liveShort')}</Badge>
+          <Badge variant="live" size="xs" pulse className="channel-live-badge">{t('common.liveShort')}</Badge>
         </div>
         {channel.currentProgram && (
           <>

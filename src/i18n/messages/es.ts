@@ -614,6 +614,7 @@ export const es: Messages = {
     fitCoverDescription: 'Llena la pantalla recortando los bordes. Elimina las franjas negras.',
     fitFill: 'Estirar',
     fitFillDescription: 'Ocupa toda la pantalla deformando la imagen.',
+    pictureInPicture: 'Imagen sobre imagen',
     qualityTitle: 'Calidad de vídeo',
     qualityAuto: 'Automática',
     tracksTitle: 'Pistas y subtítulos',

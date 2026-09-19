@@ -8,6 +8,7 @@ import {
   emptySelection,
   expandWithChildren,
   filterCategories,
+  hideEmptyParentCategories,
   groupCategories,
   isCategorySelected,
   isSelectionEmpty,
@@ -212,6 +213,27 @@ describe('selectionOrAll', () => {
     // télécharger », undefined veut dire « tout télécharger ».
     expect(selectionOrAll(emptySelection(), 'vod')).toEqual([]);
     expect(selectionOrAll(null, 'vod')).toBeUndefined();
+  });
+});
+
+describe('hideEmptyParentCategories', () => {
+  it('masque un parent sans contenu direct mais conserve ses enfants', () => {
+    const categories = [
+      { ...cat('1', 'FR'), parentId: 0 },
+      { ...cat('10', 'FR | TF1'), parentId: 1 },
+      { ...cat('11', 'FR | M6'), parentId: 1 },
+    ];
+    const visible = hideEmptyParentCategories(categories, new Set(['10', '11']));
+    expect(visible.map((category) => category.categoryId)).toEqual(['10', '11']);
+  });
+
+  it('conserve un parent qui possède aussi des contenus directs', () => {
+    const categories = [
+      { ...cat('1', 'FR'), parentId: 0 },
+      { ...cat('10', 'FR | TF1'), parentId: 1 },
+    ];
+    const visible = hideEmptyParentCategories(categories, new Set(['1', '10']));
+    expect(visible.map((category) => category.categoryId)).toEqual(['1', '10']);
   });
 });
 

@@ -642,6 +642,7 @@ export const fr = {
     fitCoverDescription: "Remplit l'écran en rognant les bords. Supprime les bandes noires.",
     fitFill: 'Étirer',
     fitFillDescription: "Occupe tout l'écran en déformant l'image.",
+    pictureInPicture: 'Picture-in-picture',
     qualityTitle: 'Qualité vidéo',
     qualityAuto: 'Automatique',
     tracksTitle: 'Pistes et sous-titres',

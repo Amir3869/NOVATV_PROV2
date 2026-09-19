@@ -97,6 +97,18 @@ export function isVideoFitMode(value: unknown): value is VideoFitMode {
 }
 
 /**
+ * Sécurise une préférence relue depuis un ancien stockage.
+ *
+ * Le lecteur ne doit jamais tomber sur un mode de recadrage implicite :
+ * toute valeur absente ou inconnue revient à `contain`, qui montre
+ * l'image entière. `cover` ne peut être obtenu que par un choix explicite
+ * dans le menu du lecteur.
+ */
+export function resolveVideoFit(value: unknown): VideoFitMode {
+  return isVideoFitMode(value) ? value : DEFAULT_VIDEO_FIT;
+}
+
+/**
  * Mode suivant dans le cycle, en revenant au début après le dernier.
  *
  * Permet de proposer plus tard un basculement en une seule touche,

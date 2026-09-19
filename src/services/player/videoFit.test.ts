@@ -4,6 +4,7 @@ import {
   DEFAULT_VIDEO_FIT,
   videoFitClassName,
   isVideoFitMode,
+  resolveVideoFit,
   nextVideoFit,
   type VideoFitMode,
 } from './videoFit';
@@ -92,6 +93,20 @@ describe('isVideoFitMode', () => {
 
   it('refuse la chaîne vide', () => {
     expect(isVideoFitMode('')).toBe(false);
+  });
+});
+
+describe('resolveVideoFit', () => {
+  it('conserve un mode choisi explicitement', () => {
+    expect(resolveVideoFit('cover')).toBe('cover');
+    expect(resolveVideoFit('fill')).toBe('fill');
+    expect(resolveVideoFit('contain')).toBe('contain');
+  });
+
+  it('revient à Ajusté pour une préférence absente ou invalide', () => {
+    expect(resolveVideoFit(undefined)).toBe('contain');
+    expect(resolveVideoFit(null)).toBe('contain');
+    expect(resolveVideoFit('zoom-x2')).toBe('contain');
   });
 });
 

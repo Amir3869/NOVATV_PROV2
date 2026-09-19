@@ -76,6 +76,12 @@ export interface EPGParseOptions {
    * `0` désactive le filtre.
    */
   keepAheadDays?: number;
+  /**
+   * Identifiants XMLTV à conserver quand la source est déjà connue.
+   * Les autres programmes sont ignorés pendant l'analyse pour éviter
+   * d'accumuler le guide complet d'un abonnement.
+   */
+  wantedChannelIds?: ReadonlySet<string>;
 }
 
 /**
@@ -136,6 +142,7 @@ export async function parseXMLTV(
     signal,
     dropOlderThanHours = 0,
     keepAheadDays = 0,
+    wantedChannelIds,
   } = options;
 
   const result: EPGParseResult = { channels: [], programs: [], errors: [] };
@@ -245,6 +252,12 @@ export async function parseXMLTV(
     const channelId = el.getAttribute('channel')?.trim();
     const startStr = el.getAttribute('start');
     const stopStr = el.getAttribute('stop');
+
+    if (wantedChannelIds && wantedChannelIds.size > 0 && (!channelId || !wantedChannelIds.has(channelId))) {
+      processed++;
+      if (processed % chunkSize === 0) await yieldToUI();
+      continue;
+    }
 
     let title = '';
     for (const titleEl of Array.from(el.querySelectorAll('title'))) {

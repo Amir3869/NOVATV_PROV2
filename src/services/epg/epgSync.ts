@@ -12,6 +12,7 @@
 
 import {
   parseXMLTV,
+  endOfDayAhead,
   matchChannelsWithEPG,
   type EPGParseResult,
   type ParsedEPGChannel,
@@ -19,16 +20,17 @@ import {
 } from './epgService';
 import { shortHash } from '../m3u/m3uSync';
 import type { EPGProgram, LiveChannel, SourceErrorKind } from '@/types';
-import type { XtreamCredentials } from '../xtream/xtreamService';
+import { xtreamService, type XtreamCredentials } from '../xtream/xtreamService';
 
 /**
- * Au-delà, on refuse le guide.
+ * Les guides XMLTV ne sont plus refusés sur un plafond arbitraire.
  *
- * Un XMLTV de gros portail dépasse facilement 100 Mo. Comme le guide
- * vit en mémoire, l'analyser entier ferait gonfler l'onglet jusqu'au
- * plantage. Même plafond que l'import M3U, par cohérence.
+ * Les sources Xtream avec une sélection de catégories passent par
+ * `get_short_epg` dans `runPlaylistEpg`, donc seules les chaînes
+ * importées sont interrogées. Les autres guides restent acceptés quelle
+ * que soit leur taille déclarée par le serveur ; le parseur ne conserve
+ * ensuite que les programmes des chaînes présentes dans le catalogue.
  */
-export const MAX_EPG_BYTES = 50 * 1024 * 1024;
 
 /**
  * On jette les programmes terminés depuis plus de 6 heures.
@@ -62,6 +64,8 @@ export interface EPGSyncOptions {
 }
 
 export interface EPGSyncResult {
+  /** Origine réellement utilisée : XMLTV complet ou guide court Xtream. */
+  source?: 'xmltv' | 'xtream_short';
   programs: EPGProgram[];
   /** Nombre de chaînes de la source appariées à une chaîne du guide. */
   matchedChannels: number;
@@ -187,19 +191,16 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
     );
   }
 
-  const declared = Number(resp.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > MAX_EPG_BYTES) {
-    throw new EPGSyncError('bad_response', tooLargeMessage());
-  }
-
-  // Sans flux lisible (vieille WebView, ou réponse mise en cache), on
-  // se rabat sur la lecture directe : le contrôle déclaratif ci-dessus
-  // reste la seule protection dans ce cas.
+  // Le Content-Length peut annoncer un guide très volumineux. Il ne
+  // constitue plus un motif de refus : certains serveurs annoncent la
+  // taille compressée, d'autres la taille complète, et une sélection
+  // Xtream peut éviter ce téléchargement par la voie courte.
+  //
+  // Sans flux lisible (vieille WebView, ou réponse mise en cache), on se
+  // rabat sur la lecture directe. Le serveur reste libre de renvoyer un
+  // guide de toute taille supportée par l'appareil.
   if (!resp.body) {
     const raw = new Uint8Array(await resp.arrayBuffer());
-    if (raw.byteLength > MAX_EPG_BYTES) {
-      throw new EPGSyncError('bad_response', tooLargeMessage());
-    }
     return decodeXmltvBytes(raw);
   }
 
@@ -213,12 +214,6 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
     if (!value) continue;
 
     received += value.byteLength;
-    if (received > MAX_EPG_BYTES) {
-      // Libère la connexion : sans cela, le téléchargement continue en
-      // arrière-plan alors que le résultat est déjà rejeté.
-      await reader.cancel().catch(() => undefined);
-      throw new EPGSyncError('bad_response', tooLargeMessage());
-    }
     chunks.push(value);
   }
 
@@ -256,19 +251,11 @@ export async function decodeXmltvBytes(bytes: Uint8Array): Promise<string> {
     new Uint8Array(gzipCopy).set(bytes);
     const stream = new Blob([gzipCopy]).stream().pipeThrough(new DecompressionStream('gzip'));
     const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
-    if (inflated.byteLength > MAX_EPG_BYTES) {
-      throw new EPGSyncError('bad_response', tooLargeMessage());
-    }
     return new TextDecoder('utf-8').decode(inflated);
   } catch (err) {
     if (err instanceof EPGSyncError) throw err;
     throw new EPGSyncError('parse', 'Le fichier du guide compressé est illisible.');
   }
-}
-
-function tooLargeMessage(): string {
-  const mb = Math.round(MAX_EPG_BYTES / (1024 * 1024));
-  return `Le guide dépasse ${mb} Mo et ne peut pas être chargé.`;
 }
 
 /**
@@ -391,10 +378,15 @@ export async function syncEPG(
   report('download', 0);
   const xml = await downloadXMLTV(url, signal);
 
+  const wantedChannelIds = new Set(
+    channels.flatMap((channel) => [channel.epgChannelId, channel.tvgId].filter((id): id is string => Boolean(id))),
+  );
+
   const parsed: EPGParseResult = await parseXMLTV(xml, {
     signal,
     dropOlderThanHours: DROP_OLDER_THAN_HOURS,
     keepAheadDays,
+    wantedChannelIds: wantedChannelIds.size > 0 ? wantedChannelIds : undefined,
     // L'analyse couvre la tranche 0,1 → 0,8 de la progression globale :
     // le téléchargement occupe le début, l'appariement la fin.
     onProgress: (ratio) => report('parse', 0.1 + ratio * 0.7),
@@ -426,11 +418,132 @@ export async function syncEPG(
   }
 
   return {
+    source: 'xmltv',
     programs,
     matchedChannels: mapping.size,
     unmatchedChannels: channels.length - mapping.size,
     warnings: parsed.errors,
     logoFallbacks: { ...fromPrograms, ...logoFallbacksFromEpg(mapping, parsed.channels) },
+  };
+}
+
+/** Date Xtream : accepte ISO, secondes Unix et millisecondes Unix. */
+function parseXtreamEpgDate(value: unknown): Date | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value > 10_000_000_000 ? value : value * 1000);
+  }
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      return new Date(numeric > 10_000_000_000 ? numeric : numeric * 1000);
+    }
+  }
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? new Date(parsed) : null;
+}
+
+function stringField(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+function shortEpgListings(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'));
+  }
+  if (!raw || typeof raw !== 'object') return [];
+  const record = raw as Record<string, unknown>;
+  for (const key of ['epg_listings', 'listings', 'programs', 'epg']) {
+    if (Array.isArray(record[key])) {
+      return record[key].filter(
+        (item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'),
+      );
+    }
+  }
+  return [];
+}
+
+/**
+ * Guide court Xtream utilisé lorsque `xmltv.php` est absent, trop lourd
+ * ou refusé par le fournisseur. Chaque chaîne est interrogée séparément
+ * afin de conserver un guide utile même si quelques flux échouent.
+ */
+export async function syncXtreamShortEPG(
+  creds: XtreamCredentials,
+  channels: readonly LiveChannel[],
+  playlistId: string,
+  options: Pick<EPGSyncOptions, 'signal' | 'keepAheadDays'> = {},
+): Promise<EPGSyncResult> {
+  const now = Date.now();
+  const end = options.keepAheadDays && options.keepAheadDays > 0
+    ? endOfDayAhead(options.keepAheadDays).getTime()
+    : Infinity;
+  const programs: EPGProgram[] = [];
+  const matched = new Set<string>();
+  const errors: string[] = [];
+  let cursor = 0;
+  const width = Math.min(4, Math.max(1, channels.length));
+
+  const worker = async () => {
+    for (;;) {
+      const index = cursor++;
+      const channel = channels[index];
+      if (!channel) return;
+      if (typeof channel.streamId !== 'number' || channel.streamId <= 0) continue;
+
+      try {
+        const raw = await xtreamService.getShortEpg(creds, channel.streamId, 12, {
+          signal: options.signal,
+        });
+        for (const listing of shortEpgListings(raw)) {
+          const start = parseXtreamEpgDate(
+            listing.start_timestamp ?? listing.start ?? listing.start_time,
+          );
+          const stop = parseXtreamEpgDate(
+            listing.stop_timestamp ?? listing.end ?? listing.stop ?? listing.end_time,
+          );
+          if (!start || !stop || stop.getTime() <= start.getTime()) continue;
+          if (stop.getTime() < now - DROP_OLDER_THAN_HOURS * 60 * 60 * 1000) continue;
+          if (start.getTime() > end) continue;
+
+          const title = stringField(listing, ['title', 'name', 'program_name']);
+          if (!title) continue;
+          const description = stringField(listing, ['description', 'desc', 'plot']);
+          const icon = stringField(listing, ['icon', 'image', 'poster']);
+          const id = `${playlistId}:epg:short:${shortHash(`${channel.id}|${start.toISOString()}|${title}`)}`;
+          programs.push({
+            id,
+            channelId: channel.id,
+            title,
+            start: start.toISOString(),
+            stop: stop.toISOString(),
+            ...(description ? { description } : {}),
+            ...(icon ? { icon } : {}),
+          });
+          matched.add(channel.id);
+        }
+      } catch (error) {
+        if (options.signal?.aborted) throw error;
+        errors.push(error instanceof Error ? error.message : 'short EPG request failed');
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: width }, () => worker()));
+  programs.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+
+  return {
+    source: 'xtream_short',
+    programs,
+    matchedChannels: matched.size,
+    unmatchedChannels: channels.length - matched.size,
+    warnings: errors.slice(0, 50),
+    logoFallbacks: {},
   };
 }
 

@@ -271,7 +271,7 @@ export function TopBar() {
     pathname.startsWith('/series');
 
   return (
-    <header className="sticky top-0 z-40 px-3 pt-[max(0.75rem,var(--safe-top))] sm:px-5 lg:px-6">
+    <header className="topbar-shell sticky top-0 z-40 px-3 pt-[max(0.75rem,var(--safe-top))] sm:px-5 lg:px-6">
       <nav aria-label={t('nav.mainMenu')} className="topbar-nav relative mx-auto flex min-h-16 max-w-[1500px] flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/10 bg-surface-1/75 px-3 py-2 shadow-[0_16px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
         <NovaLogo variant="compact" size="xs" className="mx-2 shrink-0" />
         <div className="hidden h-7 w-px shrink-0 bg-white/10 lg:block" />

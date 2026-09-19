@@ -204,6 +204,12 @@ describe('parseXMLTV', () => {
     expect(journal!.category).toBe('Information');
   });
 
+  it('ne conserve que les chaînes demandées', async () => {
+    const r = await parseXMLTV(XML, { wantedChannelIds: new Set(['m6.fr']) });
+    expect(r.programs).toEqual([]);
+    expect(r.channels).toHaveLength(2);
+  });
+
   it('lit l’affiche d’un programme via <icon>, <poster> ou <image>', async () => {
     const xml = `<?xml version="1.0"?>
 <tv>

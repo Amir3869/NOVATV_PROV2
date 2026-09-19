@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Play, Info, Star, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { cn, formatDuration } from '@/utils/cn';
 import { Badge } from './Badge';
+import { ImageWithFallback } from './ImageWithFallback';
 import { useAppStore } from '@/store/useAppStore';
 import { useTranslation } from '@/i18n';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -20,19 +21,6 @@ interface HeroBannerProps {
 export function HeroBanner({ items, className }: HeroBannerProps) {
   const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
-  /**
-   * On mémorise QUEL visuel a échoué, pas un simple oui/non.
-   *
-   * Avant : un booléen `imgError` remis à false par un `useEffect` à
-   * chaque changement de diapositive. Ce schéma déclenche un second
-   * rendu en cascade juste après le premier — l'image correcte
-   * pouvait clignoter, et React 19 le signale comme une erreur.
-   *
-   * Maintenant la valeur est simplement comparée pendant le rendu :
-   * aucun effet, aucun rendu supplémentaire.
-   */
-  const [erroredIndex, setErroredIndex] = useState<number | null>(null);
-  const imgError = erroredIndex === activeIndex;
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(items[activeIndex]?.id ?? ''));
   const { isTV, hasTouch } = useDeviceType();
@@ -87,17 +75,14 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
       }}
     >
       {/* Background */}
-      <div className="relative w-full min-h-[430px] h-[62vh] max-h-[760px] md:h-[68vh] lg:h-[72vh]">
-        {visual && !imgError ? (
-          <img
-            src={visual}
-            alt={item.name}
-            className="absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-700"
-            onError={() => setErroredIndex(activeIndex)}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1A0000] via-surface-2 to-surface-0" />
-        )}
+      <div className="home-hero-height relative w-full">
+        <ImageWithFallback
+          src={visual}
+          alt={item.name}
+          className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700"
+          fallbackClassName="absolute inset-0 bg-gradient-to-br from-[#1A0000] via-surface-2 to-surface-0"
+          fallback={<span aria-hidden />}
+        />
 
         {/* Gradients */}
         <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/40 to-transparent" />
@@ -106,7 +91,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-accent/5 to-transparent" />
 
         {/* Content */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 pb-10 sm:p-8 sm:pb-12 md:p-10 lg:p-14 lg:pb-16">
+        <div className="home-hero-content absolute bottom-0 left-0 right-0 p-5 pb-10 sm:p-8 sm:pb-12 md:p-10 lg:p-14 lg:pb-16">
           {/* Type badge */}
           <div className="flex items-center gap-3 mb-3">
             <Badge variant="live" size="sm" pulse>
@@ -118,7 +103,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
           </div>
 
           {/* Title */}
-          <h1 className="max-w-xl text-3xl font-black leading-[1.05] text-white drop-shadow-2xl sm:text-4xl md:text-5xl lg:text-6xl">
+          <h1 className="home-hero-title max-w-xl text-3xl font-black leading-[1.05] text-white drop-shadow-2xl sm:text-4xl md:text-5xl lg:text-6xl">
             {item.name}
           </h1>
 
@@ -136,13 +121,13 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
 
           {/* Plot */}
           {plot && (
-            <p className="text-sm text-white/70 leading-relaxed max-w-lg mb-6 line-clamp-2 md:line-clamp-3">
+            <p className="home-hero-plot mb-6 max-w-lg text-sm leading-relaxed text-white/70 line-clamp-2 md:line-clamp-3">
               {plot}
             </p>
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="home-hero-actions flex items-center gap-3 flex-wrap">
             {/* Ce bouton est posé sur l'affiche du contenu, pas sur le fond de
                 l'application : il reste blanc sur noir dans les deux thèmes.
                 Les valeurs sont figées volontairement — `bg-white` suit le
@@ -168,7 +153,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
 
             <Link
               href={href}
-              className="flex items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold rounded-xl hover:bg-white/15 border border-white/10 transition-all duration-200"
+              className="home-hero-details flex items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold rounded-xl hover:bg-white/15 border border-white/10 transition-all duration-200"
             >
               <Info className="w-4 h-4" />
               {t('common.details')}

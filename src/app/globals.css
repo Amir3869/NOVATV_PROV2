@@ -636,7 +636,7 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
   display: flex;
 }
 
-.category-directory-list { 
+.category-directory-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.35rem;
@@ -880,6 +880,18 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
   }
 }
 
+/* Paysage mobile : le statut reste toujours visible, même quand la
+   carte devient basse et que le texte est tronqué. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 1023px) {
+  .channel-live-badge {
+    display: inline-flex !important;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.625rem;
+    line-height: 1;
+  }
+}
+
 /* Fiche chaîne : le paysage tactile court manque de hauteur ; on garde
    le logo, le titre et le bouton d'action visibles sans agrandir la fiche. */
 @media (orientation: landscape) and (max-height: 600px) and (min-width: 768px) {
@@ -900,10 +912,61 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
   }
 }
 
+/* Cartes Films/Séries : l'affiche reste une image propre sur tactile.
+   Les actions et métadonnées peuvent se placer en dehors sans réduire la
+   cible du lien ni masquer le visuel. */
+.media-card-mobile-rating,
+.media-card-mobile-progress {
+  display: none;
+}
+
+/* Le badge LIVE reste au-dessus de l'artwork dans les grilles paysage :
+   il ne doit pas disparaître derrière le logo ou être coupé par une carte
+   compacte. */
+.channel-live-badge {
+  z-index: 2;
+  white-space: nowrap;
+}
+
 /* Cartes catalogue : le navigateur saute le rendu hors écran. */
 .catalog-card {
   content-visibility: auto;
   contain-intrinsic-size: 0 220px;
+}
+
+/* Sur téléphone portrait comme paysage, aucune superposition sur les
+   affiches Films/Séries : pas de gradient, bouton Play, note ou barre de
+   progression dans l'image. Les informations restent lisibles sous
+   l'affiche et le favori conserve une cible tactile dédiée. */
+@media (max-width: 767px), (orientation: landscape) and (max-height: 600px) and (max-width: 1023px) {
+  .media-card-poster-overlay,
+  .media-card-play-action,
+  .media-card-poster-rating,
+  .media-card-poster-progress {
+    display: none !important;
+  }
+
+  .media-card-mobile-rating {
+    display: inline-flex;
+  }
+
+  .media-card-mobile-progress {
+    display: block;
+  }
+
+  .media-card-info-row {
+    align-items: center;
+  }
+
+  .media-card-favorite {
+    position: static !important;
+    width: 2rem !important;
+    height: 2rem !important;
+    flex-shrink: 0;
+    opacity: 1 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
 }
 
 /* Nom de chaîne trop long : défilement (demande : au-delà de 3 lettres). */
@@ -1246,5 +1309,119 @@ html.native-vod .cinema {
 
   .lists-directory {
     padding-inline-end: 1.25rem;
+  }
+}
+
+/* Phase 2 — responsive mobile : le hero garde une vraie hiérarchie
+   visuelle sans monopoliser l'écran, et le bouton de détail reste
+   disponible depuis la fiche. */
+@media (max-width: 767px) {
+  .home-hero-height {
+    min-height: 360px;
+    height: min(62dvh, 520px);
+    max-height: 520px;
+  }
+
+  .home-hero-content {
+    padding: 1.25rem 1rem 4.5rem !important;
+  }
+
+  .home-hero-title {
+    max-width: 19rem;
+    font-size: clamp(1.75rem, 8vw, 2.5rem) !important;
+  }
+
+  .home-hero-plot {
+    max-width: 21rem;
+    margin-bottom: 1rem !important;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .home-hero-actions {
+    gap: 0.5rem !important;
+  }
+
+  .home-hero-actions a,
+  .home-hero-actions button {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.8rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .home-hero-details {
+    display: none;
+  }
+}
+
+/* Phase 2 — paysage court tactile : le header devient une barre compacte
+   et le hero se réduit à une bannière lisible, sans pousser les rangées
+   hors de la hauteur disponible. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 1023px) {
+  .topbar-shell {
+    padding-top: max(0.35rem, var(--safe-top));
+    padding-inline: 0.5rem;
+  }
+
+  .topbar-shell .topbar-nav {
+    min-height: 3.25rem;
+    gap: 0.25rem;
+    border-radius: 1.1rem;
+    padding: 0.25rem 0.4rem;
+  }
+
+  .topbar-shell .topbar-primary {
+    gap: 0.125rem;
+  }
+
+  .topbar-shell .topbar-primary a {
+    min-height: 2.75rem;
+    gap: 0.125rem;
+    padding-inline: 0.2rem;
+    font-size: 0.625rem;
+  }
+
+  .topbar-shell .topbar-primary a svg {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  .topbar-shell .topbar-actions {
+    gap: 0;
+  }
+
+  .topbar-shell .topbar-actions > a,
+  .topbar-shell .topbar-actions > button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .home-hero-height {
+    min-height: 0;
+    height: clamp(205px, 58dvh, 275px);
+    max-height: 275px;
+  }
+
+  .home-hero-content {
+    padding: 0.75rem 1rem 1.5rem !important;
+  }
+
+  .home-hero-title {
+    max-width: min(26rem, 60vw);
+    font-size: clamp(1.5rem, 5vw, 2.25rem) !important;
+  }
+
+  .home-hero-plot {
+    max-width: min(28rem, 58vw);
+    margin-bottom: 0.6rem !important;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .home-hero-actions a,
+  .home-hero-actions button {
+    min-height: 2.5rem;
+    padding: 0.5rem 0.7rem !important;
+    font-size: 0.7rem !important;
   }
 }

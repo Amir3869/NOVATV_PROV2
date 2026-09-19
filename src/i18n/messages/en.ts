@@ -620,6 +620,7 @@ export const en: Messages = {
     fitCoverDescription: 'Fills the screen by cropping the edges. Removes black bars.',
     fitFill: 'Stretch',
     fitFillDescription: 'Covers the whole screen by distorting the picture.',
+    pictureInPicture: 'Picture-in-picture',
     qualityTitle: 'Video quality',
     qualityAuto: 'Automatic',
     tracksTitle: 'Tracks and subtitles',

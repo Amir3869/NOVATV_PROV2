@@ -9,7 +9,6 @@ import {
   toEPGErrorKind,
   EPGSyncError,
   syncEPG,
-  MAX_EPG_BYTES,
   logoFallbacksFromEpg,
   applyLogoFallbacks,
   broadcastArtworkUrl,
@@ -272,20 +271,20 @@ describe('syncEPG', () => {
     await expect(syncEPG('http://x/xmltv.php', [], 'pl1')).rejects.toThrow(EPGSyncError);
   });
 
-  it('signale un guide trop volumineux avant de le lire', async () => {
+  it('accepte un guide dont la taille déclarée dépasse l’ancien plafond', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
         new Response('<tv></tv>', {
           status: 200,
-          headers: { 'content-length': String(MAX_EPG_BYTES + 1) },
+          headers: { 'content-length': String(100 * 1024 * 1024) },
         })
       )
     );
 
-    const err = await syncEPG('http://x/xmltv.php', [channel()], 'pl1').catch((e) => e);
-    expect(err).toBeInstanceOf(EPGSyncError);
-    expect(toEPGErrorKind(err)).toBe('bad_response');
+    const result = await syncEPG('http://x/xmltv.php', [channel()], 'pl1');
+    expect(result.source).toBe('xmltv');
+    expect(result.programs).toEqual([]);
   });
 
   it('traduit un 403 en erreur d authentification', async () => {

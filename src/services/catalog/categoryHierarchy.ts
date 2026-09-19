@@ -28,6 +28,8 @@ export interface CategoryHierarchyInput {
   parentId?: string;
   /** Identifiant brut du parent quand la source le connaît. */
   parentSourceId?: string;
+  /** Empêche une inférence textuelle quand un parent technique a été masqué. */
+  preventInferredParent?: boolean;
 }
 
 export interface CategoryHierarchyNode {
@@ -52,6 +54,16 @@ export interface CategoryHierarchyNode {
 export interface BuildCategoryHierarchyOptions {
   playlistId?: string;
   family?: CategoryFamily;
+}
+
+export interface StoredCategoryInput extends CategoryHierarchyInput {
+  originalName?: string;
+  childIds?: string[];
+  level?: number;
+  path?: string[];
+  relation?: CategoryRelation;
+  regionCode?: string;
+  qualities?: string[];
 }
 
 /** Qualités techniques : elles ne doivent jamais devenir un parent. */
@@ -298,7 +310,11 @@ export function buildCategoryHierarchy(
   for (const input of sourceInputs) {
     const nativeParent = directParentByInput(input, bySourceId, byId);
     const parsed = categoryPathFromName(input.name);
-    const parentId = nativeParent ?? (parsed.path.length > 1
+    const hasExplicitParent =
+      input.preventInferredParent ||
+      input.parentId !== undefined ||
+      input.parentSourceId !== undefined;
+    const parentId = nativeParent ?? (!hasExplicitParent && parsed.path.length > 1
       ? ensureSyntheticParent(parsed.path, parsed.path.length - 2)
       : null);
 
@@ -312,7 +328,7 @@ export function buildCategoryHierarchy(
       level: 0,
       path: parsed.path,
       count: input.count ?? 0,
-      relation: nativeParent ? 'native' : parsed.relation,
+      relation: nativeParent ? 'native' : hasExplicitParent ? 'flat' : parsed.relation,
       regionCode: regionCode(input.name),
       qualities: qualityTokens(input.name),
     };
@@ -323,7 +339,13 @@ export function buildCategoryHierarchy(
   // Reconcile parent chains for explicit paths deeper than one level.
   for (const input of sourceInputs) {
     const node = nodes.get(input.id);
-    if (!node || directParentByInput(input, bySourceId, byId)) continue;
+    if (
+      !node ||
+      directParentByInput(input, bySourceId, byId) ||
+      input.preventInferredParent ||
+      input.parentId !== undefined ||
+      input.parentSourceId !== undefined
+    ) continue;
 
     const parsed = categoryPathFromName(input.name);
     if (parsed.path.length < 2) continue;
@@ -404,6 +426,39 @@ export function buildCategoryHierarchy(
     .filter((id, index) => order.indexOf(id) === index)
     .map((id) => nodes.get(id))
     .filter((node): node is CategoryHierarchyNode => Boolean(node));
+}
+
+/**
+ * Relit une liste déjà normalisée sans réadditionner les compteurs des
+ * parents. Les anciens catalogues passent par la reconstruction textuelle.
+ */
+export function categoryNodesFromStored(
+  inputs: readonly StoredCategoryInput[],
+  options: BuildCategoryHierarchyOptions = {},
+): CategoryHierarchyNode[] {
+  const hasMetadata = inputs.some(
+    (input) =>
+      input.relation !== undefined ||
+      input.childIds !== undefined ||
+      input.level !== undefined,
+  );
+
+  if (!hasMetadata) return buildCategoryHierarchy(inputs, options);
+
+  return inputs.map((input) => ({
+    id: input.id,
+    sourceId: input.sourceId,
+    name: input.name,
+    originalName: input.originalName ?? input.name,
+    parentId: input.parentId ?? null,
+    childIds: input.childIds ?? [],
+    level: input.level ?? 0,
+    path: input.path ?? [input.name],
+    count: input.count ?? 0,
+    relation: input.relation ?? 'flat',
+    regionCode: input.regionCode,
+    qualities: input.qualities ?? [],
+  }));
 }
 
 export function descendantsOf(

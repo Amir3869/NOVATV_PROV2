@@ -9,7 +9,7 @@ import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize,
   SkipBack, SkipForward, ArrowLeft, Radio, AlertTriangle, RotateCcw,
   ChevronLeft, ChevronRight, Settings, List, Ratio, Captions,
-  Heart, Lock, LockOpen, Timer, Gauge
+  Heart, Lock, LockOpen, Timer, Gauge, PictureInPicture as PictureInPictureIcon
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Badge } from '@/design-system/components/Badge';
@@ -19,6 +19,7 @@ import { useVideoPlayer } from './useVideoPlayer';
 import { QualityMenu } from './QualityMenu';
 import { FitMenu } from './FitMenu';
 import { videoFitClassName } from '@/services/player/videoFit';
+import { NativeVodPlayer } from '@/services/player/nativeVodPlayer';
 import { SubtitleOverlay, type SubtitleAppearance } from './SubtitleOverlay';
 import { AudioSubtitleMenu } from './AudioSubtitleMenu';
 import { ChannelBrowser } from './ChannelBrowser';
@@ -218,6 +219,7 @@ function PlayerContent() {
     : movie?.name ?? episode?.title;
   const streamUrl = channel?.streamUrl ?? movie?.streamUrl ?? episode?.streamUrl ?? null;
   const streamType = channel?.streamType;
+  const canUsePictureInPicture = Capacitor.getPlatform() === 'android' && !isTV && Boolean(streamUrl);
 
   // Reprise de lecture : on ne la cherche que pour un contenu à la
   // demande, un direct n'a pas de position à retenir.
@@ -1554,6 +1556,17 @@ function PlayerContent() {
               <Lock className="w-5 h-5" />
             </button>
 
+            {canUsePictureInPicture && (
+            <button
+              type="button"
+              onClick={() => void NativeVodPlayer.enterPictureInPicture()}
+              aria-label={t('player.pictureInPicture')}
+              className="w-12 h-12 flex-shrink-0 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              <PictureInPictureIcon className="w-5 h-5" />
+            </button>
+            )}
+
             {showFullscreenButton && (
             <button
               onClick={toggleFullscreen}
@@ -1715,4 +1728,3 @@ export function PlayerPage() {
     </Suspense>
   );
 }
-

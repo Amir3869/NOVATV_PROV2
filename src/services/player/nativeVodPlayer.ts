@@ -1,8 +1,9 @@
 /**
- * Pont Capacitor vers ExoPlayer (films / séries sur Android).
+ * Pont Capacitor vers ExoPlayer sur Android.
  *
- * Le direct reste hls.js / mpegts.js : il a déjà du son. La WebView
- * ne décode pas l'AC-3 des VOD IPTV ; ExoPlayer, si.
+ * Les films, séries et directs HTTP utilisent le même moteur natif :
+ * ExoPlayer conserve ainsi la lecture quand l'activité passe en PiP.
+ * La WebView reste le moteur de repli sur le Web et iOS.
  */
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
@@ -14,6 +15,7 @@ export interface NativeVodPlayerPlugin {
   setVolume(options: { value: number }): Promise<void>;
   setMuted(options: { value: boolean }): Promise<void>;
   setResizeMode(options: { mode: string }): Promise<void>;
+  enterPictureInPicture(): Promise<void>;
   release(): Promise<void>;
   addListener(
     event: 'ready' | 'time' | 'playing' | 'paused' | 'buffering' | 'ended' | 'error',
@@ -30,6 +32,6 @@ export interface NativeVodEvent {
 
 export const NativeVodPlayer = registerPlugin<NativeVodPlayerPlugin>('NativeVodPlayer');
 
-export function shouldUseNativeVod(isLive: boolean): boolean {
-  return !isLive && Capacitor.isNativePlatform();
+export function shouldUseNativeVod(_isLive: boolean): boolean {
+  return Capacitor.getPlatform() === 'android';
 }

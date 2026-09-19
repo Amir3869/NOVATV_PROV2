@@ -24,7 +24,7 @@ import {
   shouldUseNativeVod,
   type NativeVodEvent,
 } from '@/services/player/nativeVodPlayer';
-import { DEFAULT_VIDEO_FIT, type VideoFitMode } from '@/services/player/videoFit';
+import { DEFAULT_VIDEO_FIT, resolveVideoFit, type VideoFitMode } from '@/services/player/videoFit';
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { PlaybackErrorKind } from '@/services/player/playbackEngine';
 
@@ -114,8 +114,8 @@ export interface UseVideoPlayerOptions {
   /**
    * Ajustement de l'image (contain / cover / fill).
    *
-   * Sur le direct, c'est du CSS. Sur un film/série Android, ExoPlayer
-   * ignore le CSS : le mode est envoyé au plugin natif.
+   * Sur le Web, c'est du CSS. Sur Android, ExoPlayer ignore le CSS :
+   * le mode est envoyé au plugin natif pour les films, séries et directs.
    */
   videoFit?: VideoFitMode;
 }
@@ -173,7 +173,7 @@ export interface VideoPlayerState {
    */
   subtitles: SubtitleSnapshot;
   /**
-   * Vrai quand ExoPlayer peint sous la WebView (VOD Android).
+   * Vrai quand ExoPlayer peint sous la WebView (Android).
    * L'écran doit alors rendre le chrome transparent et cacher `<video>`.
    */
   usesNativeSurface: boolean;
@@ -223,6 +223,8 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     onQualityHeight,
     videoFit = DEFAULT_VIDEO_FIT,
   } = options;
+
+  const resolvedVideoFit = resolveVideoFit(videoFit);
 
   const attachmentRef = useRef<Attachment | null>(null);
   /**
@@ -278,7 +280,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
   const qualitySourceRef = useRef<QualitySource | null>(null);
   const onQualityHeightRef = useRef(onQualityHeight);
   const onEndedRef = useRef(onEnded);
-  const videoFitRef = useRef(videoFit);
+  const videoFitRef = useRef(resolvedVideoFit);
 
   /**
    * Verrou : les préférences ne s'appliquent qu'une fois par vidéo.
@@ -310,10 +312,10 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     trackPreferencesRef.current = trackPreferences;
     onEndedRef.current = onEnded;
     onQualityHeightRef.current = onQualityHeight;
-    videoFitRef.current = videoFit;
+    videoFitRef.current = resolvedVideoFit;
     currentTimeRef.current = currentTime;
     durationRef.current = duration;
-  }, [onProgress, resumeAt, trackPreferences, onEnded, onQualityHeight, videoFit, currentTime, duration]);
+  }, [onProgress, resumeAt, trackPreferences, onEnded, onQualityHeight, resolvedVideoFit, currentTime, duration]);
 
   // Attachement du flux.
   useEffect(() => {
@@ -487,7 +489,8 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoRef, url, isLive, streamType, retryToken]);
 
-  // VOD Android : ExoPlayer sous la WebView (AC-3). Le chrome HTML reste.
+  // Android : ExoPlayer sous la WebView pour les VOD et les directs.
+  // Le chrome HTML reste au-dessus de la surface native.
   useEffect(() => {
     if (!shouldUseNativeVod(isLive) || !url) return;
 
@@ -564,10 +567,10 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
   // Ajustement ExoPlayer : le CSS `object-fit` ne traverse pas la surface native.
   useEffect(() => {
     if (!shouldUseNativeVod(isLive)) return;
-    void NativeVodPlayer.setResizeMode({ mode: videoFit }).catch(() => {
+    void NativeVodPlayer.setResizeMode({ mode: resolvedVideoFit }).catch(() => {
       /* Ancien APK sans la méthode : l'image reste en FIT. */
     });
-  }, [videoFit, isLive]);
+  }, [resolvedVideoFit, isLive]);
 
   // Abonnement aux événements de la balise.
   useEffect(() => {

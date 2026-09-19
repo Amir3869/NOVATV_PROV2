@@ -13,12 +13,22 @@ describe('pickHomeChannels', () => {
   it('place les listes avant les favoris, sans doublon', () => {
     const r = pickHomeChannels(catalog, ['c', 'a'], ['a', 'd']);
     expect(r.source).toBe('personal');
-    expect(r.items.map((c) => c.id)).toEqual(['c', 'a', 'd']);
+    expect(r.items.map((c) => c.id)).toEqual(['c', 'a']);
   });
 
   it('ignore les identifiants absents du catalogue', () => {
     const r = pickHomeChannels(catalog, ['ghost', 'b'], ['nope']);
     expect(r.items.map((c) => c.id)).toEqual(['b']);
     expect(r.source).toBe('personal');
+  });
+
+  it('utilise les favoris puis les dernières chaînes regardées', () => {
+    const favorite = pickHomeChannels(catalog, [], ['d'], 2, ['c', 'a']);
+    expect(favorite.source).toBe('favorites');
+    expect(favorite.items.map((c) => c.id)).toEqual(['d']);
+
+    const recent = pickHomeChannels(catalog, [], [], 2, ['c', 'a']);
+    expect(recent.source).toBe('recent');
+    expect(recent.items.map((c) => c.id)).toEqual(['c', 'a']);
   });
 });

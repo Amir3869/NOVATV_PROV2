@@ -59,24 +59,32 @@ export function HomePage() {
       if (fav.profileId !== profileId) continue;
       if (fav.mediaType === 'channel') favoriteChannelIds.push(fav.mediaId);
     }
-    return pickHomeChannels(channels, listChannelIds, favoriteChannelIds, 20);
-  }, [channels, customLists, favorites, profileId]);
+    const recentChannelIds = watchHistory
+      .filter((entry) => entry.profileId === profileId && entry.mediaType === 'live')
+      .sort((a, b) => new Date(b.watchedAt).getTime() - new Date(a.watchedAt).getTime())
+      .map((entry) => entry.mediaId);
+
+    return pickHomeChannels(
+      channels,
+      listChannelIds,
+      favoriteChannelIds,
+      20,
+      recentChannelIds,
+    );
+  }, [channels, customLists, favorites, profileId, watchHistory]);
 
   const homeChannels = React.useMemo(
     () => enrichLiveChannels(homePick.items, epgPrograms, nowMs),
     [homePick.items, epgPrograms, nowMs]
   );
-  const homeHasListChannels = customLists.some(
-    (list) =>
-      list.profileId === profileId &&
-      list.items.some((item) => item.mediaType === 'channel')
-  );
   const homeSeeAll =
     homePick.source === 'personal'
-      ? homeHasListChannels
-        ? '/lists'
-        : '/favorites'
-      : '/live';
+      ? '/lists'
+      : homePick.source === 'favorites'
+        ? '/favorites'
+        : homePick.source === 'recent'
+          ? '/history'
+          : '/live';
 
   // Les données enregistrées sont relues après le premier rendu.
   // Tant que ce n'est pas fait, on ne sait pas si l'utilisateur a une
@@ -172,7 +180,7 @@ export function HomePage() {
     <div key={activePlaylistId} className="home-page min-h-screen">
       {featured.length > 0 && <HeroBanner items={featured} />}
 
-      <div className="px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-12 md:space-y-14">
+      <div className="home-page-content px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-12 md:space-y-14">
         {continueWatching.length > 0 && (
           <section>
             <SectionHeader
@@ -185,6 +193,7 @@ export function HomePage() {
               {continueWatching.map((item) => (
                 <ContinueWatchingCard
                   key={item.id}
+                  className="home-continue-card"
                   title={item.title}
                   thumbnail={item.thumbnail}
                   percent={item.percent}
@@ -201,7 +210,11 @@ export function HomePage() {
               title={
                 homePick.source === 'personal'
                   ? t('home.myChannels')
-                  : t('liveTV.channelCount', { count: channels.length })
+                  : homePick.source === 'favorites'
+                    ? t('home.myFavorites')
+                    : homePick.source === 'recent'
+                      ? t('liveTV.recent')
+                      : t('liveTV.channelCount', { count: channels.length })
               }
               accent
               onSeeAll={() => router.push(homeSeeAll)}
@@ -213,7 +226,7 @@ export function HomePage() {
                   key={channel.id}
                   channel={channel}
                   variant="grid"
-                  className="w-32 shrink-0 sm:w-40 md:w-48"
+                  className="home-channel-card w-32 shrink-0 sm:w-40 md:w-48"
                 />
               ))}
             </div>
@@ -230,7 +243,7 @@ export function HomePage() {
             />
             <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">
               {movies.slice(0, 20).map((movie) => (
-                <MovieCard key={movie.id} movie={movie} />
+                <MovieCard key={movie.id} movie={movie} className="home-media-card" />
               ))}
             </div>
           </section>
@@ -246,7 +259,7 @@ export function HomePage() {
             />
             <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">
               {series.slice(0, 20).map((item) => (
-                <SeriesCard key={item.id} series={item} />
+                <SeriesCard key={item.id} series={item} className="home-media-card" />
               ))}
             </div>
           </section>
@@ -262,10 +275,10 @@ export function HomePage() {
             />
             <div className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none pb-2 -mx-4 px-4">
               {favoriteMovies.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} />
+                <MovieCard key={movie.id} movie={movie} className="home-media-card" />
               ))}
               {favoriteSeries.map((item) => (
-                <SeriesCard key={item.id} series={item} />
+                <SeriesCard key={item.id} series={item} className="home-media-card" />
               ))}
             </div>
           </section>

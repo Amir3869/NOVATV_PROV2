@@ -687,7 +687,7 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
     });
     expect(result.counts.channels).toBe(1);
     expect(result.catalog.channels[0].name).toBe('TF1');
-    expect(result.catalog.liveCategories.map((c) => c.name).sort()).toEqual(['FR | TF1', 'France']);
+    expect(result.catalog.liveCategories.map((c) => c.name).sort()).toEqual(['FR | TF1']);
   });
 
   it('ignore une catégorie cochée que le serveur ne connaît plus', async () => {

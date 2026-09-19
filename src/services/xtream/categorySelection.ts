@@ -262,6 +262,50 @@ export function expandWithChildren(
   return [...selected];
 }
 
+/**
+ * Retire les parents purement structurels du catalogue affiché.
+ *
+ * Certains portails présentent une famille comme `FR`, puis ses 27
+ * catégories enfants. Le parent sert à la sélection et à l'appel API,
+ * mais ne porte aucun flux direct : l'afficher dans l'annuaire créerait
+ * une colonne intermédiaire vide et obligerait l'utilisateur à ouvrir
+ * une catégorie qui ne contient rien.
+ *
+ * Les parents qui ont aussi des contenus directs restent visibles. La
+ * sélection d'origine n'est pas modifiée : cette fonction ne touche
+ * qu'à la liste de catégories destinée au catalogue.
+ */
+export function hideEmptyParentCategories(
+  categories: XtreamCategory[],
+  contentCategoryIds: ReadonlySet<string>,
+): (XtreamCategory & { preventInferredParent?: boolean })[] {
+  const parentIds = new Set(
+    categories
+      .filter((category) => category.parentId > 0)
+      .map((category) => String(category.parentId)),
+  );
+
+  const visibleIds = new Set(
+    categories
+      .filter(
+        (category) =>
+          !parentIds.has(category.categoryId) || contentCategoryIds.has(category.categoryId),
+      )
+      .map((category) => category.categoryId),
+  );
+
+  return categories
+    .filter(
+      (category) =>
+        !parentIds.has(category.categoryId) || contentCategoryIds.has(category.categoryId),
+    )
+    .map((category) =>
+      category.parentId > 0 && !visibleIds.has(String(category.parentId))
+        ? { ...category, preventInferredParent: true }
+        : category,
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Recherche et regroupement
 // ─────────────────────────────────────────────────────────────────────

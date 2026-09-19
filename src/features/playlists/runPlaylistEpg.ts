@@ -14,6 +14,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { secureStore } from '@/lib/secureStore';
 import {
   syncEPG,
+  syncXtreamShortEPG,
   buildXtreamEPGUrl,
   applyLogoFallbacks,
   toEPGErrorKind,
@@ -28,6 +29,49 @@ function currentLocale() {
   return isLocale(language) ? language : DEFAULT_LOCALE;
 }
 
+function categoryIdMatchesRaw(categoryId: string, rawId: string): boolean {
+  return categoryId === rawId || categoryId.endsWith(`:livecat:${rawId}`);
+}
+
+/**
+ * Limite le guide aux chaînes réellement retenues par la sélection de la
+ * source. La sélection peut contenir un parent (`FR`) : les catégories
+ * enfants présentes dans le catalogue sont alors ajoutées par relation
+ * parent/enfant, sans télécharger l'EPG des autres familles.
+ */
+function channelsForSelectedLiveCategories(
+  state: ReturnType<typeof useAppStore.getState>,
+  playlistId: string,
+): ReturnType<typeof useAppStore.getState>['channels'] {
+  const playlist = state.playlists.find((item) => item.id === playlistId);
+  const selection = playlist?.xtream?.categorySelection;
+  const channels = state.channels.filter((channel) => channel.playlistId === playlistId);
+
+  if (!selection) return channels;
+  if (selection.live.length === 0) return [];
+
+  const categories = state.liveCategories.filter((category) => category.playlistId === playlistId);
+  const selectedIds = new Set(
+    selection.live.flatMap((rawId) => [rawId, `${playlistId}:livecat:${rawId}`]),
+  );
+  categories
+    .filter((category) => selection.live.some((rawId) => categoryIdMatchesRaw(category.id, rawId)))
+    .forEach((category) => selectedIds.add(category.id));
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const category of categories) {
+      if (!category.parentId || selectedIds.has(category.id)) continue;
+      if (!selectedIds.has(category.parentId)) continue;
+      selectedIds.add(category.id);
+      changed = true;
+    }
+  }
+
+  return channels.filter((channel) => Boolean(channel.categoryId && selectedIds.has(channel.categoryId)));
+}
+
 export async function runPlaylistEpg(
   playlistId: string,
   options: Pick<EPGSyncOptions, 'onProgress' | 'signal'> = {}
@@ -36,28 +80,54 @@ export async function runPlaylistEpg(
   const playlist = state.playlists.find((p) => p.id === playlistId);
   if (!playlist) return null;
 
-  const channels = state.channels.filter((c) => c.playlistId === playlistId);
+  const channels = channelsForSelectedLiveCategories(state, playlistId);
   if (channels.length === 0) return null;
 
   let url: string | null = null;
+  let xtreamCredentials: { serverUrl: string; username: string; password: string } | null = null;
   if (playlist.type === 'xtream' && playlist.xtream) {
     const password = await secureStore.getPlaylistPassword(playlistId);
     if (!password) return null;
-    url = buildXtreamEPGUrl({
+    xtreamCredentials = {
       serverUrl: playlist.xtream.serverUrl,
       username: playlist.xtream.username,
       password,
-    });
+    };
+    url = buildXtreamEPGUrl(xtreamCredentials);
   } else if (playlist.m3u?.epgUrl) {
     url = playlist.m3u.epgUrl;
   }
   if (!url) return null;
 
-  const result = await syncEPG(url, channels, playlistId, {
-    onProgress: options.onProgress,
-    signal: options.signal,
-    keepAheadDays: state.preferences.epgDays,
-  });
+  let result: EPGSyncResult;
+  const hasExplicitLiveSelection = Boolean(playlist.xtream?.categorySelection);
+
+  if (xtreamCredentials && hasExplicitLiveSelection) {
+    // Une sélection de catégories signifie que le XMLTV global serait
+    // disproportionné : interroger uniquement les chaînes importées
+    // évite de télécharger plusieurs centaines de mégaoctets pour en
+    // conserver une petite partie.
+    result = await syncXtreamShortEPG(xtreamCredentials, channels, playlistId, {
+      signal: options.signal,
+      keepAheadDays: state.preferences.epgDays,
+    });
+  } else {
+    try {
+      result = await syncEPG(url, channels, playlistId, {
+        onProgress: options.onProgress,
+        signal: options.signal,
+        keepAheadDays: state.preferences.epgDays,
+      });
+    } catch (error) {
+      // Certains portails Xtream exposent get_short_epg mais refusent ou
+      // désactivent xmltv.php. On tente alors un guide court par chaîne.
+      if (!xtreamCredentials || toEPGErrorKind(error) === 'aborted') throw error;
+      result = await syncXtreamShortEPG(xtreamCredentials, channels, playlistId, {
+        signal: options.signal,
+        keepAheadDays: state.preferences.epgDays,
+      });
+    }
+  }
   const store = useAppStore.getState();
   store.setEpgPrograms(playlistId, result.programs);
   const latest = store.channels.filter((c) => c.playlistId === playlistId);
