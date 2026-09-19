@@ -39,14 +39,24 @@ export function normalizeM3uUrl(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return '';
 
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  // Certains fournisseurs ajoutent le slash final après la requête
+  // (`get.php?u=1/`) plutôt que dans le chemin. Il reste décoratif
+  // pour l'identité du lien, comme un slash final de chemin.
+  const canonicalInput = trimmed.replace(/\/+$/, '');
+  const withScheme = /^https?:\/\//i.test(canonicalInput)
+    ? canonicalInput
+    : `http://${canonicalInput}`;
   try {
     const parsed = new URL(withScheme);
     parsed.hash = '';
     const path = parsed.pathname.replace(/\/+$/, '');
-    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${parsed.search}`;
+    // Certains liens M3U ajoutent aussi un slash décoratif à la fin de
+    // la valeur de requête (`?u=1/`). Il ne doit pas empêcher de détecter
+    // le doublon du même lien.
+    const search = parsed.search.replace(/\/+$/, '');
+    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${search}`;
   } catch {
-    return trimmed.replace(/\/+$/, '');
+    return canonicalInput;
   }
 }
 

@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Plus, Trash2, Edit2, Play } from 'lucide-react';
+import { BookOpen, Edit2, Film, Grid2X2, Plus, Play, Radio, Search, Trash2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { EmptyState } from '@/design-system/components/EmptyState';
-import { ChannelCard } from '@/design-system/components/MediaCard';
+import { ChannelCard, MovieCard, SeriesCard } from '@/design-system/components/MediaCard';
+import { VirtualGrid } from '@/design-system/components/VirtualGrid';
 import { useAppStore } from '@/store/useAppStore';
 import { resolveProfileId } from '@/lib/profileScope';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
@@ -37,28 +38,50 @@ export function CustomListsPage() {
   const [draftName, setDraftName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [addMediaOpen, setAddMediaOpen] = useState(false);
+  const [mobileDirectoryOpen, setMobileDirectoryOpen] = useState(true);
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'channel' | 'movie' | 'series'>('all');
 
   const profileId = resolveProfileId(activeProfileId, firstProfileId);
   const profileLists = customLists.filter((l) => l.profileId === profileId);
-  const selectedList = profileLists.find((l) => l.id === selectedListId);
+  const selectedList = profileLists.find((l) => l.id === selectedListId) ?? profileLists[0];
+  const resolvedSelectedListId = selectedList?.id ?? null;
+
+  const resolvedItems = selectedList
+    ? resolveListItems(selectedList, {
+        channels: allChannels,
+        movies: allMovies,
+        series: allSeries,
+      })
+    : [];
+  const filteredItems = mediaFilter === 'all'
+    ? resolvedItems
+    : resolvedItems.filter((item) => item.mediaType === mediaFilter);
 
   const hydrated = useHydrated();
+
+  const selectList = (listId: string) => {
+    setAddMediaOpen(false);
+    setRenaming(false);
+    setConfirmDelete(false);
+    setMediaFilter('all');
+    setSelectedListId(listId);
+    setMobileDirectoryOpen(false);
+  };
+
+  const commitRename = () => {
+    if (!selectedList) return;
+    const trimmed = draftName.trim();
+    if (trimmed && trimmed !== selectedList.name) {
+      updateCustomList(selectedList.id, { name: trimmed });
+      toast.success(t('lists.renamed'));
+    }
+    setRenaming(false);
+  };
 
   if (!hydrated || !catalogReady) return <ListPageSkeleton rows={4} />;
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 min-h-11 px-4 py-2.5 bg-accent text-white on-accent text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          {t('lists.newList')}
-        </button>
-      </div>
-
+    <div className="lists-page min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10">
       {profileLists.length === 0 ? (
         <EmptyState
           emoji="📋"
@@ -67,169 +90,215 @@ export function CustomListsPage() {
           action={{ label: t('lists.create'), onClick: () => setShowCreate(true) }}
         />
       ) : (
-        <div className="space-y-3">
-          {profileLists.map((list) => {
-            const open = list.id === selectedListId;
-            const listHasItems = list.items.length > 0;
-            return (
-              <div
-                key={list.id}
-                className="rounded-2xl border border-line bg-surface-1"
+        <div className="lists-browse-layout">
+          <aside className="lists-directory min-w-0">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-bold text-white">{t('lists.title')}</h2>
+                <p className="mt-0.5 text-xs text-white/40">
+                  {t(profileLists.length === 1 ? 'lists.listCount' : 'lists.listCountPlural', { count: profileLists.length })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                aria-label={t('lists.newList')}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <div className="flex items-center gap-2 px-2 py-1">
-                  {open && renaming ? (
-                    <div className="flex-1 min-w-0 flex items-center gap-3 px-1 py-1.5">
-                      <span className="text-lg flex-shrink-0">{list.icon || '📋'}</span>
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMobileDirectoryOpen((open) => !open)}
+              aria-expanded={mobileDirectoryOpen}
+              className="lists-mobile-current mb-2 flex min-h-12 w-full items-center gap-3 rounded-2xl border border-line bg-surface-1/95 px-3 text-start shadow-lg shadow-black/10 backdrop-blur-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Grid2X2 className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                  {mobileDirectoryOpen ? t('common.close') : t('lists.changeList')}
+                </span>
+                <span className="block truncate text-sm font-semibold text-white">
+                  {selectedList?.name ?? t('lists.selectList')}
+                </span>
+              </span>
+            </button>
+
+            <div className={cn('lists-directory-list', mobileDirectoryOpen && 'lists-directory-list-open')}>
+              {profileLists.map((list) => {
+                const active = list.id === resolvedSelectedListId;
+                return (
+                  <button
+                    key={list.id}
+                    type="button"
+                    onClick={() => selectList(list.id)}
+                    aria-pressed={active}
+                    className={cn(
+                      'flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                      active
+                        ? 'border-s-2 border-accent bg-accent/15 text-white'
+                        : 'text-white/70 hover:bg-surface-2 hover:text-white',
+                    )}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-lg">
+                      {list.icon || '📋'}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{list.name}</span>
+                      <span className="block truncate text-xs text-white/40">
+                        {t(list.items.length === 1 ? 'lists.itemCountSingular' : 'lists.itemCount', { count: list.items.length })}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <main className="lists-content min-w-0">
+            {!selectedList ? (
+              <section className="flex min-h-72 items-center justify-center rounded-3xl border border-line bg-surface-1 p-6 text-center">
+                <div className="max-w-sm">
+                  <Grid2X2 className="mx-auto mb-4 h-8 w-8 text-accent/70" />
+                  <h2 className="text-lg font-bold text-white">{t('lists.selectList')}</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-white/45">{t('lists.selectListDescription')}</p>
+                </div>
+              </section>
+            ) : (
+              <>
+                <section className="lists-content-header mb-5 border-b border-line pb-4">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-xl">
+                      {selectedList.icon || '📋'}
+                    </span>
+                    {renaming ? (
                       <input
                         type="text"
                         value={draftName}
                         autoFocus
                         aria-label={t('lists.name')}
-                        onChange={(e) => setDraftName(e.target.value)}
-                        onBlur={() => {
-                          const trimmed = draftName.trim();
-                          if (trimmed && trimmed !== list.name) {
-                            updateCustomList(list.id, { name: trimmed });
-                            toast.success(t('lists.renamed'));
-                          }
-                          setRenaming(false);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            e.currentTarget.blur();
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault();
+                        onChange={(event) => setDraftName(event.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitRename();
+                          } else if (event.key === 'Escape') {
+                            event.preventDefault();
                             setRenaming(false);
                           }
                         }}
-                        className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-white/10 border border-accent/50 text-sm font-medium text-white focus:outline-none"
+                        className="min-w-0 flex-1 rounded-xl border border-accent/50 bg-white/10 px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-accent"
                       />
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddMediaOpen(false);
-                        setRenaming(false);
-                        setConfirmDelete(false);
-                        setSelectedListId((current) => (current === list.id ? null : list.id));
-                      }}
-                      className="flex-1 min-w-0 flex items-center gap-3 px-1 py-1.5 text-left"
-                    >
-                      <span className="text-lg flex-shrink-0">{list.icon || '📋'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{list.name}</p>
-                        <p className="text-xs text-white/40">
-                          {t(list.items.length > 1 ? 'lists.itemCount' : 'lists.itemCountSingular', { count: list.items.length })}
+                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <h2 className="truncate text-lg font-bold text-white">{selectedList.name}</h2>
+                        <p className="text-xs text-white/45">
+                          {t(selectedList.items.length === 1 ? 'lists.itemCountSingular' : 'lists.itemCount', { count: selectedList.items.length })}
                         </p>
                       </div>
-                    </button>
-                  )}
-                  {open && (
-                    <div className="flex gap-1 flex-shrink-0">
-                      {listHasItems && (
-                        <button
-                          type="button"
-                          onClick={() => setAddMediaOpen((v) => !v)}
-                          className="min-h-11 px-3 rounded-xl bg-accent text-white on-accent text-xs font-semibold hover:bg-accent-hover transition-colors"
-                        >
-                          {t('lists.manage')}
-                        </button>
-                      )}
+                    )}
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setAddMediaOpen(true)}
+                        className="hidden min-h-11 rounded-xl bg-accent px-3 text-xs font-semibold text-white on-accent transition hover:bg-accent-hover sm:inline-flex sm:items-center sm:gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {t('lists.addContent')}
+                      </button>
                       <button
                         type="button"
                         aria-label={t('lists.renameList')}
-                        disabled={renaming}
                         onClick={() => {
-                          setDraftName(list.name);
+                          setDraftName(selectedList.name);
                           setRenaming(true);
                         }}
-                        className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 text-white/45 transition hover:bg-white/10 hover:text-white"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
                         aria-label={t('lists.deleteList')}
                         onClick={() => setConfirmDelete(true)}
-                        className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-900/10 transition-colors"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 text-white/35 transition hover:bg-red-900/10 hover:text-red-400"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAddMediaOpen(true)}
+                    className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 text-xs font-semibold text-white on-accent transition hover:bg-accent-hover sm:hidden"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t('lists.addContent')}
+                  </button>
+                </section>
+
+                <div className="lists-filter-bar mb-5 flex flex-wrap items-center gap-2" role="tablist" aria-label={t('lists.title')}>
+                  {[
+                    { id: 'all' as const, label: t('common.all'), icon: Grid2X2 },
+                    { id: 'channel' as const, label: t('lists.channelsTab'), icon: Radio },
+                    { id: 'movie' as const, label: t('lists.moviesTab'), icon: Film },
+                    { id: 'series' as const, label: t('lists.seriesTab'), icon: BookOpen },
+                  ].map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={mediaFilter === id}
+                      onClick={() => setMediaFilter(id)}
+                      className={cn(
+                        'flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:gap-2',
+                        mediaFilter === id ? 'border-accent/40 bg-accent/15 text-white' : 'border-line text-white/45 hover:bg-white/5 hover:text-white/80',
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{label}</span>
+                    </button>
+                  ))}
                 </div>
 
-                {open && (
-                  <div className="border-t border-line px-2 pb-2 pt-1">
-                    {!listHasItems ? (
-                      <div className="flex justify-center py-6">
-                        <button
-                          type="button"
-                          onClick={() => setAddMediaOpen(true)}
-                          className="flex items-center gap-2 min-h-11 px-5 rounded-xl bg-accent text-white on-accent text-sm font-semibold hover:bg-accent-hover transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                          {t('lists.addContent')}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="overflow-hidden rounded-xl border border-line bg-surface-2 divide-y divide-line">
-                        {resolveListItems(list, {
-                          channels: allChannels,
-                          movies: allMovies,
-                          series: allSeries,
-                        }).map((item) => {
-                          if (item.status === 'missing') {
-                            return (
-                              <div key={item.itemId} className="flex items-center gap-3 p-3">
-                                <div className="w-16 h-10 rounded-lg bg-surface-3 flex-shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm text-white/50 truncate">{t('lists.missingFromCatalog')}</p>
-                                </div>
-                              </div>
-                            );
-                          }
-                          if (item.mediaType === 'channel') {
-                            return (
-                              <ChannelCard
-                                key={item.itemId}
-                                channel={item.data}
-                                variant="list"
-                                className="rounded-none border-0"
-                                listId={list.id}
-                              />
-                            );
-                          }
-                          if (item.mediaType === 'movie') {
-                            return (
-                              <VodListRow
-                                key={item.itemId}
-                                href={`/movies?id=${encodeURIComponent(item.data.id)}`}
-                                image={item.data.logo}
-                                name={item.data.name}
-                                badge={t('common.badgeMovie')}
-                              />
-                            );
-                          }
-                          return (
-                            <VodListRow
-                              key={item.itemId}
-                              href={`/series?id=${encodeURIComponent(item.data.id)}`}
-                              image={item.data.cover}
-                              name={item.data.name}
-                              badge={t('common.badgeSeries')}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                {!selectedList.items.length ? (
+                  <EmptyState
+                    emoji="📋"
+                    title={t('lists.emptyList')}
+                    description={t('lists.emptyListDescription')}
+                    action={{ label: t('lists.addContent'), onClick: () => setAddMediaOpen(true) }}
+                  />
+                ) : filteredItems.length === 0 ? (
+                  <EmptyState emoji="🔎" title={t('lists.noneFound')} description={t('lists.searchPlaceholder')} />
+                ) : (
+                  <VirtualGrid
+                    items={filteredItems}
+                    getKey={(item) => item.itemId}
+                    renderItem={(item) => {
+                      if (item.status === 'missing') {
+                        return (
+                          <div className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-line bg-surface-1 p-4 text-center">
+                            <Search className="mb-2 h-5 w-5 text-white/25" />
+                            <p className="text-xs text-white/45">{t('lists.missingFromCatalog')}</p>
+                          </div>
+                        );
+                      }
+                      if (item.mediaType === 'channel') {
+                        return <ChannelCard channel={item.data} variant="grid" className="w-full" listId={selectedList.id} />;
+                      }
+                      if (item.mediaType === 'movie') {
+                        return <MovieCard movie={item.data} className="w-full" />;
+                      }
+                      return <SeriesCard series={item.data} className="w-full" />;
+                    }}
+                  />
                 )}
-              </div>
-            );
-          })}
+              </>
+            )}
+          </main>
         </div>
       )}
 
@@ -257,7 +326,7 @@ export function CustomListsPage() {
         />
       )}
 
-      {showCreate && <CreateListModal onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); setSelectedListId(id); }} />}
+      {showCreate && <CreateListModal onClose={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); selectList(id); }} />}
     </div>
   );
 }

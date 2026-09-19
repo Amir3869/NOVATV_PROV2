@@ -20,6 +20,10 @@
 
 import type { LiveCategory, LiveChannel, M3UEntry, SourceErrorKind } from '@/types';
 import type { CatalogPayload } from '@/store/useAppStore';
+import {
+  buildCategoryHierarchy,
+  type CategoryHierarchyInput,
+} from '@/services/catalog/categoryHierarchy';
 import { fetchAndParseM3U, parseM3U, type ParseResult } from './m3uParser';
 
 /** Délai au-delà duquel on cesse d'attendre le serveur. */
@@ -34,7 +38,17 @@ const FETCH_TIMEOUT_MS = 60_000;
  * `undefined` qui ne survient jamais.
  */
 export type M3UCatalog = CatalogPayload &
-  Required<Pick<CatalogPayload, 'channels' | 'liveCategories'>>;
+  Required<
+    Pick<
+      CatalogPayload,
+      'channels' |
+        'liveCategories' |
+        'movies' |
+        'movieCategories' |
+        'series' |
+        'seriesCategories'
+    >
+  >;
 
 export interface M3USyncProgress {
   /** `download` puis `parse` : deux attentes de nature différente. */
@@ -247,11 +261,29 @@ export function buildCategories(
     }
   }
 
-  return Array.from(counts.entries()).map(([id, { name, count }]) => ({
-    id,
-    name,
-    channelCount: count,
+  const inputs: CategoryHierarchyInput[] = Array.from(counts.entries()).map(
+    ([id, { name, count }]) => ({
+      id,
+      sourceId: id,
+      name,
+      count,
+    }),
+  );
+  const nodes = buildCategoryHierarchy(inputs, { playlistId, family: 'live' });
+
+  return nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    originalName: node.originalName,
+    channelCount: node.count,
     playlistId,
+    ...(node.parentId ? { parentId: node.parentId } : {}),
+    childIds: node.childIds,
+    level: node.level,
+    path: node.path,
+    relation: node.relation,
+    ...(node.regionCode ? { regionCode: node.regionCode } : {}),
+    qualities: node.qualities,
   }));
 }
 
@@ -271,7 +303,14 @@ function toResult(parsed: ParseResult, playlistId: string): M3USyncResult {
   }
 
   return {
-    catalog: { channels, liveCategories: buildCategories(channels, playlistId) },
+    catalog: {
+      channels,
+      liveCategories: buildCategories(channels, playlistId),
+      movies: [],
+      movieCategories: [],
+      series: [],
+      seriesCategories: [],
+    },
     counts: { channels: channels.length },
     warnings: parsed.errors,
     duplicatesRemoved,

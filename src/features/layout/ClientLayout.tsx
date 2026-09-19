@@ -16,8 +16,10 @@ import { ParentalProvider } from '@/features/parental/ParentalProvider';
 import { isSamePath } from '@/utils/pathname';
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
-  const { isMobile, isTV, isReady } = useDeviceType();
+  const { isMobile, isTV, isReady, orientation, hasTouch, height } = useDeviceType();
   const pathname = usePathname();
+  const isCompactTouchLandscape =
+    isReady && !isTV && hasTouch && orientation === 'landscape' && height <= 600;
 
   /**
    * Le lecteur occupe l'écran entier, sans menu ni barre.
@@ -108,7 +110,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             className={
               isImmersive
                 ? 'flex-1 overflow-hidden'
-                : 'flex-1 overflow-y-auto overflow-x-hidden scrollbar-none pb-28 lg:pb-0'
+                : `flex-1 overflow-y-auto overflow-x-hidden scrollbar-none pb-28 lg:pb-0 ${
+                    isCompactTouchLandscape ? 'compact-touch-landscape-main' : ''
+                  }`
             }
           >
             {children}
@@ -116,7 +120,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {!isImmersive && <BottomNav />}
+      {!isImmersive && !isCompactTouchLandscape && <BottomNav />}
 
       {/* Toast notifications */}
       <Toaster

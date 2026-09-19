@@ -356,11 +356,12 @@ interface ContinueWatchingCardProps {
   percent: number;
   href: string;
   subtitle?: string;
+  className?: string;
 }
 
-export function ContinueWatchingCard({ title, thumbnail, percent, href, subtitle }: ContinueWatchingCardProps) {
+export function ContinueWatchingCard({ title, thumbnail, percent, href, subtitle, className }: ContinueWatchingCardProps) {
   return (
-    <Link href={href} className="group relative flex-shrink-0 w-56 md:w-64">
+    <Link href={href} className={cn('group relative flex-shrink-0 w-56 md:w-64', className)}>
       <div className="relative aspect-video rounded-xl overflow-hidden bg-surface-3">
         <ImageWithFallback
           src={thumbnail}

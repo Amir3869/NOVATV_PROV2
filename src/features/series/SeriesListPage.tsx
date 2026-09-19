@@ -2,9 +2,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
+import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { GridPageSkeleton } from '@/design-system/components/LoadingSkeleton';
-import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
+import { CategoryDirectory, type CategoryDirectoryItem } from '@/design-system/components/CategoryDirectory';
 import { CatalogRail } from '@/design-system/components/CatalogRail';
 import { SeriesCard } from '@/design-system/components/MediaCard';
 import { VirtualGrid } from '@/design-system/components/VirtualGrid';
@@ -18,14 +19,26 @@ import { groupByName, RAIL_PREVIEW } from '@/services/catalog/groupByName';
 
 // Sentinelle interne : jamais affichée telle quelle, donc jamais traduite.
 const ALL_CATEGORY = '__all__';
+const FAVORITES_CATEGORY = '__favorites__';
 
 
 export function SeriesListPage() {
   const { t } = useTranslation();
   const { series: allSeries } = useActiveCatalog();
+  const favorites = useAppStore((s) => s.favorites);
+  const activeProfileId = useAppStore((s) => s.activeProfileId);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL_CATEGORY);
-  const [view, setView] = useState<'grid' | 'list'>('grid');
+  const view = 'grid' as const;
+
+  const favoriteSeriesIds = useMemo(
+    () => new Set(
+      favorites
+        .filter((favorite) => favorite.mediaType === 'series' && favorite.profileId === activeProfileId)
+        .map((favorite) => favorite.mediaId),
+    ),
+    [favorites, activeProfileId],
+  );
 
   const uncategorized = t('series.uncategorized');
   const rails = useMemo(
@@ -36,7 +49,9 @@ export function SeriesListPage() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return allSeries.filter((s) => {
-      if (category !== ALL_CATEGORY && s.categoryName !== category && !s.genre?.includes(category)) {
+      if (category === FAVORITES_CATEGORY) {
+        if (!favoriteSeriesIds.has(s.id) && !s.isFavorite) return false;
+      } else if (category !== ALL_CATEGORY && s.categoryName !== category && !s.genre?.includes(category)) {
         return false;
       }
       if (search && !s.name.toLowerCase().includes(q) && !s.cast?.toLowerCase().includes(q)) {
@@ -44,7 +59,28 @@ export function SeriesListPage() {
       }
       return true;
     });
-  }, [search, category, allSeries]);
+  }, [search, category, allSeries, favoriteSeriesIds]);
+
+  const directoryCategories = useMemo<CategoryDirectoryItem[]>(
+    () => [
+      {
+        id: ALL_CATEGORY,
+        label: t('common.all'),
+        count: allSeries.length,
+      },
+      {
+        id: FAVORITES_CATEGORY,
+        label: t('common.favorites'),
+        count: allSeries.filter((series) => favoriteSeriesIds.has(series.id) || series.isFavorite).length,
+      },
+      ...rails.map((rail) => ({
+        id: rail.name,
+        label: rail.name,
+        count: rail.items.length,
+      })),
+    ],
+    [allSeries, favoriteSeriesIds, rails, t],
+  );
 
   const inProgress = allSeries.filter((s) => s.lastWatchedEpisodeId);
   const browsing = !search && category === ALL_CATEGORY;
@@ -57,22 +93,20 @@ export function SeriesListPage() {
 
   return (
     <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
-      <CatalogToolbar
-        heading={t('series.title')}
-        hideCategories
-        allLabel={t('common.all')}
-        categories={[]}
-        activeId={null}
-        onSelect={() => {}}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder={t('series.searchPlaceholder')}
-        searchLabel={t('nav.search')}
-        view={view}
-        onViewChange={setView}
-        listLabel={t('liveTV.listView')}
-        gridLabel={t('liveTV.gridView')}
-      />
+      <div className="category-browse-layout">
+        <CategoryDirectory
+          title={t('liveTV.categories')}
+          subtitle={t('series.count', { count: allSeries.length })}
+          categories={directoryCategories}
+          activeId={category}
+          onSelect={setCategory}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder={t('series.searchPlaceholder')}
+          searchLabel={t('nav.search')}
+          className="mb-4 md:mb-0"
+        />
+        <div className="catalog-category-content space-y-8 md:space-y-10">
 
       {browsing && inProgress.length > 0 && (
         <CatalogRail title={t('series.inProgress')}>
@@ -150,6 +184,8 @@ export function SeriesListPage() {
           )}
         </section>
       )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import React from 'react';
 import {
   User, Globe, Palette,
   ChevronRight, Volume2, Wifi, Monitor,
-  Sun, Moon, Laptop, Ratio, Radio
+  Sun, Moon, Laptop, Ratio, Radio, CalendarDays, History
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/utils/cn';
@@ -60,7 +60,7 @@ function SettingsRow({ label, description, icon: Icon, rightElement, onClick, hr
   const interactive = Boolean(onClick || href);
 
   const rowClassName = cn(
-    'w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-left transition-all',
+    'settings-row w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-left transition-all',
     interactive ? 'hover:bg-white/5 cursor-pointer' : 'cursor-default',
     className
   );
@@ -114,9 +114,9 @@ function Toggle2({ value, onChange, label }: { value: boolean; onChange: (v: boo
   );
 }
 
-function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+function SettingsSection({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <GlassCard variant="glass" padding="none" className="overflow-hidden">
+    <GlassCard variant="glass" padding="none" className={cn('overflow-hidden', className)}>
       <div className="px-4 py-3 border-b border-white/5">
         <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">{title}</p>
       </div>
@@ -152,7 +152,7 @@ function SettingsChoice<T extends string | number>({
   const many = options.length >= 4;
 
   return (
-    <div className="space-y-3 px-4 py-3.5">
+    <div className="settings-choice space-y-3 px-4 py-3.5">
       <div className="flex items-center gap-4">
         {Icon && (
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/5">
@@ -267,33 +267,50 @@ export function SettingsPage() {
   if (!hydrated) return <ListPageSkeleton rows={5} />;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-2xl space-y-6 bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10">
+    <div className="settings-page mx-auto min-h-screen w-full max-w-2xl space-y-6 bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10">
       <h1 className="text-2xl font-black text-white">{t('settings.title')}</h1>
 
-      {/* Profile */}
-      <SettingsSection title={t('settings.profile')}>
-        <SettingsRow
-          icon={User}
-          label={profile?.name || t('settings.profile')}
-          description={profile?.isKidsProfile ? t('settings.profileKid') : t('settings.profileAdult')}
-          rightElement={profile ? <Avatar profile={profile} size="xs" /> : undefined}
-          href="/profiles"
-        />
-        <SettingsRow
-          icon={Radio}
-          label={t('settings.sources')}
-          description={t('settings.sourcesDescription')}
-          href="/playlists"
-        />
-        {/* « Controle parental » a ete retire du menu. Le champ `pinHash`
-            existe dans le type `Profile` mais rien ne l'ecrit ni ne le
-            lit : aucun ecran n'est protege. Une ligne de reglage laissait
-            croire a un verrou inexistant, ce qui est pire que son
-            absence — un parent aurait pu s'y fier. Elle reviendra avec le
-            code PIN reel (hachage PBKDF2, verrouillage des profils). */}
-      </SettingsSection>
+      <div className="settings-layout">
+        <div className="settings-column">
+          {/* Profile */}
+          <SettingsSection title={t('settings.profile')}>
+            <SettingsRow
+              icon={User}
+              label={profile?.name || t('settings.profile')}
+              description={profile?.isKidsProfile ? t('settings.profileKid') : t('settings.profileAdult')}
+              rightElement={profile ? <Avatar profile={profile} size="xs" /> : undefined}
+              href="/profiles"
+            />
+            {/* « Controle parental » a ete retire du menu. Le champ `pinHash`
+                existe dans le type `Profile` mais rien ne l'ecrit ni ne le
+                lit : aucun ecran n'est protege. Une ligne de reglage laissait
+                croire a un verrou inexistant, ce qui est pire que son
+                absence — un parent aurait pu s'y fier. Elle reviendra avec le
+                code PIN reel (hachage PBKDF2, verrouillage des profils). */}
+          </SettingsSection>
 
-      {/* Playback */}
+          <SettingsSection title={t('settings.quickAccess')}>
+            <SettingsRow
+              icon={Radio}
+              label={t('settings.sources')}
+              description={t('settings.sourcesDescription')}
+              href="/playlists"
+            />
+            <SettingsRow
+              icon={CalendarDays}
+              label={t('nav.epg')}
+              description={t('settings.tvGuideDescription')}
+              href="/epg"
+            />
+            <SettingsRow
+              icon={History}
+              label={t('nav.history')}
+              description={t('settings.historyDescription')}
+              href="/history"
+            />
+          </SettingsSection>
+
+          {/* Playback */}
       <SettingsSection title={t('settings.playback')}>
         <SettingsChoice
           icon={Monitor}
@@ -337,10 +354,12 @@ export function SettingsPage() {
           description={t('settings.autoPlayDescription')}
           rightElement={<Toggle2 label={t('settings.autoNextEpisode')} value={preferences.autoNextEpisode} onChange={(v) => updatePreferences({ autoNextEpisode: v })} />}
         />
-      </SettingsSection>
+          </SettingsSection>
+        </div>
 
-      {/* Appearance */}
-      <SettingsSection title={t('settings.appearance')}>
+        <div className="settings-column">
+          {/* Appearance */}
+          <SettingsSection title={t('settings.appearance')}>
         <SettingsChoice
           icon={preferences.theme === 'light' ? Sun : preferences.theme === 'dark' ? Moon : Laptop}
           label={t('settings.theme')}
@@ -406,10 +425,12 @@ export function SettingsPage() {
           options={LOCALES.map((code) => ({ value: code, label: LOCALE_NAMES[code] }))}
           onChange={(v) => setLocale(v)}
         />
-      </SettingsSection>
+          </SettingsSection>
+        </div>
 
-      {/* About */}
-      <SettingsSection title={t('settings.about')}>
+        {/* About */}
+        <SettingsSection title={t('settings.about')} className="settings-wide">
+
         <div className="p-6 flex flex-col items-center gap-4">
           <NovaLogo variant="full" size="md" />
           <div className="text-center space-y-1">
@@ -423,13 +444,14 @@ export function SettingsPage() {
         <SettingsRow label={t('settings.licenses')} href="/legal/licenses" />
       </SettingsSection>
 
-      {/* Legal */}
-      <GlassCard variant="dark" padding="md">
-        <p className="text-xs text-white/40 leading-relaxed">
-          <strong className="text-white/60">{t('settings.legalTitle')}</strong>{' '}
-          {t('settings.legalText')}
-        </p>
-      </GlassCard>
+        {/* Legal */}
+        <GlassCard variant="dark" padding="md" className="settings-wide">
+          <p className="text-xs text-white/40 leading-relaxed">
+            <strong className="text-white/60">{t('settings.legalTitle')}</strong>{' '}
+            {t('settings.legalText')}
+          </p>
+        </GlassCard>
+      </div>
     </div>
   );
 }

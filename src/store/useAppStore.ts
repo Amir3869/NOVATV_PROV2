@@ -32,7 +32,9 @@ import type {
   LiveCategory,
   EPGProgram,
   Movie,
+  MovieCategory,
   Series,
+  SeriesCategory,
   Season,
   Episode,
   Favorite,
@@ -46,10 +48,10 @@ import type {
 /**
  * Contenu rapatrié depuis une source, en une seule fois.
  *
- * Regrouper les six listes dans un seul objet permet de ne faire
- * **qu'un seul** `set()`. Six appels successifs déclencheraient six
- * rendus de l'interface, et l'écran afficherait des états incohérents
- * entre-temps (des films sans leurs catégories, par exemple).
+ * Regrouper les huit listes dans un seul objet permet de ne faire
+ * **qu'un seul** `set()`. Plusieurs appels successifs déclencheraient
+ * plusieurs rendus de l'interface, et l'écran afficherait des états
+ * incohérents entre-temps (des films sans leurs catégories, par exemple).
  *
  * Chaque champ est optionnel : une liste M3U ne rapporte que des
  * chaînes, jamais de films ni de séries.
@@ -58,7 +60,9 @@ export interface CatalogPayload {
   channels?: LiveChannel[];
   liveCategories?: LiveCategory[];
   movies?: Movie[];
+  movieCategories?: MovieCategory[];
   series?: Series[];
+  seriesCategories?: SeriesCategory[];
   seasons?: Season[];
   episodes?: Episode[];
 }
@@ -83,7 +87,9 @@ interface AppState {
   channels: LiveChannel[];
   liveCategories: LiveCategory[];
   movies: Movie[];
+  movieCategories: MovieCategory[];
   series: Series[];
+  seriesCategories: SeriesCategory[];
   seasons: Season[];
   episodes: Episode[];
   epgPrograms: EPGProgram[];
@@ -254,8 +260,12 @@ interface AppState {
 
   /** Épingle ou retire une catégorie (max 4 par profil). */
   toggleCategoryPin: (categoryId: string) => void;
-  /** Déplace une catégorie d'un cran dans son groupe (épingles ou reste). */
-  moveCategory: (categoryId: string, delta: -1 | 1) => void;
+  /**
+   * Déplace une catégorie d'un cran dans son groupe (épingles ou reste).
+   * `availableIds` permet aussi de gérer les parents synthétiques reconstruits
+   * pour les anciens catalogues, absents du catalogue plat du store.
+   */
+  moveCategory: (categoryId: string, delta: -1 | 1, availableIds?: readonly string[]) => void;
 }
 
 /**
@@ -685,7 +695,9 @@ function scheduleCatalogSave(get: () => AppState): void {
       channels: state.channels,
       liveCategories: state.liveCategories,
       movies: state.movies,
+      movieCategories: state.movieCategories,
       series: state.series,
+      seriesCategories: state.seriesCategories,
       seasons: state.seasons,
       episodes: state.episodes,
       epgPrograms: state.epgPrograms,
@@ -704,7 +716,9 @@ export const useAppStore = create<AppState>()(
       channels: [],
       liveCategories: [],
       movies: [],
+      movieCategories: [],
       series: [],
+      seriesCategories: [],
       seasons: [],
       episodes: [],
       epgPrograms: [],
@@ -861,7 +875,9 @@ export const useAppStore = create<AppState>()(
               (c) => c.playlistId !== playlistId
             ),
             movies: state.movies.filter((m) => m.playlistId !== playlistId),
+            movieCategories: state.movieCategories.filter((c) => c.playlistId !== playlistId),
             series: state.series.filter((s) => s.playlistId !== playlistId),
+            seriesCategories: state.seriesCategories.filter((c) => c.playlistId !== playlistId),
             seasons: dropped.seasons,
             episodes: dropped.episodes,
             // Le guide suit la source qui l'a fourni : le laisser
@@ -943,9 +959,15 @@ export const useAppStore = create<AppState>()(
             movies: catalog.movies
               ? [...other(state.movies), ...stamp(catalog.movies)]
               : state.movies,
+            movieCategories: catalog.movieCategories
+              ? [...other(state.movieCategories), ...stamp(catalog.movieCategories)]
+              : state.movieCategories,
             series: catalog.series
               ? [...other(state.series), ...stamp(catalog.series)]
               : state.series,
+            seriesCategories: catalog.seriesCategories
+              ? [...other(state.seriesCategories), ...stamp(catalog.seriesCategories)]
+              : state.seriesCategories,
             // Saisons et épisodes ne portent pas de `playlistId` : ils
             // sont rattachés à une série. On les ajoute sans filtrer,
             // en écartant les doublons d'identifiant.
@@ -989,7 +1011,9 @@ export const useAppStore = create<AppState>()(
               (c) => c.playlistId !== playlistId
             ),
             movies: state.movies.filter((m) => m.playlistId !== playlistId),
+            movieCategories: state.movieCategories.filter((c) => c.playlistId !== playlistId),
             series: state.series.filter((s) => s.playlistId !== playlistId),
+            seriesCategories: state.seriesCategories.filter((c) => c.playlistId !== playlistId),
             seasons: dropped.seasons,
             episodes: dropped.episodes,
             // Sans cela, supprimer une source laisserait sa grille de
@@ -1245,7 +1269,7 @@ export const useAppStore = create<AppState>()(
           return { categoryPins: { ...state.categoryPins, [profileId]: next } };
         }),
 
-      moveCategory: (categoryId, delta) =>
+      moveCategory: (categoryId, delta, availableIds) =>
         set((state) => {
           const profileId = state.activeProfileId ?? 'profile-1';
           const pins = state.categoryPins[profileId] ?? [];
@@ -1261,12 +1285,14 @@ export const useAppStore = create<AppState>()(
           const cats = playlistId
             ? state.liveCategories.filter((c) => c.playlistId === playlistId)
             : state.liveCategories;
-          const { rest } = layoutCategories(cats, pins, state.categoryOrder[profileId] ?? []);
+          const { rest } = availableIds
+            ? { rest: availableIds.filter((id) => !pins.includes(id)) }
+            : layoutCategories(cats, pins, state.categoryOrder[profileId] ?? []);
           return {
             categoryOrder: {
               ...state.categoryOrder,
               [profileId]: moveIdInList(
-                rest.map((c) => c.id),
+                rest.map((category) => typeof category === 'string' ? category : category.id),
                 categoryId,
                 delta
               ),
@@ -1405,7 +1431,9 @@ export async function restoreCatalog(): Promise<boolean> {
         channels: stored!.channels,
         liveCategories: stored!.liveCategories,
         movies: stored!.movies,
+        movieCategories: stored!.movieCategories,
         series: stored!.series,
+        seriesCategories: stored!.seriesCategories,
         seasons: stored!.seasons,
         episodes: stored!.episodes,
         epgPrograms: stored!.epgPrograms,
@@ -1417,7 +1445,9 @@ export async function restoreCatalog(): Promise<boolean> {
       channels: mergeCatalogLists(stored!.channels, current.channels),
       liveCategories: mergeCatalogLists(stored!.liveCategories, current.liveCategories),
       movies: mergeCatalogLists(stored!.movies, current.movies),
+      movieCategories: mergeCatalogLists(stored!.movieCategories, current.movieCategories),
       series: mergeCatalogLists(stored!.series, current.series),
+      seriesCategories: mergeCatalogLists(stored!.seriesCategories, current.seriesCategories),
       seasons: dedupeById([...stored!.seasons, ...current.seasons]),
       episodes: dedupeById([...stored!.episodes, ...current.episodes]),
       epgPrograms: mergeEpgPrograms(stored!.epgPrograms, current.epgPrograms),

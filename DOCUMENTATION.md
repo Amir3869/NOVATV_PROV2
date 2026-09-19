@@ -1,417 +1,651 @@
 # NOVA TV — Documentation générale
 
-> **Document de référence du projet.** Il décrit la vision, le périmètre, le stack technique, l'architecture cible et les conventions.
-> Il évolue quand une décision de fond change — pas à chaque tâche. Le suivi quotidien est dans `PROGRESSION.md`.
+> Document de référence technique et produit. Il décrit l'état réel du repository, puis distingue clairement les évolutions prévues.
 >
-> **Version 1.0** — 17 août 2026
-> Documents liés : `AUDIT_NOVA_IPTV.md` (état initial, figé) · `PROGRESSION.md` (avancement)
+> Dernière mise à jour documentaire : 15 septembre 2026
+> Commit audité : `6b08ec8`
+> Documents associés : `README.md`, `PROGRESSION.md`, `package.json`
 
 ---
 
-## 1. Vision
+## 1. Vision du produit
 
-### 1.1 En une phrase
+### 1.1 Positionnement
 
-**Nova TV est un lecteur IPTV haut de gamme.** L'utilisateur apporte son propre abonnement (Xtream Codes ou fichier M3U) et obtient une expérience de navigation moderne, au niveau de Netflix ou Disney+, sur tous ses écrans.
+**NOVA TV est un lecteur IPTV local.** L'utilisateur apporte sa propre source Xtream Codes ou M3U. NOVA TV organise les chaînes, films, séries et programmes EPG dans une interface orientée streaming.
 
-### 1.2 Le problème résolu
+Le produit public est nommé :
 
-Les lecteurs IPTV existants — IPTV Smarters Pro, TiviMate, GSE — fonctionnent, mais leurs interfaces sont datées, chargées, souvent laides. L'utilisateur paie un abonnement correct et le consomme à travers une interface qui ressemble à un logiciel de 2010.
-
-**Nova TV ne vend pas de contenu. Nova TV vend l'expérience.**
-
-### 1.3 Ce que Nova TV est, et n'est pas
-
-| ✅ Nova TV EST | ❌ Nova TV N'EST PAS |
-|---|---|
-| Un lecteur (un « contenant ») | Un fournisseur de contenu |
-| Une interface premium | Un revendeur d'abonnements |
-| Un outil où l'utilisateur branche SA source | Un service qui héberge ou relaie des flux |
-| Une app installée sur l'appareil | Un service en ligne avec des comptes serveur |
-
-**Position juridique.** Nova TV est un logiciel de lecture, au même titre que VLC. Aucune donnée ne transite par une infrastructure appartenant à l'éditeur. Aucun flux n'est hébergé, relayé ni mis en cache côté serveur. L'utilisateur est seul responsable de la légalité de la source qu'il connecte, et un avertissement le lui rappelle à l'ajout d'une source.
-
-### 1.4 Référence concurrentielle
-
-**IPTV Smarters Pro** est la référence fonctionnelle assumée. Nova TV vise la parité fonctionnelle avec une exécution visuelle très supérieure.
-
-Inspirations visuelles : **Netflix** (rails horizontaux, bannière héro, densité maîtrisée) et **Disney+** (profils, transitions, sensation premium).
-
-### 1.5 Trajectoire
-
-| Étape | Statut |
-|---|---|
-| Projet personnel | Aujourd'hui |
-| Produit commercial | Objectif à terme |
-| Accès payant à l'application (jamais au contenu) | Prévu, techniquement anticipé, non activé en v1 |
-
-Aucune échéance externe. Le rythme est fixé par la disponibilité du porteur (~35 h/semaine).
-
----
-
-## 2. Utilisateurs
-
-### 2.1 Profil type
-
-Une personne de 15 à 50 ans, à l'aise avec les applications de streaming grand public sans être technicienne. Elle possède déjà un abonnement IPTV et veut simplement le brancher et regarder. Elle consomme **live TV et VOD à parts égales**, à tout moment de la journée, et change d'écran selon le contexte : téléphone dans les transports, PC au bureau, télévision le soir.
-
-### 2.2 Le foyer
-
-Environ **2 adultes et 3 enfants ou adolescents** partagent l'appareil. Les **profils multiples sont donc une fonctionnalité centrale**, pas un gadget. Le contrôle parental est fortement souhaité (sans être bloquant pour la v1).
-
-### 2.3 Parcours de première ouverture
-
-```
-Lancement
-   ↓
-Écran d'accueil — choix du mode de connexion
-   ↓
-   ├── Xtream Codes  → URL du serveur + identifiant + mot de passe
-   ├── Fichier M3U   → URL distante ou fichier local
-   └── Mode démo     → données d'exemple, clairement identifiées comme telles
-   ↓
-Import et indexation (barre de progression réelle)
-   ↓
-Tout fonctionne — accueil peuplé avec le contenu de l'utilisateur
+```text
+NOVA TV — lecteur IPTV
 ```
 
-**Règle absolue :** aucune étape inutile. Pas de création de compte, pas d'e-mail, pas de validation. De l'ouverture au visionnage, l'objectif est **moins d'une minute**.
+NOVA TV ne fournit aucun catalogue éditorial, ne vend pas d'abonnement IPTV, ne relaie pas les flux et ne possède pas actuellement de service de compte en ligne.
+
+### 1.2 Cibles
+
+Les cibles prioritaires sont :
+
+1. téléphone Android ;
+2. Android TV / Google TV ;
+3. Firestick / Fire TV.
+
+Le Web sert principalement au développement et à la vitrine. Il permet de visualiser l'interface et de tester le code, mais le produit final visé est l'APK Android.
+
+Une suite est envisagée pour :
+
+- Samsung Tizen ;
+- iPhone/iPad ;
+- Apple TV ;
+- éventuellement d'autres plateformes TV.
+
+Ces plateformes ne font pas partie de l'implémentation actuelle.
+
+### 1.3 Utilisateurs
+
+Le produit vise un foyer pouvant partager un même appareil entre plusieurs profils :
+
+- profils adultes ;
+- profils enfants ;
+- favoris distincts ;
+- historique et reprise de lecture ;
+- contrôle parental local.
+
+L'accès à un profil adulte doit être protégé par un PIN parental global.
 
 ---
 
-## 3. Périmètre
+## 2. État réel au 15 septembre 2026
 
-### 3.1 Dans la v1
+Le repository est un prototype avancé en pré-production. Les sources, le stockage, le player Web et l'intégration Android sont présents.
 
-- Sources **Xtream Codes** et **M3U / M3U8** (distant ou fichier local)
-- **EPG** au format XMLTV (guide des programmes)
-- Live TV, Films, Séries avec saisons et épisodes
-- Profils multiples, code PIN local, contrôle parental
-- Favoris, listes personnalisées, historique, reprise de lecture
-- Recherche unifiée tolérante aux fautes de frappe
-- Multilingue **FR / EN / ES**
-- Thèmes **clair et sombre**
-- Navigation télécommande complète
-- **APK** Android · Android TV · Fire TV
-- Version web (**développement et vitrine uniquement**)
+La production n'est pas encore validée car plusieurs points restent à tester sur des sources et des appareils réels.
 
-### 3.2 Hors v1, prévu ensuite
+### 2.1 Validations automatisées observées
 
-- Application iOS / iPad (Capacitor)
-- Application Apple TV (**projet Swift natif distinct** — voir §7.4)
-- Synchronisation multi-appareils (réservée aux comptes premium)
-- Système de licence payante activé
-- Téléchargement hors ligne
-- Chromecast et AirPlay
-
-### 3.3 Exclu explicitement
-
-| Exclusion | Raison |
+| Validation | Résultat de l'audit |
 |---|---|
-| Vente d'abonnements IPTV | Ce n'est pas le modèle, et c'est le risque juridique majeur |
-| Hébergement ou relais de flux côté serveur | Ferait de l'éditeur un intermédiaire technique |
-| Catalogue fourni par l'éditeur | Nova TV est un contenant, pas un contenu |
-| **Utilisation du web pour regarder** | **Décision du porteur — le web reste un outil de développement** |
-| Contournement de DRM ou de protection | Interdit, sans exception |
-| Smart TV Samsung Tizen / LG webOS | Moteurs de navigateur trop anciens (voir §7.4) |
+| `npm run typecheck` | Réussi |
+| `npm run build` | Réussi, export statique généré |
+| `npm run lint` | Échec : 5 erreurs React Compiler et 1 avertissement |
+| `npm test -- --reporter=dot` | 828 tests réussis, 1 échec |
+| `npm ci` | Échec, lockfile désynchronisé |
+
+Les validations ont été exécutées avec Node `20.20.2`, alors que `package.json` exige Node `>=22.0.0`. Une validation de release doit être rejouée avec Node 22 ou supérieur.
+
+### 2.2 Éléments non démontrables par le repository
+
+> **Non vérifié :** Firestick, Android TV, télécommande, APK release signé, fournisseurs IPTV réels, compatibilité CORS, codecs, DRM, interruption réseau prolongée, performances GPU et catalogues de très grande taille.
 
 ---
 
-## 4. Stack technique
+## 3. Périmètre fonctionnel actuel
 
-### 4.1 Vue d'ensemble
+### 3.1 Présent dans le code
 
-| Couche | Technologie | Justification |
+- onboarding ;
+- sources Xtream Codes ;
+- sources M3U ;
+- EPG/XMLTV ;
+- sélection de catégories ;
+- synchronisation avec progression ;
+- annulation de certaines opérations ;
+- TV DIRECT ;
+- FILMS ;
+- SERIES ;
+- saisons et épisodes ;
+- player Web ;
+- player VOD natif Android ;
+- profils ;
+- PIN local ;
+- favoris ;
+- historique ;
+- reprise de lecture ;
+- listes personnalisées ;
+- recherche ;
+- thèmes ;
+- traduction custom ;
+- pages légales ;
+- paramètres.
+
+### 3.2 Partiel ou à stabiliser
+
+- sécurité réelle des secrets ;
+- isolation de la reprise par profil ;
+- demande de PIN vers un profil adulte ;
+- recherche tolérante aux fautes ;
+- synchronisation sur sources réelles ;
+- reconnexion streaming ;
+- player natif après commandes rapprochées ;
+- catalogue volumineux ;
+- EPG réel ;
+- navigation TV ;
+- design global ;
+- états et messages multilingues ;
+- compatibilité Firestick et Android TV.
+
+### 3.3 Absent ou hors périmètre actuel
+
+- backend NOVA TV ;
+- compte en ligne ;
+- synchronisation multi-appareils ;
+- DRM ;
+- téléchargement hors ligne ;
+- Chromecast ;
+- AirPlay ;
+- Samsung Tizen ;
+- application iOS finalisée ;
+- application Apple TV ;
+- licence premium active ;
+- proxy vidéo ou relais de flux.
+
+---
+
+## 4. Stack réellement utilisée
+
+| Domaine | Implémentation actuelle |
+|---|---|
+| Framework | Next.js `16.2.6` App Router |
+| Rendu | Export statique avec `output: 'export'` |
+| Langage | TypeScript `5.9.3` strict |
+| UI | React `19.2.6` |
+| Styles | Tailwind CSS `4.1.17` et CSS global |
+| État | Zustand `5.0.15` |
+| Base locale | IndexedDB custom, sans Dexie |
+| Persistance secondaire | Zustand persist dans localStorage |
+| Player Web | hls.js `1.7.1`, mpegts.js `1.8.2`, `<video>` |
+| Player Android | Media3/ExoPlayer `1.5.1` |
+| Empaquetage | Capacitor `8.5.0` |
+| Tests | Vitest `4.1.11` |
+| Recherche | Filtrage local, Fuse.js déclaré mais non branché |
+| Traductions | Système custom, pas i18next |
+| Virtualisation | `VirtualGrid` interne, pas React Virtual |
+
+### 4.1 Dépendances à réévaluer
+
+Une analyse statique a identifié des dépendances déclarées mais non importées directement par l'application, notamment :
+
+- `date-fns` ;
+- `framer-motion` ;
+- `fuse.js` ;
+- plusieurs paquets Radix.
+
+Elles devront être conservées uniquement si un usage concret est décidé.
+
+---
+
+## 5. Architecture applicative
+
+### 5.1 Routes
+
+```text
+/                       Accueil
+/welcome                Onboarding
+/playlists              Sources et synchronisation
+/live                   TV DIRECT
+/movies                 Films
+/series                 Séries
+/player                 Player
+/profiles               Profils
+/favorites              Favoris
+/history                Historique
+/search                 Recherche
+/epg                    Guide des programmes
+/lists                  Listes personnalisées
+/settings               Réglages
+/legal/licenses         Licences
+/legal/privacy          Confidentialité
+/legal/terms            Conditions
+```
+
+Les fiches dynamiques utilisent des paramètres de requête car les identifiants de contenus ne sont connus qu'après synchronisation :
+
+```text
+/movies?id=...
+/series?id=...
+/live?id=...
+/player?type=live&id=...
+```
+
+### 5.2 Dossiers principaux
+
+```text
+src/app/                  Entrées de routes
+src/features/             Fonctionnalités et pages métier
+src/design-system/        Composants UI partagés
+src/services/             Services métier
+src/store/                Store Zustand
+src/lib/                  Stockage et utilitaires
+src/hooks/                Hooks partagés
+src/types/                Modèle de domaine
+android/                  Projet Capacitor Android
+```
+
+### 5.3 Absence de backend
+
+Il n'existe pas actuellement :
+
+- de route API NOVA TV ;
+- de serveur applicatif ;
+- de base distante ;
+- de compte utilisateur ;
+- de proxy de contenu.
+
+Les appels aux fournisseurs IPTV partent directement depuis l'application. Sur Android, la configuration Capacitor déclare l'utilisation des capacités natives nécessaires aux requêtes, mais les mécanismes CORS et vidéo doivent encore être validés sur les fournisseurs réels.
+
+---
+
+## 6. Stockage et modèle de données
+
+### 6.1 IndexedDB
+
+Fichier :
+
+```text
+src/lib/catalogStore.ts
+```
+
+Configuration actuelle :
+
+```text
+Base : novatv-catalog
+Version : 1
+Store : catalog
+Clé : current
+```
+
+L'enregistrement contient :
+
+- chaînes ;
+- catégories live ;
+- films ;
+- séries ;
+- saisons ;
+- épisodes ;
+- programmes EPG.
+
+Le catalogue est chargé en mémoire et réécrit intégralement lors des sauvegardes planifiées.
+
+Ce modèle est simple et adapté à la première stabilisation, mais il devra être mesuré avec de très gros catalogues.
+
+### 6.2 localStorage et Zustand
+
+La clé principale est :
+
+```text
+novatv-storage
+```
+
+Elle contient notamment :
+
+- profils ;
+- sources ;
+- préférences ;
+- favoris ;
+- historique ;
+- progression ;
+- listes ;
+- organisation des catégories ;
+- verrous parentaux ;
+- état d'onboarding.
+
+### 6.3 Secrets
+
+`src/lib/secureStore.ts` fournit une abstraction de stockage des secrets. Le backend actuel écrit cependant les valeurs dans `localStorage` en clair.
+
+Cette abstraction devra être conservée afin de pouvoir remplacer le backend par un mécanisme Android sécurisé, idéalement basé sur le Keystore, sans réécrire les écrans.
+
+### 6.4 PIN parental
+
+`src/lib/pin.ts` hache les PIN avec PBKDF2 lorsque Web Crypto est disponible. Un fallback moins robuste existe pour les environnements sans `crypto.subtle`.
+
+Décision fonctionnelle :
+
+```text
+Un PIN parental global protège l'accès aux profils adultes.
+```
+
+Le changement de profil devra vérifier le PIN avant d'activer un profil adulte.
+
+---
+
+## 7. Sources IPTV
+
+### 7.1 Xtream Codes
+
+Fichiers principaux :
+
+```text
+src/services/xtream/xtreamService.ts
+src/services/xtream/xtreamSync.ts
+src/services/xtream/xtreamCredentials.ts
+```
+
+Le service gère notamment :
+
+- URL serveur ;
+- identifiant ;
+- mot de passe ;
+- catégories live ;
+- chaînes ;
+- catégories VOD ;
+- films ;
+- séries ;
+- détails film ;
+- détails série ;
+- épisodes ;
+- EPG court ;
+- délais réseau ;
+- annulation ;
+- erreurs utilisateur.
+
+Les identifiants Xtream sont transmis dans les URLs imposées par l'API du fournisseur. Ils peuvent également apparaître dans les URLs de flux.
+
+### 7.2 M3U
+
+Fichiers principaux :
+
+```text
+src/services/m3u/m3uParser.ts
+src/services/m3u/m3uSync.ts
+```
+
+Le parser et la synchronisation sont présents et testés unitairement.
+
+Points restant à valider :
+
+- grande liste réelle ;
+- URL HTTP ;
+- URL HTTPS ;
+- fichier local ;
+- catégories atypiques ;
+- logos défaillants ;
+- interface pendant l'import ;
+- interruption et reprise.
+
+### 7.3 EPG
+
+Fichiers principaux :
+
+```text
+src/services/epg/epgService.ts
+src/services/epg/epgSync.ts
+src/features/epg/EPGPage.tsx
+src/services/player/playerEpg.ts
+```
+
+Le code prévoit l'association entre programmes et chaînes, mais l'EPG réel, les fuseaux horaires et les formats atypiques restent à tester.
+
+### 7.4 HTTP et HTTPS
+
+NOVA TV accepte les sources HTTP et HTTPS.
+
+- HTTPS chiffre les échanges ;
+- HTTP reste nécessaire pour certains fournisseurs IPTV ;
+- l'interface ne bloque pas HTTP ;
+- aucun avertissement utilisateur n'est actuellement retenu comme exigence ;
+- la documentation conserve néanmoins la distinction de sécurité.
+
+---
+
+## 8. Player vidéo
+
+### 8.1 Player Web
+
+Fichiers principaux :
+
+```text
+src/features/player/PlayerPage.tsx
+src/features/player/useVideoPlayer.ts
+src/services/player/playbackEngine.ts
+```
+
+Le player gère :
+
+- HLS ;
+- MPEG-TS ;
+- événements vidéo ;
+- chargement ;
+- buffering ;
+- erreurs ;
+- play/pause ;
+- volume ;
+- seek ;
+- qualité ;
+- audio ;
+- sous-titres ;
+- progression ;
+- reprise ;
+- EPG ;
+- zapping ;
+- épisode suivant.
+
+### 8.2 Player Android
+
+Fichiers principaux :
+
+```text
+src/services/player/nativeVodPlayer.ts
+android/app/src/main/java/com/novatv/player/NativeVodPlayerPlugin.java
+android/app/src/main/java/com/novatv/player/MainActivity.java
+```
+
+La VOD Android utilise ExoPlayer/Media3 avec une surface native placée sous la WebView. Le direct reste piloté par le player Web.
+
+Une course potentielle existe entre la résolution de `play()` et l'initialisation du player sur le thread UI. Ce point doit être testé puis sécurisé.
+
+### 8.3 Non vérifié
+
+- codecs réels ;
+- AC-3/E-AC-3 sur plusieurs appareils ;
+- reprise après interruption réseau ;
+- Firestick ;
+- Android TV ;
+- changement rapide de média ;
+- commandes simultanées ;
+- DRM.
+
+---
+
+## 9. Design et expérience utilisateur
+
+La prochaine phase est une refonte globale Design + UX + UI.
+
+Elle ne se limite pas au player ou à quatre pages. Elle couvre :
+
+- barre de navigation ;
+- navigation générale ;
+- boutons ;
+- cartes ;
+- catégories ;
+- recherche ;
+- réglages ;
+- profils ;
+- sources ;
+- onboarding ;
+- TV DIRECT ;
+- FILMS ;
+- SERIES ;
+- EPG ;
+- player ;
+- favoris ;
+- historique ;
+- listes ;
+- états de chargement, erreur et vide ;
+- responsive ;
+- focus et télécommande.
+
+### 9.1 Cohérence TV DIRECT / FILMS / SERIES
+
+Ces pages doivent partager :
+
+- une hiérarchie commune ;
+- une toolbar cohérente ;
+- des conventions de catégories ;
+- des cartes adaptées au type de contenu ;
+- les mêmes actions principales ;
+- les mêmes états ;
+- une navigation similaire ;
+- une logique cohérente de favoris et de reprise.
+
+Elles conservent leurs spécificités :
+
+- TV DIRECT : chaînes, EPG et zapping ;
+- FILMS : affiches, métadonnées, lecture et films similaires ;
+- SERIES : saisons, épisodes, reprise et progression.
+
+### 9.2 Méthode design
+
+Avant de modifier le code :
+
+1. analyser les composants existants ;
+2. définir les problèmes UX ;
+3. proposer plusieurs directions visuelles ;
+4. générer des images de suggestion ;
+5. choisir une direction ;
+6. établir une mini-charte UI ;
+7. modifier le design system ;
+8. implémenter écran par écran ;
+9. tester mobile, TV et télécommande.
+
+---
+
+## 10. Plateformes
+
+| Plateforme | Rôle | État |
 |---|---|---|
-| Framework | **Next.js 16** (App Router, export statique) | Conserve tout le code existant ; l'export statique produit les fichiers dont Capacitor a besoin |
-| Langage | **TypeScript 5.9** strict | Déjà en place, 0 erreur de type |
-| UI | **React 19** | Déjà en place |
-| Styles | **Tailwind CSS 4** | Déjà en place |
-| État | **Zustand 5** | Déjà en place, léger et suffisant |
-| Stockage | **Dexie** (IndexedDB) | Remplace localStorage : plusieurs Go au lieu de 5 Mo |
-| Listes longues | **@tanstack/react-virtual** | Indispensable au-delà de quelques milliers d'entrées |
-| Lecteur web | **hls.js** + **mpegts.js** | Développement, vitrine, secours |
-| Lecteur APK | **ExoPlayer / Media3** via Capacitor | Le meilleur lecteur Android : HLS, DASH, sous-titres, en-têtes HTTP, 4K |
-| Recherche | **Fuse.js** | Déjà installé, jamais branché — tolérance aux fautes |
-| Traductions | **i18next** + `react-i18next` | Compatible export statique |
-| Empaquetage | **Capacitor 6** | Réutilise ~95 % du code web |
-| Tests | **Vitest** + **Playwright** | Standards de l'écosystème |
-| Hébergement vitrine | **Cloudflare Pages** | Gratuit, bande passante illimitée |
+| Web | Développement et vitrine | Présent |
+| Téléphone Android | Priorité | Projet Capacitor présent, validation reproductible à documenter |
+| Android TV | Priorité | À tester sur appareil réel |
+| Firestick | Priorité | À tester sur appareil réel |
+| Samsung Tizen | Suite | Non implémenté |
+| iOS/iPadOS | Suite | Non implémenté comme produit final |
+| Apple TV | Suite | Projet natif distinct à étudier |
+| LG webOS | Hors périmètre actuel | Non ciblé |
 
-### 4.2 Ce qui est retiré du projet
+La présence du dossier Android et des plugins natifs ne constitue pas à elle seule une validation de la compatibilité TV.
 
-| Élément | Raison |
+---
+
+## 11. Sécurité
+
+Les risques prioritaires identifiés sont :
+
+- secrets Xtream en clair dans localStorage ;
+- `allowBackup=true` ;
+- debugging WebView activé dans la configuration actuelle ;
+- cleartext et mixed content autorisés ;
+- headers de sécurité déclarés mais non branchés dans l'export statique ;
+- credentials présents dans des URLs de fournisseurs ;
+- fallback PIN moins robuste ;
+- absence de backend central pour révoquer ou protéger les secrets.
+
+Ces points sont à traiter avant une distribution publique, tout en maintenant la compatibilité avec les fournisseurs HTTP lorsque nécessaire.
+
+---
+
+## 12. Tests et qualité
+
+### 12.1 Tests actuels
+
+Les tests Vitest couvrent notamment :
+
+- catalogue ;
+- synchronisation Xtream ;
+- synchronisation M3U ;
+- EPG ;
+- player ;
+- profils ;
+- PIN ;
+- listes ;
+- organisation des catégories ;
+- onboarding.
+
+### 12.2 Défauts connus
+
+- lint rouge dans `PlayerPage.tsx` ;
+- avertissement de dépendance dans `useVideoPlayer.ts` ;
+- test rouge dans `sourceIdentity.test.ts` ;
+- lockfile désynchronisé ;
+- validation exécutée avec Node 20 au lieu de Node 22+ ;
+- absence de suite E2E complète ;
+- absence de tests appareils réels versionnés dans le repository.
+
+### 12.3 Qualité attendue avant release
+
+```text
+TypeScript vert
+Lint vert
+Tests unitaires verts
+Build statique reproductible
+E2E critiques verts
+APK release reproductible
+Validation téléphone Android
+Validation Android TV
+Validation Firestick
+Validation télécommande
+Documentation à jour
+```
+
+---
+
+## 13. Méthode de travail du projet
+
+Le flux de travail retenu est :
+
+```text
+Comprendre
+→ auditer
+→ planifier
+→ valider la proposition
+→ modifier
+→ tester en local
+→ vérifier
+→ livrer les fichiers modifiés
+→ commit
+→ push
+```
+
+Lorsqu'un fichier sera livré :
+
+1. le fichier principal sera ouvert dans le workspace ;
+2. les autres fichiers modifiés seront listés ;
+3. les éventuels fichiers créés ou supprimés seront indiqués ;
+4. les commandes Windows/VS Code nécessaires seront fournies ;
+5. les validations locales effectuées seront indiquées.
+
+Aucun commit ou push ne doit être effectué sans accord explicite.
+
+---
+
+## 14. Décisions actuelles
+
+| Date | Décision |
 |---|---|
-| `drizzle-orm`, `drizzle-kit`, `pg`, `dotenv` | Aucun serveur, aucune base distante |
-| `src/db/` en entier | Code mort, sans objet dans une app locale |
-| `src/app/api/` | Aucune route serveur nécessaire |
-| `react-player` | Remplacé par `hls.js` / `mpegts.js` / ExoPlayer |
-| `@radix-ui/*` (11 paquets) | Jamais importés — à réévaluer si un besoin réel apparaît |
-| `framer-motion`, `date-fns` | Jamais importés — décision reportée |
-
-### 4.3 Notions techniques expliquées
-
-**Export statique.** Normalement, Next.js a besoin d'un serveur Node.js qui tourne en permanence. L'export statique transforme le site en simples fichiers HTML, CSS et JavaScript, comme un dossier de photos. Aucun serveur nécessaire. C'est exactement ce qu'il faut pour glisser l'application dans un APK.
-
-**IndexedDB.** Une véritable base de données intégrée au navigateur et aux WebView Android. Contrairement au `localStorage` (limité à 5-10 Mo et lent), elle stocke plusieurs gigaoctets, gère les index et les recherches rapides. **Dexie** est une bibliothèque qui la rend simple à utiliser.
-
-**Virtualisation.** Avec 50 000 chaînes, créer 50 000 éléments visuels ferait planter l'appareil. La virtualisation n'affiche que les ~20 lignes réellement visibles à l'écran et recycle les mêmes éléments au défilement. L'utilisateur ne voit aucune différence, la mémoire reste constante.
-
-**HLS et MPEG-TS.** Deux façons de transporter la vidéo. **HLS** (fichiers `.m3u8`) découpe le flux en petits morceaux et adapte la qualité au débit disponible — c'est le standard moderne. **MPEG-TS** (`.ts`) est plus ancien, envoie un flux continu sans s'adapter au réseau. Les serveurs Xtream servent du `.ts` par défaut et peuvent servir du `.m3u8`. Aucun navigateur ne lit le `.ts` nativement, d'où `mpegts.js`.
-
-**Capacitor.** Un outil qui emballe une application web dans une véritable application mobile. Le code web tourne dans une WebView (un navigateur invisible intégré), et Capacitor donne accès aux fonctions natives de l'appareil : lecteur vidéo natif, stockage, plein écran, gestion de la télécommande.
-
-**ExoPlayer / Media3.** Le lecteur vidéo officiel d'Android, développé par Google. Bien plus performant que la balise vidéo d'un navigateur, notamment en 4K et sur les appareils modestes comme le Firestick.
-
-**CORS.** Une règle de sécurité des navigateurs : un site ne peut pas contacter un autre serveur sans autorisation explicite de celui-ci. Les serveurs IPTV n'autorisent personne, donc la lecture depuis un navigateur échoue souvent. **Les applications natives ne sont pas soumises à cette règle** — c'est une raison de plus pour que l'APK soit le produit réel.
+| 15/09/2026 | Nom public : NOVA TV — lecteur IPTV |
+| 15/09/2026 | Web limité au développement et à la vitrine |
+| 15/09/2026 | Priorités : téléphone Android, Android TV, Firestick |
+| 15/09/2026 | HTTP et HTTPS acceptés pour compatibilité IPTV |
+| 15/09/2026 | Pas d'avertissement HTTP obligatoire dans l'interface |
+| 15/09/2026 | PIN parental global pour accéder aux profils adultes |
+| 15/09/2026 | Design et UX/UI avant les travaux de stabilisation suivants |
+| 15/09/2026 | M3U réel avant Xtream réel pour les validations |
+| 15/09/2026 | Samsung Tizen et iOS après la cible Android |
 
 ---
 
-## 5. Architecture
-
-### 5.1 Principe fondateur
-
-**Tout est local. Rien ne remonte à un serveur.**
-
-```
-┌──────────────────────────────────────────────────┐
-│              APPAREIL DE L'UTILISATEUR            │
-│                                                   │
-│   Interface Nova TV (Next.js statique)            │
-│              ↓                                    │
-│   Zustand — état de l'interface                   │
-│              ↓                                    │
-│   Dexie / IndexedDB — chaînes, EPG, favoris…      │
-│              ↓                                    │
-│   Services — Xtream · M3U · XMLTV                 │
-│              ↓                                    │
-│   Lecteur — ExoPlayer (APK) / hls.js (web)        │
-└───────────────────────┬──────────────────────────┘
-                        │  connexion directe
-                        ▼
-        Serveur IPTV de l'utilisateur (tiers)
-
-     ❌ Aucun serveur Nova TV sur ce chemin
-```
-
-### 5.2 Organisation du code
-
-Le découpage actuel est bon et sera conservé :
-
-```
-src/
-├── app/            Routes — coquilles de 5 lignes
-├── features/       Une page métier = un dossier
-├── design-system/  Composants réutilisables + jetons de style
-├── services/       Xtream · M3U · XMLTV (à brancher)
-├── store/          État global Zustand
-├── db/local/       Dexie — à créer
-├── player/         Abstraction du lecteur — à créer
-├── i18n/           Traductions — à créer
-├── hooks/          Hooks partagés
-├── types/          Modèle de domaine (déjà excellent)
-└── utils/          Utilitaires
-```
-
-**Règle :** `app/` ne contient jamais de logique. `features/` compose. `design-system/` ne connaît rien du métier.
-
-### 5.3 Abstraction du lecteur
-
-Un contrat unique, deux implémentations. L'interface ne sait jamais quel moteur tourne derrière.
-
-```
-        Interface de contrôles Nova TV
-                     ↓
-        Contrat commun : load / play / pause / seek /
-        volume / pistes / qualité / événements
-                ↙          ↘
-    Web (hls.js,          APK (ExoPlayer
-     mpegts.js)            via Capacitor)
-```
-
-**Point ouvert :** les plugins Capacitor existants affichent la vidéo en plein écran natif, ce qui masque l'interface Nova TV. Garder les contrôles personnalisés demandera probablement un plugin maison. Décision en Phase 5.
-
-### 5.4 Modèle de données local
-
-`src/types/index.ts` (387 lignes) est déjà solide et sert de base.
-
-| Table Dexie | Contenu | Index |
-|---|---|---|
-| `sources` | Sources IPTV configurées | `id` |
-| `channels` | Chaînes live | `id`, `sourceId`, `categoryId`, `name` |
-| `movies` | Films | `id`, `sourceId`, `categoryId`, `name` |
-| `series` | Séries, saisons, épisodes | `id`, `sourceId`, `categoryId` |
-| `categories` | Catégories, tous types | `id`, `sourceId`, `type` |
-| `epg` | Programmes | `channelId`, `start`, `stop` |
-| `profiles` | Profils du foyer | `id` |
-| `favorites` | Favoris | `profileId`, `itemId` |
-| `history` | Historique et reprise | `profileId`, `itemId`, `updatedAt` |
-| `lists` | Listes personnalisées | `profileId`, `id` |
-
-**Sécurité locale :** les identifiants IPTV sont chiffrés (Web Crypto API, AES-GCM) avant écriture. Jamais en clair, jamais journalisés, jamais affichés en entier dans l'interface.
-
-### 5.5 Import d'une source volumineuse
-
-Cible : **20 000 à 50 000 chaînes**.
-
-1. Téléchargement du M3U ou appel de l'API Xtream
-2. Analyse dans un **Web Worker** (fil séparé : l'interface reste fluide)
-3. Écriture par lots de 500 dans Dexie
-4. Barre de progression **réelle**, annulable
-5. Indexation pour la recherche
-
-L'utilisateur peut ne sélectionner que certaines catégories pour réduire le volume.
-
----
-
-## 6. Design
-
-### 6.1 Identité
-
-Conservée depuis le code existant, à affiner ensemble.
-
-| Élément | Valeur |
-|---|---|
-| Fond principal | `#050505` |
-| Accent | `#C8102E` (rouge Nova) |
-| Effet signature | Verre dépoli (`backdrop-blur`) — **désactivable**, coûteux sur TV |
-| Typographie | Geist Sans / Geist Mono |
-
-**Nom :** `NOVA TV` ou `Nova Player`. Le mot « IPTV » est écarté des noms publics — les boutiques d'applications rejettent régulièrement les apps sur ce seul critère.
-
-### 6.2 Thèmes clair et sombre
-
-Les deux sont requis. Toutes les couleurs passent par des variables CSS ; aucune couleur codée en dur dans les composants. Sombre par défaut (usage TV et soirée).
-
-### 6.3 Les trois modes d'affichage
-
-| Mode | Cible | Règles |
-|---|---|---|
-| **Mobile** | Téléphone, tablette | Navigation basse, zones tactiles ≥ 44 px, zones sûres iOS |
-| **Bureau** | PC | Barre latérale, survol, raccourcis clavier |
-| **TV** | Android TV, Fire TV | **Texte ×1,5 · cibles ≥ 48 px · marge de sécurité 5 % · focus très visible · blur désactivé** |
-
-La détection actuelle (`largeur ≥ 1920 → TV`) est fausse et sera remplacée par une détection via l'identifiant du navigateur (`Android TV`, `AFT` pour Fire TV, `Google TV`) et l'absence de pointeur précis.
-
-### 6.4 Règles de navigation à la télécommande
-
-Non négociables :
-
-1. **Un élément focalisé est toujours visible** — défilement automatique systématique
-2. **Le focus ne se perd jamais** — chaque écran a une cible par défaut
-3. **La touche Retour recule d'un écran** — elle ne quitte jamais l'application sans confirmation
-4. **Le déplacement suit la logique visuelle**, pas l'ordre du code
-5. **Les touches média** (Lecture, Pause, Suivant) sont prises en charge
-
-### 6.5 États obligatoires
-
-Chaque écran affichant des données doit gérer quatre situations : **chargement** (squelette animé), **vide** (message clair + action proposée), **erreur** (cause compréhensible + bouton Réessayer), **succès**.
-
-Un écran qui n'a pas ses quatre états n'est pas terminé.
-
----
-
-## 7. Plateformes
-
-### 7.1 Priorités
-
-| Rang | Plateforme | Forme | Statut |
-|---|---|---|---|
-| 1 | Android TV / Fire TV | APK | **Cible principale** |
-| 2 | Android téléphone/tablette | APK | Cible principale |
-| 3 | Web | Site statique | **Développement et vitrine uniquement** |
-| 4 | iOS / iPadOS | Capacitor | Après la v1 |
-| 5 | Apple TV | Swift natif | Projet distinct |
-
-### 7.2 Le rôle du web
-
-Décision du porteur : **on ne regarde pas la télévision dans un navigateur.** Le web sert à développer (aperçu instantané pendant le codage), à tester le design et à présenter le produit. La lecture réelle se fait dans l'APK.
-
-Cette décision élimine le problème CORS et supprime tout besoin de relais serveur — donc tout risque juridique lié.
-
-### 7.3 Matériel de test disponible
-
-Téléphone Android · iPhone · iPad · Apple TV · **Firestick** · PC · **Android TV**.
-
-Couverture excellente. Le Firestick est le juge de paix : c'est l'appareil le plus contraint (RAM limitée), donc la référence pour les performances.
-
-### 7.4 Limites assumées
-
-**Apple TV.** tvOS n'a **aucun navigateur**. Ni PWA ni Capacitor n'y fonctionnent. Une application Swift native écrite de zéro est la seule voie — un second projet complet. Hors périmètre jusqu'à ce que la traction le justifie.
-
-**Samsung Tizen et LG webOS.** Les modèles d'avant 2020 embarquent des moteurs très anciens (Tizen 2015 ≈ Chrome 47). Next.js 16 et React 19 ne s'y exécuteront pas. Les supporter coûterait plus cher que le reste du projet. **Exclus.**
-
-**DRM (Widevine, FairPlay).** Si des sources utilisent des flux chiffrés, la lecture demandera une intégration DRM spécifique — projet séparé, non planifié. À vérifier lors des premiers tests réels.
-
----
-
-## 8. Conventions de code
-
-### 8.1 Règles
-
-- **TypeScript strict.** Le type `any` est interdit. `tsc --noEmit` doit rester à zéro erreur.
-- **Aucune donnée fictive présentée comme réelle.** Le mode démo est explicitement étiqueté.
-- **Aucun secret dans le code.** Aucune clé, aucun identifiant, aucun mot de passe en dur.
-- **Composants < 300 lignes.** Au-delà, on découpe.
-- **Les quatre états** sur tout écran affichant des données.
-- **Aucune couleur codée en dur** — uniquement les jetons de style.
-- **Textes traduits** — aucune chaîne écrite en dur dans un composant.
-- **Accessible à la télécommande** — tout élément interactif est atteignable et visible.
-
-### 8.2 Nommage
-
-| Type | Convention | Exemple |
-|---|---|---|
-| Composants | PascalCase | `MediaCard.tsx` |
-| Hooks | camelCase, préfixe `use` | `useDeviceType.ts` |
-| Utilitaires | camelCase | `formatDuration.ts` |
-| Types | PascalCase | `Channel`, `Playlist` |
-| Constantes | MAJUSCULES | `MAX_BATCH_SIZE` |
-
-### 8.3 Git
-
-- Une branche par phase : `fix/p0-securite`, `feat/stockage-local`, `feat/lecteur`…
-- Jamais de commit direct sur `main`
-- Messages en français, à l'impératif : « Corrige le hook conditionnel dans Navigation »
-- Un commit = un changement cohérent et réversible
-
-### 8.4 Méthode de travail
-
-1. Le code est écrit, le résultat visible en direct dans la prévisualisation
-2. Seuls les **fichiers modifiés et le résultat** sont présentés — pas de pavés de code dans la conversation
-3. Le porteur récupère les fichiers dans VS Code et teste sur ses appareils
-4. `PROGRESSION.md` est mis à jour à chaque session ou sur demande
-5. Rien n'est supprimé sans confirmation explicite
-
----
-
-## 9. Points ouverts
-
-| # | Sujet | À trancher |
-|---|---|---|
-| 1 | Contrôles vidéo dans l'APK | Plein écran natif (simple, perd le design) ou plugin maison (garde le design, +3-4 j) — **Phase 5** |
-| 2 | DRM | À vérifier lors des premiers tests avec une source réelle |
-| 3 | Dépendances inutilisées | `@radix-ui`, `framer-motion`, `date-fns` : retirer ou brancher — après compréhension des besoins |
-| 4 | Charte graphique | À formaliser ensemble, sur la base de l'existant |
-| 5 | Licence premium | Couche préparée en v1, activation ultérieure |
-| 6 | Structure juridique et CGU | Avant toute diffusion publique |
-
----
-
-## 10. Glossaire
-
-| Terme | Signification |
-|---|---|
-| **APK** | Fichier d'installation d'une application Android |
-| **Capacitor** | Outil qui transforme une application web en application native |
-| **Dexie** | Bibliothèque simplifiant l'usage d'IndexedDB |
-| **EPG** | Guide électronique des programmes (qui passe, quand) |
-| **ExoPlayer / Media3** | Lecteur vidéo officiel d'Android |
-| **HLS** | Streaming adaptatif moderne, fichiers `.m3u8` |
-| **IndexedDB** | Base de données intégrée au navigateur, plusieurs Go |
-| **M3U / M3U8** | Fichier texte listant des chaînes et leurs adresses |
-| **MPEG-TS** | Format de flux plus ancien, fichiers `.ts` |
-| **Virtualisation** | N'afficher que les éléments visibles d'une longue liste |
-| **WebView** | Navigateur invisible intégré à une application native |
-| **Xtream Codes** | Interface standard des serveurs IPTV (chaînes, films, séries, EPG) |
-| **XMLTV** | Format de fichier standard pour l'EPG |
+## 15. Points non vérifiés
+
+- APK release signé ;
+- Firestick ;
+- Android TV ;
+- télécommande ;
+- fournisseurs IPTV réels ;
+- CORS ;
+- codecs et DRM ;
+- interruption réseau ;
+- performance de très gros catalogues ;
+- sauvegarde et restauration Android ;
+- publication dans les stores ;
+- efficacité réelle des headers de sécurité ;
+- validation visuelle finale du nouveau design.

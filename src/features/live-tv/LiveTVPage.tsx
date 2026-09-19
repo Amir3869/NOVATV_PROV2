@@ -1,15 +1,12 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Lock } from 'lucide-react';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { ChannelCard } from '@/design-system/components/MediaCard';
-import { BroadcastChannelCard } from '@/design-system/components/BroadcastChannelCard';
-import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { VirtualGrid } from '@/design-system/components/VirtualGrid';
-import { SearchBar } from '@/design-system/components/SearchBar';
 import { AppDialog } from '@/design-system/components/AppDialog';
+import { HierarchicalCategoryDirectory } from '@/design-system/components/HierarchicalCategoryDirectory';
 import { useAppStore } from '@/store/useAppStore';
 import { resolveProfileId } from '@/lib/profileScope';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
@@ -17,15 +14,17 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { useClock } from '@/hooks/useClock';
 import { Skeleton, ChannelCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { categoryDisplayName, channelDisplayName } from '@/lib/displayNames';
+import { categoryLockKey } from '@/lib/pin';
 import { CategoryRenamePanel } from '@/features/categories/CategoryRenamePanel';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { useTranslation } from '@/i18n';
-import { cn } from '@/utils/cn';
-import {
-  EMPTY_CATEGORY_IDS,
-  layoutCategories,
-} from '@/services/catalog/categoryLayout';
+import { EMPTY_CATEGORY_IDS } from '@/services/catalog/categoryLayout';
 import { channelMatchesCategory } from '@/services/catalog/categoryMatch';
+import {
+  buildCategoryHierarchy,
+  categoryAndDescendants,
+  type CategoryHierarchyNode,
+} from '@/services/catalog/categoryHierarchy';
 import { enrichLiveChannels } from '@/services/epg/epgSync';
 
 /** Sentinelle interne : afficher toutes les chaînes, pas la page d'arrivée. */
@@ -36,11 +35,10 @@ export function LiveTVPage() {
   const { channels: allChannels, epgPrograms: allPrograms, liveCategories: allCategories } = useActiveCatalog();
   const categoryRenames = useAppStore((s) => s.categoryRenames);
   const channelRenames = useAppStore((s) => s.channelRenames);
+  const lockedItems = useAppStore((s) => s.lockedItems);
+  const sessionUnlocked = useAppStore((s) => s.sessionUnlocked);
   const catalogReady = useAppStore((s) => s.catalogReady);
-  const [view, setView] = useState<'list' | 'grid'>('list');
   const [showCategories, setShowCategories] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
-  const [pickSearch, setPickSearch] = useState('');
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const favorites = useAppStore((s) => s.favorites);
@@ -48,14 +46,61 @@ export function LiveTVPage() {
   const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
   const profileId = resolveProfileId(activeProfileId, firstProfileId);
   const categoryPins = useAppStore((s) => s.categoryPins[profileId] ?? EMPTY_CATEGORY_IDS);
-  const categoryOrder = useAppStore((s) => s.categoryOrder[profileId] ?? EMPTY_CATEGORY_IDS);
   const { isCategoryBlocked, ensureUnlocked } = useParental();
   const nowMs = useClock();
+  const effectiveActiveCategory =
+    activeCategory ?? (catalogReady && allChannels.length > 0 ? ALL_CHANNELS : null);
 
   const enrichedChannels = useMemo(
     () => enrichLiveChannels(allChannels, allPrograms, nowMs),
     [allChannels, allPrograms, nowMs]
   );
+
+  // Les sources anciennes peuvent ne pas encore avoir les métadonnées
+  // hiérarchiques persistées. On reconstruit alors un arbre de secours
+  // à partir des noms, sans modifier le catalogue d'origine.
+  const categoryNodes = useMemo<CategoryHierarchyNode[]>(() => {
+    const hasPersistedHierarchy = allCategories.some(
+      (category) =>
+        category.relation !== undefined ||
+        category.childIds !== undefined ||
+        category.level !== undefined,
+    );
+
+    if (hasPersistedHierarchy) {
+      return allCategories.map((category) => ({
+        id: category.id,
+        sourceId: category.id,
+        name: category.name,
+        originalName: category.originalName ?? category.name,
+        parentId: category.parentId ?? null,
+        childIds: category.childIds ?? [],
+        level: category.level ?? 0,
+        path: category.path ?? [category.name],
+        count: category.channelCount,
+        relation: category.relation ?? 'flat',
+        regionCode: category.regionCode,
+        qualities: category.qualities ?? [],
+      }));
+    }
+
+    return buildCategoryHierarchy(
+      allCategories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        count: category.channelCount,
+        parentId: category.parentId,
+      })),
+      { family: 'live' },
+    );
+  }, [allCategories]);
+
+  const selectedCategoryIds = useMemo(() => {
+    if (!effectiveActiveCategory || effectiveActiveCategory === ALL_CHANNELS) return null;
+    return new Set(
+      categoryAndDescendants(categoryNodes, effectiveActiveCategory).map((node) => node.id),
+    );
+  }, [categoryNodes, effectiveActiveCategory]);
 
   const favoriteChannelIds = favorites
     .filter((f) => f.mediaType === 'channel' && f.profileId === activeProfileId)
@@ -63,8 +108,12 @@ export function LiveTVPage() {
 
   const filtered = useMemo(() => {
     let result = enrichedChannels;
-    if (activeCategory && activeCategory !== ALL_CHANNELS) {
-      result = result.filter((ch) => channelMatchesCategory(ch.categoryId, activeCategory));
+    if (selectedCategoryIds) {
+      result = result.filter((ch) =>
+        [...selectedCategoryIds].some((categoryId) =>
+          channelMatchesCategory(ch.categoryId, categoryId),
+        ),
+      );
     }
     if (search) {
       const q = search.toLowerCase();
@@ -77,67 +126,61 @@ export function LiveTVPage() {
       });
     }
     return result;
-  }, [enrichedChannels, activeCategory, search, categoryRenames, channelRenames]);
+  }, [enrichedChannels, selectedCategoryIds, search, categoryRenames, channelRenames]);
 
   const hydrated = useHydrated();
-
-  const laidOutCategories = useMemo(() => {
-    const { pinned, rest } = layoutCategories(allCategories, categoryPins, categoryOrder);
-    return [...pinned, ...rest].filter((cat) =>
-      allChannels.some((ch) => channelMatchesCategory(ch.categoryId, cat.id))
-    );
-  }, [allCategories, categoryPins, categoryOrder, allChannels]);
-  const pinnedIds = useMemo(() => new Set(categoryPins), [categoryPins]);
-
-  const toolbarCategories = useMemo(
+  const managementCategories = useMemo(
     () =>
-      laidOutCategories.map((cat) => ({
-        id: cat.id,
-        label: categoryDisplayName(cat.id, cat.name, categoryRenames),
-        blocked: isCategoryBlocked(cat),
-        pinned: pinnedIds.has(cat.id),
+      categoryNodes.map((node) => ({
+        id: node.id,
+        name: node.name,
+        originalName: node.originalName,
+        channelCount: node.count,
+        playlistId: allCategories[0]?.playlistId ?? '',
+        parentId: node.parentId ?? undefined,
+        childIds: node.childIds,
+        level: node.level,
       })),
-    [laidOutCategories, categoryRenames, isCategoryBlocked, pinnedIds],
+    [allCategories, categoryNodes],
   );
-
-  const extraCategory = useMemo(() => {
-    if (!activeCategory || activeCategory === ALL_CHANNELS) return null;
-    return toolbarCategories.find((cat) => cat.id === activeCategory && !cat.pinned) ?? null;
-  }, [activeCategory, toolbarCategories]);
-
-  const restCount = toolbarCategories.filter((cat) => !cat.pinned).length;
-
-  const channelCountByCategory = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const ch of allChannels) {
-      if (!ch.categoryId) continue;
-      map.set(ch.categoryId, (map.get(ch.categoryId) ?? 0) + 1);
-    }
-    return map;
-  }, [allChannels]);
-
-  const pickerCategories = useMemo(() => {
-    const q = pickSearch.trim().toLowerCase();
-    if (!q) return toolbarCategories;
-    return toolbarCategories.filter((cat) => cat.label.toLowerCase().includes(q));
-  }, [toolbarCategories, pickSearch]);
 
   const favoriteChannels = enrichedChannels.filter((ch) => favoriteChannelIds.includes(ch.id));
   const recentChannels = enrichedChannels.filter((ch) => ch.isRecent);
-  const landing = !search && !activeCategory;
-  const showCatalog = Boolean(search) || activeCategory != null;
+  const landing = !search && !effectiveActiveCategory;
+  const showCatalog = Boolean(search) || effectiveActiveCategory != null;
 
-  const applyCategory = (id: string | null, toggleIfSame: boolean) => {
+  const isNodeBlocked = (node: CategoryHierarchyNode): boolean => {
+    const descendants = categoryAndDescendants(categoryNodes, node.id);
+    const ancestorIds = new Set<string>();
+    let parentId = node.parentId;
+    while (parentId) {
+      ancestorIds.add(parentId);
+      parentId = categoryNodes.find((candidate) => candidate.id === parentId)?.parentId ?? null;
+    }
+
+    return [...descendants, ...categoryNodes.filter((candidate) => ancestorIds.has(candidate.id))].some(
+      (candidate) => {
+        const category = allCategories.find((item) => item.id === candidate.id);
+        if (category && isCategoryBlocked(category)) return true;
+        const playlistId = category?.playlistId ?? allCategories[0]?.playlistId;
+        return Boolean(
+          !sessionUnlocked &&
+            playlistId &&
+            lockedItems.includes(categoryLockKey(playlistId, candidate.id)),
+        );
+      },
+    );
+  };
+
+  const applyCategory = (id: string | null) => {
     if (id && id !== ALL_CHANNELS) {
-      const cat = allCategories.find((c) => c.id === id);
-      if (cat && isCategoryBlocked(cat)) {
+      const node = categoryNodes.find((candidate) => candidate.id === id);
+      if (node && isNodeBlocked(node)) {
         void ensureUnlocked();
         return;
       }
     }
-    setActiveCategory(toggleIfSame && id === activeCategory ? null : id);
-    setShowPicker(false);
-    setPickSearch('');
+    setActiveCategory(id);
   };
 
   if (!hydrated || !catalogReady) {
@@ -163,133 +206,57 @@ export function LiveTVPage() {
         size="lg"
       >
         <CategoryRenamePanel
-          categories={laidOutCategories}
+          categories={managementCategories}
           title={t('liveTV.myCategories')}
           hint={t('liveTV.myCategoriesHint')}
         />
       </AppDialog>
 
-      <AppDialog
-        open={showPicker}
-        onClose={() => {
-          setShowPicker(false);
-          setPickSearch('');
-        }}
-        title={t('liveTV.pickCategory')}
-        size="md"
-      >
-        <SearchBar
-          value={pickSearch}
-          onChange={setPickSearch}
-          placeholder={t('liveTV.pickCategorySearch')}
-          className="mb-3"
+      <div className="category-browse-layout category-browse-layout-hierarchical">
+        <HierarchicalCategoryDirectory
+          title={t('liveTV.categories')}
+          subtitle={t('liveTV.catalogStats', {
+            categories: categoryNodes.length,
+            channels: allChannels.length,
+          })}
+          nodes={categoryNodes}
+          allId={ALL_CHANNELS}
+          allLabel={t('liveTV.allCategories')}
+          allCount={allChannels.length}
+          activeId={effectiveActiveCategory}
+          pinnedIds={categoryPins}
+          onSelect={(id) => applyCategory(id)}
+          onManage={() => setShowCategories(true)}
+          manageLabel={t('liveTV.manageCategories')}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder={t('liveTV.searchPlaceholder')}
+          searchLabel={t('nav.search')}
+          labelForNode={(node) => categoryDisplayName(node.id, node.name, categoryRenames)}
+          isBlocked={isNodeBlocked}
+          className="mb-4 md:mb-0"
         />
-        <div className="flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={() => applyCategory(ALL_CHANNELS, false)}
-            className={cn(
-              'flex h-11 w-full items-center justify-between rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              activeCategory === ALL_CHANNELS
-                ? 'bg-accent text-white'
-                : 'text-white/80 hover:bg-surface-3',
-            )}
-          >
-            <span>{t('liveTV.allChannels')}</span>
-            <span className="text-xs opacity-70">{allChannels.length}</span>
-          </button>
-          {pickerCategories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => applyCategory(cat.id, false)}
-              className={cn(
-                'flex h-11 w-full items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                cat.id === activeCategory
-                  ? 'bg-accent text-white'
-                  : 'text-white/80 hover:bg-surface-3',
-                cat.blocked && 'opacity-70',
-              )}
-            >
-              {cat.blocked && <Lock className="h-3.5 w-3.5 shrink-0" />}
-              <span className="min-w-0 flex-1 truncate text-start">{cat.label}</span>
-              <span className="shrink-0 text-xs opacity-70">
-                {t('liveTV.categoryChannelCount', {
-                  count: channelCountByCategory.get(cat.id) ?? 0,
-                })}
-              </span>
-            </button>
-          ))}
-          {pickerCategories.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-white/40">{t('playlists.categoriesNoMatch')}</p>
-          )}
-        </div>
-      </AppDialog>
-
-      <CatalogToolbar
-        allLabel={t('liveTV.allCategories')}
-        categories={toolbarCategories}
-        activeId={activeCategory && activeCategory !== ALL_CHANNELS ? activeCategory : null}
-        onSelect={(id) => {
-          if (id) {
-            applyCategory(id, true);
-            return;
-          }
-          setActiveCategory(null);
-        }}
-        onManage={() => setShowCategories(true)}
-        manageLabel={t('liveTV.manageCategories')}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder={t('liveTV.searchPlaceholder')}
-        searchLabel={t('nav.search')}
-        view={view}
-        onViewChange={setView}
-        listLabel={t('liveTV.listView')}
-        gridLabel={t('liveTV.gridView')}
-        pinsPlus
-        extraCategory={extraCategory}
-        moreLabel={t('liveTV.moreCategories')}
-        moreCount={restCount}
-        onMore={() => setShowPicker(true)}
-        moreOpen={showPicker}
-      />
+        <div className="catalog-category-content space-y-8 md:space-y-10">
 
       {landing && favoriteChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader title={t('liveTV.myFavoriteChannels')} accent className="mb-3" />
-          {view === 'list' ? (
-            <div className="space-y-1">
-              {favoriteChannels.map((ch) => (
-                <BroadcastChannelCard key={ch.id} channel={ch} from="favorites" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {favoriteChannels.map((ch) => (
-                <ChannelCard key={ch.id} channel={ch} variant="grid" from="favorites" />
-              ))}
-            </div>
-          )}
+          <div className="live-channel-grid grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {favoriteChannels.map((ch) => (
+              <ChannelCard key={ch.id} channel={ch} variant="grid" from="favorites" />
+            ))}
+          </div>
         </section>
       )}
 
       {landing && recentChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader title={t('liveTV.recent')} accent className="mb-3" />
-          {view === 'list' ? (
-            <div className="space-y-1">
-              {recentChannels.map((ch) => (
-                <BroadcastChannelCard key={ch.id} channel={ch} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {recentChannels.map((ch) => (
-                <ChannelCard key={ch.id} channel={ch} variant="grid" />
-              ))}
-            </div>
-          )}
+          <div className="live-channel-grid grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {recentChannels.map((ch) => (
+              <ChannelCard key={ch.id} channel={ch} variant="grid" />
+            ))}
+          </div>
         </section>
       )}
 
@@ -298,7 +265,7 @@ export function LiveTVPage() {
           emoji="📡"
           title={t('liveTV.chooseCategory')}
           description={t('liveTV.chooseCategoryDescription')}
-          action={{ label: t('liveTV.moreCategories'), onClick: () => setShowPicker(true) }}
+          action={{ label: t('liveTV.allChannels'), onClick: () => applyCategory(ALL_CHANNELS) }}
         />
       )}
 
@@ -306,10 +273,10 @@ export function LiveTVPage() {
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           <SectionHeader
             title={
-              search || (activeCategory && activeCategory !== ALL_CHANNELS)
+              search || (effectiveActiveCategory && effectiveActiveCategory !== ALL_CHANNELS)
                 ? t('common.results', { count: filtered.length })
                 : t('liveTV.catalogStats', {
-                    categories: laidOutCategories.length,
+                    categories: categoryNodes.length,
                     channels: allChannels.length,
                   })
             }
@@ -327,31 +294,25 @@ export function LiveTVPage() {
           ) : (
             <VirtualGrid
               items={filtered}
-              layout={view === 'list' ? 'list' : 'grid'}
+              layout="grid"
+              className="live-channel-grid"
               getKey={(ch) => ch.id}
-              renderItem={(ch) =>
-                view === 'list' ? (
-                  <BroadcastChannelCard
-                    channel={ch}
-                    categoryId={
-                      activeCategory && activeCategory !== ALL_CHANNELS ? activeCategory : undefined
-                    }
-                  />
-                ) : (
-                  <ChannelCard
-                    channel={ch}
-                    variant="grid"
-                    className="w-full"
-                    categoryId={
-                      activeCategory && activeCategory !== ALL_CHANNELS ? activeCategory : undefined
-                    }
-                  />
-                )
-              }
+              renderItem={(ch) => (
+                <ChannelCard
+                  channel={ch}
+                  variant="grid"
+                  className="w-full"
+                  categoryId={
+                    effectiveActiveCategory && effectiveActiveCategory !== ALL_CHANNELS ? effectiveActiveCategory : undefined
+                  }
+                />
+              )}
             />
           )}
         </section>
       )}
+        </div>
+      </div>
     </div>
   );
 }

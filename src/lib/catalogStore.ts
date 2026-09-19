@@ -61,7 +61,9 @@ import type {
   LiveChannel,
   LiveCategory,
   Movie,
+  MovieCategory,
   Series,
+  SeriesCategory,
   Season,
   Episode,
   EPGProgram,
@@ -94,7 +96,7 @@ const RECORD_KEY = 'current';
 /**
  * Le catalogue tel qu'il est enregistré.
  *
- * Reprend exactement les sept champs de contenu du store. Tout le
+ * Reprend exactement les neuf champs de contenu du store. Tout le
  * reste (profils, favoris, historique, réglages) demeure dans
  * `localStorage`, où il est relu instantanément.
  */
@@ -102,7 +104,9 @@ export interface PersistedCatalog {
   channels: LiveChannel[];
   liveCategories: LiveCategory[];
   movies: Movie[];
+  movieCategories: MovieCategory[];
   series: Series[];
+  seriesCategories: SeriesCategory[];
   seasons: Season[];
   episodes: Episode[];
   epgPrograms: EPGProgram[];
@@ -121,7 +125,9 @@ export const EMPTY_CATALOG: Omit<PersistedCatalog, 'savedAt'> = {
   channels: [],
   liveCategories: [],
   movies: [],
+  movieCategories: [],
   series: [],
+  seriesCategories: [],
   seasons: [],
   episodes: [],
   epgPrograms: [],
@@ -307,7 +313,9 @@ export function normalizeCatalog(value: unknown): PersistedCatalog | null {
     channels: list<LiveChannel>('channels'),
     liveCategories: list<LiveCategory>('liveCategories'),
     movies: list<Movie>('movies'),
+    movieCategories: list<MovieCategory>('movieCategories'),
     series: list<Series>('series'),
+    seriesCategories: list<SeriesCategory>('seriesCategories'),
     seasons: list<Season>('seasons'),
     episodes: list<Episode>('episodes'),
     epgPrograms: list<EPGProgram>('epgPrograms'),

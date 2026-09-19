@@ -2,10 +2,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
+import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, MediaCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { Star, Film, ChevronLeft } from 'lucide-react';
-import { CatalogToolbar } from '@/design-system/components/CatalogToolbar';
+import { CategoryDirectory, type CategoryDirectoryItem } from '@/design-system/components/CategoryDirectory';
 import { CatalogRail } from '@/design-system/components/CatalogRail';
 import { MovieCard } from '@/design-system/components/MediaCard';
 import { VirtualGrid } from '@/design-system/components/VirtualGrid';
@@ -19,13 +20,25 @@ import { groupByName, RAIL_PREVIEW } from '@/services/catalog/groupByName';
 // La valeur « ALL_CATEGORY » sert de sentinelle interne (jamais affichée) :
 // elle ne doit pas être traduite, sinon le filtre casse au changement de langue.
 const ALL_CATEGORY = '__all__';
+const FAVORITES_CATEGORY = '__favorites__';
 
 export function MoviesPage() {
   const { t } = useTranslation();
   const { movies: allMovies } = useActiveCatalog();
+  const favorites = useAppStore((s) => s.favorites);
+  const activeProfileId = useAppStore((s) => s.activeProfileId);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'grid' | 'list'>('grid');
+  const view = 'grid' as const;
   const [category, setCategory] = useState(ALL_CATEGORY);
+
+  const favoriteMovieIds = useMemo(
+    () => new Set(
+      favorites
+        .filter((favorite) => favorite.mediaType === 'movie' && favorite.profileId === activeProfileId)
+        .map((favorite) => favorite.mediaId),
+    ),
+    [favorites, activeProfileId],
+  );
 
   const uncategorized = t('movies.uncategorized');
   const rails = useMemo(
@@ -36,7 +49,9 @@ export function MoviesPage() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return allMovies.filter((m) => {
-      if (category !== ALL_CATEGORY && m.categoryName !== category && !m.genre?.includes(category)) {
+      if (category === FAVORITES_CATEGORY) {
+        if (!favoriteMovieIds.has(m.id) && !m.isFavorite) return false;
+      } else if (category !== ALL_CATEGORY && m.categoryName !== category && !m.genre?.includes(category)) {
         return false;
       }
       if (
@@ -49,7 +64,28 @@ export function MoviesPage() {
       }
       return true;
     });
-  }, [search, category, allMovies]);
+  }, [search, category, allMovies, favoriteMovieIds]);
+
+  const directoryCategories = useMemo<CategoryDirectoryItem[]>(
+    () => [
+      {
+        id: ALL_CATEGORY,
+        label: t('common.all'),
+        count: allMovies.length,
+      },
+      {
+        id: FAVORITES_CATEGORY,
+        label: t('common.favorites'),
+        count: allMovies.filter((movie) => favoriteMovieIds.has(movie.id) || movie.isFavorite).length,
+      },
+      ...rails.map((rail) => ({
+        id: rail.name,
+        label: rail.name,
+        count: rail.items.length,
+      })),
+    ],
+    [allMovies, favoriteMovieIds, rails, t],
+  );
 
   // Voir useHydrated : ne pas annoncer « aucun film » avant d'avoir lu
   // les données enregistrées.
@@ -72,22 +108,20 @@ export function MoviesPage() {
 
   return (
     <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
-      <CatalogToolbar
-        heading={t('movies.title')}
-        hideCategories
-        allLabel={t('common.all')}
-        categories={[]}
-        activeId={null}
-        onSelect={() => {}}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder={t('movies.searchPlaceholder')}
-        searchLabel={t('nav.search')}
-        view={view}
-        onViewChange={setView}
-        listLabel={t('liveTV.listView')}
-        gridLabel={t('liveTV.gridView')}
-      />
+      <div className="category-browse-layout">
+        <CategoryDirectory
+          title={t('liveTV.categories')}
+          subtitle={t('movies.count', { count: allMovies.length })}
+          categories={directoryCategories}
+          activeId={category}
+          onSelect={setCategory}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder={t('movies.searchPlaceholder')}
+          searchLabel={t('nav.search')}
+          className="mb-4 md:mb-0"
+        />
+        <div className="catalog-category-content space-y-8 md:space-y-10">
 
       {browsing ? (
         allMovies.length === 0 ? (
@@ -176,6 +210,8 @@ export function MoviesPage() {
           )}
         </section>
       )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -67,6 +67,13 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  // Le bouton d'indication de développement de Next embarque un gestionnaire
+  // de glissement qui peut appeler `releasePointerCapture` après l'annulation
+  // d'un geste tactile sur téléphone. Il ne sert pas à l'application et
+  // provoque un NotFoundError dans le build `out/dev` ; les vraies erreurs
+  // de compilation restent toutefois affichées par Next.
+  devIndicators: false,
+
   /**
    * Images distantes.
    *

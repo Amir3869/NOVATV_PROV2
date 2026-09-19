@@ -142,9 +142,36 @@ export interface M3USource {
 }
 
 // ─────────────────────────────────────────────
+// Catégories communes
+// ─────────────────────────────────────────────
+
+/** Relation conservée après normalisation du catalogue. */
+export type CategoryRelation = 'native' | 'inferred' | 'flat';
+
+/** Métadonnées hiérarchiques optionnelles pour les anciens catalogues. */
+export interface CategoryHierarchyFields {
+  /** Id de la catégorie parente, ou absent pour une racine. */
+  parentId?: string;
+  /** Enfants directs, renseignés par le moteur de normalisation. */
+  childIds?: string[];
+  /** Profondeur dans l'arbre, 0 pour une racine. */
+  level?: number;
+  /** Chemin sémantique, sans perdre le nom original. */
+  path?: string[];
+  /** Nom original fourni par le serveur ou la playlist. */
+  originalName?: string;
+  /** Origine de la relation. */
+  relation?: CategoryRelation;
+  /** Code de langue, pays ou bouquet détecté. */
+  regionCode?: string;
+  /** Variantes de qualité détectées : HD, FHD, UHD, 4K… */
+  qualities?: string[];
+}
+
+// ─────────────────────────────────────────────
 // Live TV
 // ─────────────────────────────────────────────
-export interface LiveCategory {
+export interface LiveCategory extends CategoryHierarchyFields {
   id: string;
   name: string;
   channelCount: number;
@@ -203,7 +230,7 @@ export interface EPGProgram {
 // ─────────────────────────────────────────────
 // Movies (VOD)
 // ─────────────────────────────────────────────
-export interface MovieCategory {
+export interface MovieCategory extends CategoryHierarchyFields {
   id: string;
   name: string;
   movieCount: number;
@@ -242,7 +269,7 @@ export interface Movie {
 // ─────────────────────────────────────────────
 // Series
 // ─────────────────────────────────────────────
-export interface SeriesCategory {
+export interface SeriesCategory extends CategoryHierarchyFields {
   id: string;
   name: string;
   seriesCount: number;

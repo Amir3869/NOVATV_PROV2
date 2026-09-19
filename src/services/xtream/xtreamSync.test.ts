@@ -608,7 +608,7 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
       selection: { live: ['1'], vod: [], series: [] },
     });
 
-    expect(result.catalog.liveCategories.map((c) => c.name)).toEqual(['FR | Général']);
+    expect(result.catalog.liveCategories.map((c) => c.name)).toEqual(['FR', 'FR | Général']);
   });
 
   it('compte les chaînes réellement rapportées', async () => {
@@ -649,7 +649,7 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
     });
     expect(result.catalog.channels[0].categoryId).toBe('p1:livecat:1');
     expect(result.catalog.channels[0].categoryName).toBe('FR | Général');
-    expect(result.catalog.liveCategories[0].id).toBe('p1:livecat:1');
+    expect(result.catalog.liveCategories.find((c) => c.name === 'FR | Général')?.id).toBe('p1:livecat:1');
   });
 
   it('importe les sous-catégories d’un parent coché', async () => {
@@ -699,7 +699,7 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
     });
 
     expect(result.counts.channels).toBe(1);
-    expect(result.catalog.liveCategories).toHaveLength(1);
+    expect(result.catalog.liveCategories).toHaveLength(2);
   });
 });
 

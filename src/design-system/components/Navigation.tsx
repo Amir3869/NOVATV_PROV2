@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Home, Tv, Film, BookOpen, Search, History,
-  Settings, List, Radio, ChevronRight, X, MoreHorizontal, CalendarDays
+  Home, Tv, Film, BookOpen, Search,
+  Settings, List, Radio, ChevronRight, X
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Avatar } from './Avatar';
@@ -27,10 +27,8 @@ const navItems: { href: string; labelKey: MessageKey; icon: React.ElementType }[
   { href: '/live', labelKey: 'nav.liveTV', icon: Tv },
   { href: '/movies', labelKey: 'nav.movies', icon: Film },
   { href: '/series', labelKey: 'nav.series', icon: BookOpen },
-  { href: '/epg', labelKey: 'nav.epg', icon: Radio },
   { href: '/lists', labelKey: 'nav.lists', icon: List },
   { href: '/search', labelKey: 'nav.search', icon: Search },
-  { href: '/history', labelKey: 'nav.history', icon: History },
   { href: '/playlists', labelKey: 'nav.playlists', icon: Radio },
   { href: '/settings', labelKey: 'nav.settings', icon: Settings },
 ];
@@ -229,7 +227,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label={t('nav.mainMenu')}
-      className="fixed inset-x-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-surface-1/90 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl lg:hidden bottom-[max(0.5rem,var(--safe-bottom))]"
+      className="bottom-nav fixed inset-x-4 z-50 mx-auto max-w-xl overflow-hidden rounded-[32px] border border-white/15 bg-surface-1/90 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl lg:hidden bottom-[max(0.5rem,var(--safe-bottom))]"
     >
       <div className="flex items-center justify-around gap-1 px-1.5 py-1.5">
         {items.map(({ href, label, icon: Icon }) => {
@@ -239,12 +237,12 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                'relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                'bottom-nav-item relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                 isActive ? 'bg-accent/15 text-white' : 'text-white/45 hover:bg-white/5 hover:text-white/80'
               )}
             >
-              <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-accent')} />
-              <span className="max-w-full truncate text-[10px] font-medium">{label}</span>
+              <Icon className={cn('bottom-nav-icon h-5 w-5 shrink-0', isActive && 'text-accent')} />
+              <span className="bottom-nav-label max-w-full truncate text-[10px] font-medium">{label}</span>
             </Link>
           );
         })}
@@ -257,17 +255,12 @@ export function TopBar() {
   const { t } = useTranslation();
   const pathname = usePathname();
   const profile = useActiveProfile();
-  const [moreOpen, setMoreOpen] = useState(false);
   const primaryItems = [
     { href: '/', label: t('nav.home'), icon: Home },
     { href: '/live', label: t('nav.liveTV'), icon: Tv },
     { href: '/movies', label: t('nav.movies'), icon: Film },
     { href: '/series', label: t('nav.series'), icon: BookOpen },
     { href: '/lists', label: t('nav.lists'), icon: List },
-  ];
-  const secondaryItems = [
-    { href: '/epg', label: t('nav.epg'), icon: CalendarDays },
-    { href: '/history', label: t('nav.history'), icon: History },
   ];
   // TV / Films / Séries ont déjà une loupe de filtre dans la rangée.
   // La loupe du bandeau ouvre /search (autre écran) : deux portes pour
@@ -279,10 +272,10 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-40 px-3 pt-[max(0.75rem,var(--safe-top))] sm:px-5 lg:px-6">
-      <nav aria-label={t('nav.mainMenu')} className="relative mx-auto flex min-h-16 max-w-[1500px] flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/10 bg-surface-1/75 px-3 py-2 shadow-[0_16px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+      <nav aria-label={t('nav.mainMenu')} className="topbar-nav relative mx-auto flex min-h-16 max-w-[1500px] flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/10 bg-surface-1/75 px-3 py-2 shadow-[0_16px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
         <NovaLogo variant="compact" size="xs" className="mx-2 shrink-0" />
         <div className="hidden h-7 w-px shrink-0 bg-white/10 lg:block" />
-        <div className="hidden min-w-0 items-center justify-center gap-2 overflow-hidden lg:flex lg:flex-1">
+        <div className="topbar-primary hidden min-w-0 items-center justify-center gap-2 overflow-hidden lg:flex lg:flex-1">
           {primaryItems.map(({ href, label, icon: Icon }) => {
             const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
             return (
@@ -293,11 +286,21 @@ export function TopBar() {
             );
           })}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="topbar-actions ml-auto flex shrink-0 items-center gap-1">
           {!hideGlobalSearch && (
             <Link href="/search" aria-label={t('nav.search')} className="flex h-11 w-11 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Search className="h-4 w-4" /></Link>
           )}
-          <button type="button" aria-label={t('nav.more')} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)} className={cn('flex h-11 w-11 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', moreOpen && 'bg-white/10 text-white')}><MoreHorizontal className="h-5 w-5" /></button>
+          <Link
+            href="/playlists"
+            aria-label={t('nav.playlists')}
+            title={t('nav.playlists')}
+            className={cn(
+              'flex h-11 w-11 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              pathname.startsWith('/playlists') && 'bg-accent/15 text-accent',
+            )}
+          >
+            <Radio className="h-5 w-5" />
+          </Link>
           <Link
             href="/settings"
             aria-label={t('nav.settings')}
@@ -307,16 +310,9 @@ export function TopBar() {
             )}
           >
             {profile ? <Avatar profile={profile} size="sm" /> : <Settings className="h-4 w-4" />}
-            <span className="hidden text-xs font-semibold text-white/75 sm:inline">{profile?.name ?? t('nav.settings')}</span>
+            <span className="topbar-settings-label hidden text-xs font-semibold text-white/75 sm:inline">{profile?.name ?? t('nav.settings')}</span>
           </Link>
         </div>
-        {moreOpen && (
-          <div className="absolute right-3 top-[calc(100%+0.5rem)] z-50 grid min-w-56 gap-1 rounded-2xl border border-white/10 bg-surface-2/95 p-2 shadow-2xl backdrop-blur-2xl">
-            {secondaryItems.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} onClick={() => setMoreOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Icon className="h-4 w-4 text-accent" />{label}</Link>
-            ))}
-          </div>
-        )}
       </nav>
     </header>
   );

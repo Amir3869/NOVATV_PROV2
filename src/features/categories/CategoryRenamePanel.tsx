@@ -85,8 +85,15 @@ export function CategoryRenamePanel({
           const groupEnd = isPinned ? pinned.length - 1 : laidOut.length - 1;
           const canUp = index > groupStart;
           const canDown = index < groupEnd;
+          const level = Math.max(0, Math.min(cat.level ?? 0, 4));
+          const isChild = level > 0;
           return (
-            <li key={cat.id} className="flex items-center gap-2 py-2.5">
+            <li
+              key={cat.id}
+              data-category-level={level}
+              className="flex items-center gap-2 py-2.5"
+              style={{ paddingInlineStart: level ? `${level * 0.75}rem` : undefined }}
+            >
               <div className="flex-1 min-w-0">
                 <p
                   className={cn(
@@ -95,6 +102,7 @@ export function CategoryRenamePanel({
                     isLocked && 'opacity-60'
                   )}
                 >
+                  {isChild && <span className="mr-1 text-white/30" aria-hidden="true">↳</span>}
                   {display}
                 </p>
                 <p className="text-xs text-white/35">
@@ -118,7 +126,7 @@ export function CategoryRenamePanel({
 
               <button
                 type="button"
-                onClick={() => moveCategory(cat.id, -1)}
+                onClick={() => moveCategory(cat.id, -1, laidOut.map((item) => item.id))}
                 disabled={!canUp}
                 aria-label={t('liveTV.moveCategoryUp')}
                 title={t('liveTV.moveCategoryUp')}
@@ -129,7 +137,7 @@ export function CategoryRenamePanel({
 
               <button
                 type="button"
-                onClick={() => moveCategory(cat.id, 1)}
+                onClick={() => moveCategory(cat.id, 1, laidOut.map((item) => item.id))}
                 disabled={!canDown}
                 aria-label={t('liveTV.moveCategoryDown')}
                 title={t('liveTV.moveCategoryDown')}

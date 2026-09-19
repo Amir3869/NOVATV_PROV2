@@ -2,7 +2,15 @@
 
 import { useMemo } from 'react';
 import { useAppStore } from '@/store/useAppStore';
-import type { EPGProgram, LiveCategory, LiveChannel, Movie, Series } from '@/types';
+import type {
+  EPGProgram,
+  LiveCategory,
+  LiveChannel,
+  Movie,
+  MovieCategory,
+  Series,
+  SeriesCategory,
+} from '@/types';
 
 /**
  * Catalogue **affiché** : uniquement la source active.
@@ -53,7 +61,9 @@ export interface ActiveCatalog {
   channels: LiveChannel[];
   liveCategories: LiveCategory[];
   movies: Movie[];
+  movieCategories: MovieCategory[];
   series: Series[];
+  seriesCategories: SeriesCategory[];
   epgPrograms: EPGProgram[];
 }
 
@@ -66,7 +76,9 @@ export function useActiveCatalog(): ActiveCatalog {
   const channels = useAppStore((s) => s.channels);
   const liveCategories = useAppStore((s) => s.liveCategories);
   const movies = useAppStore((s) => s.movies);
+  const movieCategories = useAppStore((s) => s.movieCategories);
   const series = useAppStore((s) => s.series);
+  const seriesCategories = useAppStore((s) => s.seriesCategories);
   const epgPrograms = useAppStore((s) => s.epgPrograms);
 
   return useMemo(
@@ -75,9 +87,20 @@ export function useActiveCatalog(): ActiveCatalog {
       channels: ofActivePlaylist(channels, activePlaylistId),
       liveCategories: ofActivePlaylist(liveCategories, activePlaylistId),
       movies: ofActivePlaylist(movies, activePlaylistId),
+      movieCategories: ofActivePlaylist(movieCategories, activePlaylistId),
       series: ofActivePlaylist(series, activePlaylistId),
+      seriesCategories: ofActivePlaylist(seriesCategories, activePlaylistId),
       epgPrograms: ofActiveEpg(epgPrograms, activePlaylistId),
     }),
-    [activePlaylistId, channels, liveCategories, movies, series, epgPrograms]
+    [
+      activePlaylistId,
+      channels,
+      liveCategories,
+      movies,
+      movieCategories,
+      series,
+      seriesCategories,
+      epgPrograms,
+    ]
   );
 }

@@ -197,9 +197,9 @@ describe('hasCatalogContent', () => {
 });
 
 describe('EMPTY_CATALOG', () => {
-  it('expose les sept champs de contenu, tous vides', () => {
+  it('expose les neuf champs de contenu, tous vides', () => {
     expect(Object.keys(EMPTY_CATALOG).sort()).toEqual(
-      ['channels', 'episodes', 'epgPrograms', 'liveCategories', 'movies', 'seasons', 'series'].sort()
+      ['channels', 'episodes', 'epgPrograms', 'liveCategories', 'movieCategories', 'movies', 'seasons', 'series', 'seriesCategories'].sort()
     );
     for (const value of Object.values(EMPTY_CATALOG)) {
       expect(value).toEqual([]);

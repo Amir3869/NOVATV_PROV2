@@ -754,7 +754,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
       if (!video) return;
       seekTo(video.currentTime + delta);
     },
-    [videoRef, seekTo]
+    [videoRef, seekTo, isLive]
   );
 
   /**

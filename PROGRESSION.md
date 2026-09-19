@@ -1,314 +1,445 @@
 # NOVA TV — Suivi de progression
 
-> **Tableau de bord du projet, de l'état actuel au déploiement complet.**
-> Mis à jour à chaque session de travail ou sur demande.
+> Suivi de l'état réel du repository et des prochaines étapes.
 >
-> Documents liés : `AUDIT_NOVA_IPTV.md` (état initial, figé) · `DOCUMENTATION.md` (référence technique)
-
-**Dernière mise à jour :** 29 août 2026
-**Commit audité :** `57f4e3e`
-**Phase en cours :** mise à jour de la progression réelle du projet
+> Dernière mise à jour : 15 septembre 2026
+> Commit audité : `6b08ec8`
+> Branche : `main`
 
 ---
 
-## Vue d'ensemble
+## 1. Statut global
 
-```
-Avancement global : socle applicatif avancé — validation production non terminée
+NOVA TV est un **prototype avancé en pré-production**.
 
-Phase  1  Sécurisation & nettoyage      ⚠️ partiel             ~2 j
-Phase  2  Bugs bloquants                ✅ vérifié côté code    ~2 j
-Phase  3  Stockage local                ⚠️ IndexedDB maison     ~4 j
-Phase  4  Sources IPTV réelles           ⚠️ code présent, réel ❓ ~8 j
-Phase  5  Lecteur vidéo                  ⚠️ web présent, réel ❓  ~9 j
-Phase  6  Interface & performance        ⚠️ partiel              ~6 j
-Phase  7  Multilingue & thèmes           ⚠️ partiel              ~4 j
-Phase  8  Adaptation TV                  ⚠️ code présent, réel ❓  ~8 j
-Phase  9  APK Capacitor                  ⚠️ config seulement      ~7 j
-Phase 10  Tests, publication, suite      ⚠️ tests unitaires seuls ~6 j
-                                                    ─────────
-                                        Total ≈ 56 jours ouvrés
-                                              ≈ 7 semaines à 35 h
-```
+Le projet contient désormais :
 
-**Note sur les 15 %.** L'audit initial estimait 20-25 % pour un produit web complet avec serveur. Le périmètre a changé — application locale, APK, multilingue, deux thèmes — donc le dénominateur a bougé. Le travail déjà fait (design system, types, structure) reste entièrement valable.
+- une application Next.js exportée statiquement ;
+- une architecture App Router ;
+- des sources Xtream et M3U ;
+- une synchronisation EPG ;
+- un stockage IndexedDB custom ;
+- des profils et un contrôle parental local ;
+- des favoris, listes, historique et reprise ;
+- un player Web réel ;
+- un player VOD natif Android avec ExoPlayer ;
+- un projet Capacitor Android ;
+- des pages TV DIRECT, FILMS, SERIES, EPG, player et réglages.
+
+Le projet n'est pas encore une release de production. Les principales raisons sont :
+
+- secrets locaux non chiffrés ;
+- lint en échec ;
+- un test unitaire rouge ;
+- lockfile désynchronisé ;
+- validation des sources réelles incomplète ;
+- Firestick et Android TV non validés dans le repository ;
+- navigation télécommande non démontrée ;
+- design global encore à améliorer ;
+- absence de suite E2E complète.
 
 ---
 
-## Ce qui existe déjà et sera conservé
+## 2. Résultats de validation de l'audit
 
-| Élément | État | Valeur |
+| Commande | Résultat | Commentaire |
 |---|---|---|
-| `src/types/index.ts` (387 l.) | ✅ Excellent | Modèle de domaine complet, réutilisable tel quel |
-| `src/design-system/` (11 composants) | ✅ Bon | Base solide, quelques bugs à corriger |
-| Structure `app/` → `features/` | ✅ Bon | Architecture saine, à conserver |
-| 18 routes générées | ✅ Vérifié | Routes applicatives et légales présentes |
-| `src/services/` (Xtream, M3U, XMLTV) | ⚠️ Présent, réel non vérifié | Services et synchronisations présents |
-| `src/store/useAppStore.ts` | ⚠️ Fonctionnel | Catalogue séparé vers IndexedDB maison |
-| Configuration TypeScript stricte | ✅ | 0 erreur de type |
+| `npm run typecheck` | ✅ Réussi | Validation effectuée avec Node 20.20.2 |
+| `npm run build` | ✅ Réussi | Export statique généré |
+| `npm run lint` | ❌ Échec | 5 erreurs React Compiler + 1 avertissement |
+| `npm test -- --reporter=dot` | ⚠️ 828/829 | Échec dans `sourceIdentity.test.ts` |
+| `npm ci` | ❌ Échec | `package.json` et lockfile désynchronisés |
+
+> Le projet exige Node.js `>=22.0.0`, mais l'audit a été exécuté avec Node `20.20.2`. Les validations doivent être rejouées sous Node 22+.
+
+### Défauts lint connus
+
+- `src/features/player/PlayerPage.tsx:335` ;
+- `src/features/player/PlayerPage.tsx:350` ;
+- `src/features/player/PlayerPage.tsx:653` ;
+- `src/features/player/PlayerPage.tsx:840` ;
+- `src/features/player/PlayerPage.tsx:848` ;
+- avertissement de dépendance dans `src/features/player/useVideoPlayer.ts:757`.
+
+### Test rouge connu
+
+```text
+src/services/playlists/sourceIdentity.test.ts:98
+```
+
+Le test concerne la normalisation d'URLs M3U et doit être clarifié avant correction : le slash final se trouve dans une valeur de requête.
 
 ---
 
-## Ce qui est retiré du projet
+## 3. Légende
 
-| Élément | Motif | Phase |
-|---|---|---|
-| `src/db/` (Drizzle + Postgres) | Aucun serveur dans l'architecture locale | 1 |
-| `src/app/api/` | Aucune route serveur nécessaire | 1 |
-| `drizzle-orm`, `drizzle-kit`, `pg`, `dotenv` | Sans objet | 1 |
-| `drizzle.config.json` | Contient des identifiants en dur | 1 |
-| `react-player` | Remplacé par hls.js / mpegts.js / ExoPlayer | 5 |
-| Mocks dans l'état initial | Fausses données présentées comme réelles | 4 |
-
-⚠️ **Aucune suppression sans confirmation explicite au moment de l'exécution.**
+- ✅ Présent dans le code et suffisamment structuré ;
+- ⚠️ Présent mais partiel ou non validé en conditions réelles ;
+- ❌ Absent ou non commencé ;
+- 🧪 À tester sur source, appareil ou matériel réel ;
+- 🔐 Risque de sécurité ;
+- 🎨 Travail design/UX/UI.
 
 ---
 
-## PHASE 1 — Sécurisation et nettoyage · ~2 jours
+## 4. Fonctionnalités terminées au niveau du code
 
-**Branche :** `fix/p0-securite` · **Objectif :** un dépôt propre, sans risque, prêt à recevoir du code.
+### Architecture et application
 
-- [x] `.gitignore` présent — à maintenir
-- [x] `.env.example` présent
-- [x] `README.md` présent
-- [ ] Renommer le projet dans `package.json` (`nextjs-postgresql-template` → `nova-tv`)
-- [x] Export statique et images non optimisées configurés
-- [ ] En-têtes de sécurité à appliquer sur l’hébergement
-- [x] `public/`, favicon, icônes et manifeste présents
-- [ ] Supprimer `drizzle.config.json`, `src/db/`, `src/app/api/` ⚠️ *sur confirmation*
-- [ ] Désinstaller les dépendances serveur
-- [ ] Mettre en place la CI GitHub Actions (lint + typecheck + build)
+- [x] Next.js App Router ;
+- [x] export statique ;
+- [x] routes principales ;
+- [x] séparation `app`, `features`, `services`, `store`, `lib` ;
+- [x] TypeScript strict sans erreur de type observée ;
+- [x] projet Capacitor Android présent ;
+- [x] plugins Android enregistrés.
 
-**Validation :** `npm run lint`, `npm run typecheck`, `npm run build` passent · aucune erreur 404 · aucun secret versionnable.
-**Risque :** très faible, aucune logique applicative touchée.
+### Sources
 
----
+- [x] service Xtream ;
+- [x] synchronisation Xtream ;
+- [x] parser M3U ;
+- [x] synchronisation M3U ;
+- [x] catégories ;
+- [x] chaînes ;
+- [x] films ;
+- [x] séries ;
+- [x] saisons et épisodes ;
+- [x] EPG/XMLTV ;
+- [x] progression d'import ;
+- [x] annulation de certaines opérations ;
+- [x] gestion des erreurs et timeouts au niveau service.
 
-## PHASE 2 — Bugs bloquants · ~2 jours
+### Stockage
 
-**Branche :** `fix/p0-bugs` · **Objectif :** plus aucune erreur, plus aucun crash possible.
-
-- [ ] `Navigation.tsx:190` — hook appelé après un retour anticipé (**risque de crash réel**)
-- [ ] `ProfilesPage.tsx:118` — `<a href="/">` → `<Link>`
-- [ ] Apostrophes non échappées (`PlaylistsPage`, `SettingsPage` ×3)
-- [ ] `HeroBanner.tsx:28` — `setState` direct dans un effet
-- [ ] Réécrire `useDeviceType` : détection TV correcte, fuite mémoire, throttle
-- [ ] Ajouter `error.tsx`, `loading.tsx`, `not-found.tsx`, `global-error.tsx`
-- [ ] Ajouter l'export `viewport` dans `layout.tsx`
-
-**Validation :** `npx eslint .` → **0 erreur, 0 avertissement** · rotation d'écran mobile sans crash · 16 routes sans erreur console.
-
----
-
-## PHASE 3 — Stockage local · ~4 jours
-
-**Branche :** `feat/stockage-local` · **Objectif :** remplacer localStorage (5 Mo) par IndexedDB (plusieurs Go).
-
-- [x] Stockage IndexedDB maison présent (Dexie non utilisé)
-- [x] `src/lib/catalogStore.ts` gère le stockage du catalogue
-- [ ] Chiffrement effectif des identifiants IPTV — le stockage actuel est en clair
-- [ ] Adapter `useAppStore` : Zustand pour l'interface, Dexie pour les données
-- [ ] Migration automatique depuis l'ancien localStorage
-- [ ] Gestion complète de version et migration du schéma
-
-**Validation :** 50 000 chaînes écrites et relues sans ralentissement · données conservées après fermeture · identifiants illisibles en clair dans l'inspecteur.
-**Risque :** modéré — touche le cœur de l'état applicatif. À faire en commits séparés.
-
----
-
-## PHASE 4 — Sources IPTV réelles · ~8 jours
-
-**Branche :** `feat/sources-iptv` · **Objectif :** l'application se connecte enfin à une vraie source.
-
-### Xtream Codes
-- [x] `xtreamService` et `xtreamSync` présents et testés unitairement
-- [ ] **Test de connexion réel** — remplacer le faux succès systématique
-- [ ] Import : catégories, chaînes, films, séries
-- [ ] Gestion des erreurs : identifiants invalides, serveur injoignable, compte expiré
-
-### M3U
-- [x] `m3uParser` et `m3uSync` présents et testés unitairement
-- [ ] Import par URL et par fichier local
-- [ ] Analyse dans un Web Worker (interface non figée)
-- [ ] Écriture par lots de 500
-
-### EPG
-- [x] `epgService` et `epgSync` présents et testés unitairement
-- [ ] Association programmes ↔ chaînes, gestion des fuseaux horaires
-- [ ] Rafraîchissement automatique
+- [x] IndexedDB custom pour catalogue et EPG ;
+- [x] restauration du catalogue ;
+- [x] persistance Zustand ;
+- [x] migrations d'état ;
+- [x] profils ;
+- [x] favoris ;
+- [x] historique ;
+- [x] listes personnalisées ;
+- [x] préférences ;
+- [x] organisation des catégories.
 
 ### Interface
-- [ ] Retirer les mocks de l'état initial ⚠️ *validé par le porteur, à faire ici*
-- [ ] Mode démo explicitement étiqueté
-- [ ] Écran de première ouverture (choix du mode de connexion)
-- [ ] Boutons réellement fonctionnels : ajouter, synchroniser, modifier, supprimer
-- [ ] Barre de progression réelle et annulable
-- [ ] Les quatre états sur les 16 écrans
 
-**Validation :** une source Xtream réelle s'importe · un mauvais mot de passe **échoue vraiment** · un M3U de 50 000 lignes s'importe sans figer l'interface · aucune donnée fictive.
-**Risque :** élevé — nombreuses régressions visuelles attendues (les composants n'ont jamais vu de listes vides).
+- [x] accueil ;
+- [x] onboarding ;
+- [x] TV DIRECT ;
+- [x] FILMS ;
+- [x] SERIES ;
+- [x] EPG ;
+- [x] player ;
+- [x] profils ;
+- [x] favoris ;
+- [x] historique ;
+- [x] recherche ;
+- [x] listes ;
+- [x] sources ;
+- [x] réglages ;
+- [x] pages légales ;
+- [x] skeletons et états vides sur plusieurs écrans ;
+- [x] thème clair et sombre ;
+- [x] traductions custom.
 
----
+### Player
 
-## PHASE 5 — Lecteur vidéo · ~9 jours
-
-**Branche :** `feat/lecteur` · **Objectif :** la vidéo se lit réellement. **C'est la phase qui transforme la maquette en produit.**
-
-### Abstraction
-- [ ] Définir le contrat commun (`load`, `play`, `pause`, `seek`, `volume`, pistes, qualité, événements)
-
-### Moteur web
-- [x] `hls.js` et `mpegts.js` installés et utilisés par le lecteur web
-- [ ] Détection automatique du format (`.m3u8` → HLS, `.ts` → MPEG-TS)
-- [ ] HLS natif sur Safari
-- [ ] Reconnexion automatique avec délai progressif
-- [ ] Indicateur de mise en mémoire tampon
-- [ ] Sélection de qualité, pistes audio, sous-titres
-
-### Interface
-- [x] `PlayerPage.tsx` utilise le lecteur vidéo réel
-- [ ] Contrôles réellement câblés (ils ne pilotent aujourd'hui que du décor)
-- [ ] Sauvegarde de position toutes les ~10 s
-- [ ] Reprise de lecture · épisode suivant · zapping chaîne ±1
-- [ ] Raccourcis clavier et touches média
-
-### Natif
-- [ ] Évaluer les plugins ExoPlayer existants
-- [ ] ⚠️ **Décision :** plein écran natif (simple, perd le design) ou plugin maison (garde le design, +3-4 j)
-- [ ] Brancher ExoPlayer derrière le contrat commun
-
-**Validation :** lecture d'une chaîne live, d'un film, d'un épisode · reprise exacte après fermeture · coupure réseau récupérée sans plantage · **test sur Firestick concluant**.
-**Risque :** élevé. DRM hors périmètre. Les performances Firestick sont le point de vérité.
-
----
-
-## PHASE 6 — Interface et performance · ~6 jours
-
-**Branche :** `feat/perf-ui`
-
-- [ ] Virtualisation des longues listes (`@tanstack/react-virtual`)
-- [ ] Optimisation des images (12 emplacements en `<img>` brut)
-- [ ] Brancher réellement les préférences (`glassEnabled`, animations, qualité par défaut…)
-- [ ] Brancher `fuse.js` (recherche tolérante aux fautes) + historique persisté
-- [ ] Zones sûres iOS complètes
-- [ ] Gestes tactiles du lecteur
-- [ ] Verrouillage paysage en lecture
-
-**Validation :** 50 000 chaînes défilent à 60 images/s · mémoire stable · recherche instantanée.
+- [x] `<video>` Web ;
+- [x] hls.js ;
+- [x] mpegts.js ;
+- [x] play/pause ;
+- [x] volume et mute ;
+- [x] seek VOD ;
+- [x] progression ;
+- [x] reprise ;
+- [x] qualité lorsqu'elle est exposée ;
+- [x] audio et sous-titres lorsqu'ils sont exposés ;
+- [x] EPG ;
+- [x] zapping ;
+- [x] épisode suivant ;
+- [x] vitesse ;
+- [x] sleep timer ;
+- [x] verrouillage des contrôles ;
+- [x] ExoPlayer/Media3 natif pour VOD Android ;
+- [x] mode immersif et wake lock présents dans le code.
 
 ---
 
-## PHASE 7 — Multilingue et thèmes · ~4 jours
+## 5. Fonctionnalités partielles
 
-**Branche :** `feat/i18n-themes`
+### Sources IPTV
 
-- [ ] Installer `i18next` + `react-i18next`
-- [ ] Extraire **toutes** les chaînes de caractères des composants
-- [ ] Traductions FR, EN, ES (anglais = langue de secours)
-- [ ] Détection de la langue système + choix manuel persisté
-- [x] Variables CSS et thèmes clair/sombre présents
-- [x] Thème clair présent — validation visuelle complète à poursuivre
-- [x] Sélecteur clair / sombre / système présent
+- [x] code Xtream présent ;
+- [x] code M3U présent ;
+- [x] code EPG présent ;
+- [ ] validation complète avec source M3U réelle ;
+- [ ] validation complète avec Xtream réel ;
+- [ ] validation des comptes expirés ;
+- [ ] validation des serveurs HTTP instables ;
+- [ ] validation des fuseaux EPG ;
+- [ ] import M3U dans un Web Worker ;
+- [ ] stratégie complète de reprise après interruption.
 
-**Validation :** aucun texte en dur · les trois langues complètes · les deux thèmes lisibles partout.
+### Sécurité
 
----
+- [x] abstraction `secureStore` ;
+- [x] PIN haché lorsque Web Crypto est disponible ;
+- [ ] stockage sécurisé réel des mots de passe ;
+- [ ] PIN demandé avant passage vers un profil adulte ;
+- [ ] progression isolée strictement par profil ;
+- [ ] configuration release sans debugging WebView ;
+- [ ] politique de backup Android ;
+- [ ] headers de sécurité effectivement appliqués ;
+- [ ] analyse complète de l'exposition des credentials dans les URLs.
 
-## PHASE 8 — Adaptation TV · ~8 jours
+### Player
 
-**Branche :** `feat/tv`
+- [x] player Web réel ;
+- [x] player VOD natif présent ;
+- [ ] reconnexion progressive après coupure ;
+- [ ] validation codecs ;
+- [ ] validation AC-3/E-AC-3 ;
+- [ ] validation commandes natives rapprochées ;
+- [ ] validation Firestick ;
+- [ ] validation Android TV ;
+- [ ] validation DRM hors périmètre.
 
-- [x] Détection TV par identifiant navigateur présente — appareils réels non vérifiés
-- [ ] Navigation directionnelle à la télécommande
-- [ ] Défilement automatique vers l'élément focalisé (**obligatoire**)
-- [ ] Focus par défaut sur chaque écran
-- [ ] Touche Retour = reculer, jamais quitter sans confirmation
-- [ ] Touches média
-- [ ] Thème TV : texte ×1,5, cibles ≥ 48 px, marge de sécurité 5 %
-- [ ] Désactivation automatique du flou (coûteux en GPU)
-- [ ] Mode mémoire réduite
+### Design et UX
 
-**Validation :** **parcours complet à la télécommande uniquement, sans souris**, sur Android TV et Firestick · focus jamais perdu, jamais hors écran.
-**Risque :** élevé — aucune ligne d'accessibilité n'existe aujourd'hui (0 occurrence de `tabIndex`, `aria-`, `onKeyDown` dans tout le projet).
-
----
-
-## PHASE 9 — APK Capacitor · ~7 jours
-
-**Branche :** `feat/capacitor`
-
-- [x] Next.js utilise déjà `output: 'export'`
-- [x] Capacitor est configuré — projet Android non généré
-- [ ] Générer le projet Android
-- [ ] Icônes et écran de démarrage (téléphone + bannière TV)
-- [ ] Déclarer le lancement TV (`LEANBACK_LAUNCHER`)
-- [ ] Permissions minimales (Internet uniquement)
-- [ ] Gestion du bouton Retour Android
-- [ ] Maintien de l'écran allumé pendant la lecture
-- [ ] Signature de l'APK ⚠️ *la clé ne doit jamais être versionnée*
-- [ ] Build de production
-- [ ] Installation et test : téléphone Android, Android TV, **Firestick**
-
-**Validation :** l'APK s'installe et fonctionne sur les trois appareils · la lecture est fluide · l'app apparaît correctement dans le lanceur TV.
-
----
-
-## PHASE 10 — Tests, publication et suite · ~6 jours
-
-**Branche :** `feat/tests` puis `release/v1`
-
-- [x] Vitest : 29 fichiers et 690 tests réussis
-- [ ] Playwright : parcours critiques
-- [ ] CI complète
-- [ ] Vitrine web sur Cloudflare Pages (gratuit)
-- [ ] Préparer la couche licence (**désactivée**, prête à brancher)
-- [x] Pages de mentions légales, CGU et confidentialité présentes — revue finale à faire
-- [ ] Documentation utilisateur
-- [ ] Version 1.0.0 étiquetée
-
-**Après la v1 :** iOS/iPad · synchronisation premium · activation de la licence · Chromecast · Apple TV (Swift natif) · téléchargement hors ligne.
+- [x] design system de base ;
+- [x] composants réutilisables ;
+- [x] pages TV DIRECT, FILMS, SERIES et player ;
+- [ ] direction artistique globale validée ;
+- [ ] refonte de la barre de navigation ;
+- [ ] harmonisation des boutons et cartes ;
+- [ ] harmonisation TV DIRECT/FILMS/SERIES ;
+- [ ] refonte réglages, profils et sources ;
+- [ ] amélioration EPG ;
+- [ ] amélioration du player ;
+- [ ] revue complète des états vides et erreurs ;
+- [ ] génération et validation de références visuelles ;
+- [ ] validation mobile et TV.
 
 ---
 
-## Journal des décisions
+## 6. Problèmes prioritaires
 
-| Date | Décision | Conséquence |
-|---|---|---|
-| 17/08 | Lecteur uniquement, aucun abonnement vendu | Position juridique solide |
-| 17/08 | **Pas de synchronisation multi-appareils en v1** | Backend, base et authentification **supprimés** — 3 semaines économisées |
-| 17/08 | **APK = produit final ; web = développement et vitrine** | Problème CORS éliminé, aucun relais serveur, aucun risque juridique |
-| 17/08 | 20 000 à 50 000 chaînes | IndexedDB + virtualisation ; pas de parsing en flux complexe |
-| 17/08 | FR / EN / ES | Pas de droite-à-gauche |
-| 17/08 | **ExoPlayer natif pour l'APK**, hls.js pour le web | Meilleure qualité sur TV, développement rapide |
-| 17/08 | Licence premium préparée mais désactivée | ~1 jour maintenant, 3 économisés plus tard |
-| 17/08 | Contrôle parental : souhaité, non bloquant | Phase 6 ou 7 |
-| 17/08 | Design conservé et affiné | Aucune refonte visuelle |
-| 17/08 | Nom public sans le mot « IPTV » | Évite les rejets en boutique d'applications |
-| 17/08 | Aucun hébergement payant | 0 €/mois |
+### P1 — avant production
+
+- [ ] corriger les erreurs ESLint de `PlayerPage.tsx` ;
+- [ ] corriger la dépendance de `useVideoPlayer.ts` ;
+- [ ] clarifier et corriger le test `sourceIdentity` ;
+- [ ] réaligner `package.json` et `package-lock.json` ;
+- [ ] utiliser Node 22+ pour la validation officielle ;
+- [ ] protéger le passage vers un profil adulte par PIN ;
+- [ ] isoler la progression par profil ;
+- [ ] traiter la course possible du player natif ;
+- [ ] remplacer les CTA inertes ;
+- [ ] tester M3U, Xtream et EPG réels ;
+- [ ] valider Android TV, Firestick et télécommande.
+
+### P2 — important
+
+- [ ] évaluer le catalogue monolithique IndexedDB ;
+- [ ] réduire les réécritures intégrales ;
+- [ ] étudier un Web Worker M3U ;
+- [ ] renforcer le fallback PIN ;
+- [ ] remplacer les erreurs de stockage silencieuses par un état diagnostiquable ;
+- [ ] brancher ou retirer Fuse.js ;
+- [ ] optimiser les images et le cache ;
+- [ ] compléter les traductions ;
+- [ ] ajouter les error boundaries App Router ;
+- [ ] compléter la recherche persistante.
+
+### P3 — amélioration
+
+- [ ] animations et transitions ;
+- [ ] micro-interactions ;
+- [ ] charte graphique formalisée ;
+- [ ] documentation utilisateur ;
+- [ ] nettoyage des dépendances inutilisées ;
+- [ ] amélioration de la vitrine Web ;
+- [ ] préparation Samsung Tizen et iOS après stabilisation Android.
 
 ---
 
-## En attente de décision
+## 7. Roadmap validée : design-first
 
-| # | Sujet | Échéance |
-|---|---|---|
-| 1 | Contrôles vidéo dans l'APK : natif ou plugin maison | Phase 5 |
-| 2 | Présence de DRM sur les sources réelles | Premiers tests |
-| 3 | Sort des dépendances inutilisées (`@radix-ui`, `framer-motion`, `date-fns`) | Phase 6 |
-| 4 | Charte graphique formalisée | À définir ensemble |
-| 5 | Nom définitif : Nova TV ou Nova Player | Avant Phase 9 |
+### Phase 0 — Documentation réelle
+
+Objectif : aligner les trois documents sur le code existant.
+
+- [x] auditer le repository ;
+- [x] comparer README, DOCUMENTATION et PROGRESSION ;
+- [x] identifier les fonctionnalités réelles ;
+- [x] identifier les affirmations obsolètes ;
+- [x] documenter les validations et limites connues.
+
+### Phase 1 — Design global, UX et UI
+
+Objectif : stabiliser l'expérience avant les travaux de durcissement suivants.
+
+Périmètre :
+
+- [ ] navigation principale ;
+- [ ] barre de navigation ;
+- [ ] boutons ;
+- [ ] cartes ;
+- [ ] catégories ;
+- [ ] recherche ;
+- [ ] réglages ;
+- [ ] profils ;
+- [ ] sources ;
+- [ ] onboarding ;
+- [ ] TV DIRECT ;
+- [ ] FILMS ;
+- [ ] SERIES ;
+- [ ] EPG ;
+- [ ] player ;
+- [ ] favoris ;
+- [ ] historique ;
+- [ ] listes ;
+- [ ] états de chargement ;
+- [ ] états vides ;
+- [ ] états d'erreur ;
+- [ ] responsive ;
+- [ ] focus TV ;
+- [ ] génération de propositions visuelles ;
+- [ ] validation d'une direction artistique.
+
+Méthode :
+
+```text
+Analyse
+→ questions UX
+→ suggestions
+→ références visuelles
+→ validation
+→ modification du design system
+→ implémentation écran par écran
+→ tests visuels
+```
+
+### Phase 2 — Sécurité et P1
+
+- [ ] stockage sécurisé des secrets ;
+- [ ] PIN parental global ;
+- [ ] isolation par profil ;
+- [ ] configuration Android release ;
+- [ ] cleartext et mixed content documentés ;
+- [ ] lint vert ;
+- [ ] test unitaire vert ;
+- [ ] lockfile reproductible ;
+- [ ] player natif sécurisé ;
+- [ ] suppression des CTA inertes.
+
+### Phase 3 — Validation des sources
+
+Ordre prévu :
+
+1. source M3U autorisée ;
+2. EPG associé ;
+3. TV DIRECT ;
+4. player live ;
+5. APK Android ;
+6. source Xtream autorisée ;
+7. films ;
+8. séries ;
+9. épisodes ;
+10. reprise et erreurs réseau.
+
+### Phase 4 — Android TV et Firestick
+
+- [ ] APK release ;
+- [ ] lanceur TV ;
+- [ ] focus initial ;
+- [ ] navigation D-pad ;
+- [ ] scroll automatique ;
+- [ ] touche Retour ;
+- [ ] contrôles player télécommande ;
+- [ ] tailles et marges TV ;
+- [ ] limitation des effets GPU ;
+- [ ] test téléphone ;
+- [ ] test Android TV ;
+- [ ] test Firestick.
+
+### Phase 5 — Tests complets
+
+- [ ] corriger tous les tests unitaires ;
+- [ ] lint sans erreur ;
+- [ ] build Node 22+ ;
+- [ ] tests E2E ;
+- [ ] tests M3U ;
+- [ ] tests Xtream ;
+- [ ] tests EPG ;
+- [ ] tests player ;
+- [ ] tests profils ;
+- [ ] tests interruption réseau ;
+- [ ] tests Android ;
+- [ ] tests TV ;
+- [ ] tests télécommande ;
+- [ ] rapport de régression.
+
+### Phase 6 — Production et maintenance
+
+- [ ] APK release signé ;
+- [ ] clé de signature hors repository ;
+- [ ] configuration sécurité release ;
+- [ ] documentation utilisateur ;
+- [ ] checklist de publication ;
+- [ ] version stable ;
+- [ ] maintenance dépendances ;
+- [ ] préparation Samsung Tizen et iOS.
 
 ---
 
-## Journal des sessions
+## 8. Plateformes et validations
 
-### Session 1 — 17 août 2026
-- Audit complet du dépôt (68 fichiers, 6 586 lignes) → `AUDIT_NOVA_IPTV.md`
-- Cadrage produit et technique via questions/réponses
-- Bascule d'architecture : application locale, plus de serveur
-- Rédaction de `DOCUMENTATION.md` et `PROGRESSION.md`
-- Prévisualisation live mise en place (Next.js 16.2.6, port 3000)
-- Incident : `npx` a modifié `next-env.d.ts` et `package-lock.json` → **restaurés par `git checkout`**, dépôt intact
-- **Aucun fichier du projet modifié**
+| Plateforme | Priorité | État dans le repository |
+|---|---:|---|
+| Web | Développement/vitrine | Présent |
+| Téléphone Android | 1 | Code Capacitor présent, validation terrain à documenter |
+| Android TV | 1 | Non vérifié |
+| Firestick | 1 | Non vérifié |
+| Samsung Tizen | Suite | Non commencé |
+| iPhone/iPad | Suite | Non commencé comme produit final |
+| Apple TV | Suite | Non commencé |
 
-**Prochaine étape :** sécuriser les secrets IPTV, puis valider les sources et le lecteur avec des données réelles.
+> Les informations de validation manuelle sur appareils doivent être ajoutées séparément avec l'appareil, la version Android, la version APK, le scénario et le résultat. Le repository ne permet pas de les déduire.
+
+---
+
+## 9. Décisions de travail
+
+| Date | Décision |
+|---|---|
+| 15/09/2026 | Mettre à jour README, DOCUMENTATION et PROGRESSION |
+| 15/09/2026 | Utiliser l'état réel du code comme référence |
+| 15/09/2026 | Nom public : NOVA TV — lecteur IPTV |
+| 15/09/2026 | Web réservé au développement et à la vitrine |
+| 15/09/2026 | Priorité : téléphone Android, Android TV, Firestick |
+| 15/09/2026 | Accepter HTTP et HTTPS sans avertissement obligatoire dans l'interface |
+| 15/09/2026 | Utiliser un PIN parental global pour les profils adultes |
+| 15/09/2026 | Mettre le design et l'UX/UI avant les autres phases de stabilisation |
+| 15/09/2026 | Tester une source M3U avant une source Xtream |
+
+---
+
+## 10. Points non vérifiés
+
+- APK release signé ;
+- Firestick ;
+- Android TV ;
+- télécommande réelle ;
+- flux IPTV réels ;
+- CORS ;
+- codecs ;
+- DRM ;
+- coupure réseau ;
+- très gros catalogues ;
+- restauration Android ;
+- publication store ;
+- sécurité effective des headers ;
+- validation finale du nouveau design.

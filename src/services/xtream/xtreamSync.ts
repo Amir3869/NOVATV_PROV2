@@ -23,7 +23,9 @@ import type {
   LiveCategory,
   LiveChannel,
   Movie,
+  MovieCategory,
   Series,
+  SeriesCategory,
   SourceErrorKind,
 } from '@/types';
 import type { CatalogPayload } from '@/store/useAppStore';
@@ -36,6 +38,7 @@ import {
   type XtreamVodInfo,
 } from './xtreamService';
 import type { Season, Episode } from '@/types';
+import { buildCategoryHierarchy, type CategoryHierarchyInput } from '@/services/catalog/categoryHierarchy';
 import {
   expandWithChildren,
   runWithConcurrency,
@@ -281,16 +284,93 @@ function scopedId(playlistId: string, kind: string, id: number | string): string
   return `${playlistId}:${kind}:${id}`;
 }
 
+type XtreamCategoryLike = Pick<XtreamCategory, 'categoryId' | 'categoryName'> &
+  Partial<Pick<XtreamCategory, 'parentId'>>;
+
+function normalizeXtreamCategories(
+  categories: XtreamCategoryLike[],
+  counts: Map<string, number>,
+  playlistId: string,
+  family: 'live' | 'movie' | 'series',
+): ReturnType<typeof buildCategoryHierarchy> {
+  const idKind = family === 'movie' ? 'vod' : family;
+  const scopedIds = new Map(categories.map((category) => [
+    category.categoryId,
+    scopedId(playlistId, `${idKind}cat`, category.categoryId),
+  ]));
+
+  const inputs: CategoryHierarchyInput[] = categories.map((category) => ({
+    id: scopedIds.get(category.categoryId)!,
+    sourceId: category.categoryId,
+    name: category.categoryName,
+    count: counts.get(category.categoryId) ?? 0,
+    parentSourceId:
+      (category.parentId ?? 0) > 0 ? String(category.parentId) : undefined,
+  }));
+
+  return buildCategoryHierarchy(inputs, { playlistId, family });
+}
+
 export function mapLiveCategories(
-  categories: { categoryId: string; categoryName: string }[],
+  categories: XtreamCategoryLike[],
   channelsByCategory: Map<string, number>,
   playlistId: string
 ): LiveCategory[] {
-  return categories.map((c) => ({
-    id: scopedId(playlistId, 'livecat', c.categoryId),
-    name: c.categoryName,
-    channelCount: channelsByCategory.get(c.categoryId) ?? 0,
+  return normalizeXtreamCategories(categories, channelsByCategory, playlistId, 'live').map((node) => ({
+    id: node.id,
+    name: node.name,
+    originalName: node.originalName,
+    channelCount: node.count,
     playlistId,
+    ...(node.parentId ? { parentId: node.parentId } : {}),
+    childIds: node.childIds,
+    level: node.level,
+    path: node.path,
+    relation: node.relation,
+    ...(node.regionCode ? { regionCode: node.regionCode } : {}),
+    qualities: node.qualities,
+  }));
+}
+
+export function mapMovieCategories(
+  categories: XtreamCategoryLike[],
+  moviesByCategory: Map<string, number>,
+  playlistId: string
+): MovieCategory[] {
+  return normalizeXtreamCategories(categories, moviesByCategory, playlistId, 'movie').map((node) => ({
+    id: node.id,
+    name: node.name,
+    originalName: node.originalName,
+    movieCount: node.count,
+    playlistId,
+    ...(node.parentId ? { parentId: node.parentId } : {}),
+    childIds: node.childIds,
+    level: node.level,
+    path: node.path,
+    relation: node.relation,
+    ...(node.regionCode ? { regionCode: node.regionCode } : {}),
+    qualities: node.qualities,
+  }));
+}
+
+export function mapSeriesCategories(
+  categories: XtreamCategoryLike[],
+  seriesByCategory: Map<string, number>,
+  playlistId: string
+): SeriesCategory[] {
+  return normalizeXtreamCategories(categories, seriesByCategory, playlistId, 'series').map((node) => ({
+    id: node.id,
+    name: node.name,
+    originalName: node.originalName,
+    seriesCount: node.count,
+    playlistId,
+    ...(node.parentId ? { parentId: node.parentId } : {}),
+    childIds: node.childIds,
+    level: node.level,
+    path: node.path,
+    relation: node.relation,
+    ...(node.regionCode ? { regionCode: node.regionCode } : {}),
+    qualities: node.qualities,
   }));
 }
 
@@ -641,6 +721,7 @@ export async function syncXtreamCatalog(
 
   report('vod_categories', 0.5);
   let movies: Movie[] = [];
+  let movieCategories: MovieCategory[] = [];
   try {
     const allVodCategories = await xtreamService.getVodCategories(creds, { signal });
     const vodSelection = expandWithChildren(selectionOrAll(selection, 'vod'), allVodCategories);
@@ -657,6 +738,14 @@ export async function syncXtreamCatalog(
       (chunk) => report('vod_streams', 0.6 + 0.15 * (chunk.done / Math.max(1, chunk.total)), chunk)
     );
     movies = mapMovies(vodStreams, vodNames, creds, playlistId);
+    const moviesByCategory = new Map<string, number>();
+    for (const movie of vodStreams) {
+      moviesByCategory.set(
+        movie.categoryId,
+        (moviesByCategory.get(movie.categoryId) ?? 0) + 1,
+      );
+    }
+    movieCategories = mapMovieCategories(vodCategories, moviesByCategory, playlistId);
   } catch (err) {
     // Une annulation par l'utilisateur doit remonter : elle n'est pas
     // un abonnement sans films, c'est un arrêt volontaire.
@@ -666,18 +755,19 @@ export async function syncXtreamCatalog(
 
   report('series_categories', 0.8);
   let series: Series[] = [];
+  let seriesCategories: SeriesCategory[] = [];
   try {
     const allSeriesCategories = await xtreamService.getSeriesCategories(creds, { signal });
     const seriesSelection = expandWithChildren(
       selectionOrAll(selection, 'series'),
       allSeriesCategories
     );
-    const seriesCategories =
+    const selectedSeriesCategories =
       seriesSelection === undefined
         ? allSeriesCategories
         : allSeriesCategories.filter((c) => seriesSelection.includes(c.categoryId));
     const seriesNames = new Map(
-      seriesCategories.map((c) => [c.categoryId, c.categoryName])
+      selectedSeriesCategories.map((c) => [c.categoryId, c.categoryName])
     );
     report('series', 0.9);
     const seriesList = await fetchByCategories(
@@ -686,9 +776,22 @@ export async function syncXtreamCatalog(
       (categoryId) => xtreamService.getSeries(creds, categoryId, { signal })
     );
     series = mapSeries(seriesList, seriesNames, playlistId);
+    const seriesByCategory = new Map<string, number>();
+    for (const item of seriesList) {
+      seriesByCategory.set(
+        item.categoryId,
+        (seriesByCategory.get(item.categoryId) ?? 0) + 1,
+      );
+    }
+    seriesCategories = mapSeriesCategories(
+      selectedSeriesCategories,
+      seriesByCategory,
+      playlistId,
+    );
   } catch (err) {
     if (toSourceErrorKind(err) === 'aborted') throw err;
     series = [];
+    seriesCategories = [];
   }
 
   report('done', 1);
@@ -698,7 +801,9 @@ export async function syncXtreamCatalog(
       channels,
       liveCategories: mapLiveCategories(liveCategories, channelsByCategory, playlistId),
       movies,
+      movieCategories,
       series,
+      seriesCategories,
     },
     counts: {
       channels: channels.length,

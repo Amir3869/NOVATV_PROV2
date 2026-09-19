@@ -135,7 +135,7 @@ export function HomePage() {
   // ── Aucune source configurée ──
   if (!hasSource) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="home-page min-h-screen flex items-center justify-center px-4">
         <EmptyState
           emoji="📡"
           size="lg"
@@ -153,7 +153,7 @@ export function HomePage() {
   // ── Source configurée mais aucun contenu chargé ──
   if (!hasContent) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="home-page min-h-screen flex items-center justify-center px-4">
         <EmptyState
           emoji="🗂️"
           size="lg"
@@ -169,7 +169,7 @@ export function HomePage() {
   }
 
   return (
-    <div key={activePlaylistId} className="min-h-screen">
+    <div key={activePlaylistId} className="home-page min-h-screen">
       {featured.length > 0 && <HeroBanner items={featured} />}
 
       <div className="px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-12 md:space-y-14">
@@ -213,7 +213,7 @@ export function HomePage() {
                   key={channel.id}
                   channel={channel}
                   variant="grid"
-                  className="w-40 shrink-0 sm:w-44 md:w-48"
+                  className="w-32 shrink-0 sm:w-40 md:w-48"
                 />
               ))}
             </div>

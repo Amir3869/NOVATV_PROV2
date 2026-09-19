@@ -338,7 +338,7 @@ function PlayerContent() {
     router.replace(
       `/player?type=episode&id=${encodeURIComponent(nextEpisode.id)}&seriesId=${encodeURIComponent(nextEpisode.seriesId)}`
     );
-  }, [nextEpisode, router]);
+  }, [nextEpisode, router, setCountdownState]);
 
   /**
    * Fin naturelle de la vidéo.
@@ -351,7 +351,7 @@ function PlayerContent() {
     if (!id) return;
     if (!shouldAutoAdvance(type, autoNextEpisode, nextEpisode)) return;
     setCountdownState({ mediaId: id, remaining: AUTO_NEXT_DELAY_SECONDS });
-  }, [id, type, autoNextEpisode, nextEpisode]);
+  }, [id, type, autoNextEpisode, nextEpisode, setCountdownState]);
 
   /**
    * Décompte avant l'enchaînement.
@@ -656,7 +656,7 @@ function PlayerContent() {
     if (player.isPlaying) {
       controlsTimer.current = setTimeout(() => setShowControls(false), 3000);
     }
-  }, [player.isPlaying]);
+  }, [player.isPlaying, setShowControls]);
 
   useEffect(() => {
     return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
@@ -842,7 +842,7 @@ function PlayerContent() {
       player.seekTo(seconds);
       resetControlsTimer();
     },
-    [player, resetControlsTimer]
+    [player, resetControlsTimer, setSeekPreview]
   );
 
   const toggleFullscreen = useCallback(async () => {
@@ -853,7 +853,7 @@ function PlayerContent() {
       await document.exitFullscreen();
       setIsFullscreen(false);
     }
-  }, []);
+  }, [setIsFullscreen]);
 
   // Raccourcis clavier et télécommande.
   //
@@ -1715,3 +1715,4 @@ export function PlayerPage() {
     </Suspense>
   );
 }
+

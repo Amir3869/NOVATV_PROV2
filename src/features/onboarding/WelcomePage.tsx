@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { Key, Link as LinkIcon, FileText, Check } from 'lucide-react';
 import { defaultAvatarFor } from '@/services/profiles/avatars';
 import { useAppStore } from '@/store/useAppStore';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { useTranslation, useSetLocale, LOCALES, LOCALE_NAMES, detectLocale, type Locale } from '@/i18n';
 import { XtreamForm } from '@/features/playlists/forms/XtreamForm';
 import { M3UUrlForm } from '@/features/playlists/forms/M3UUrlForm';
@@ -44,28 +45,25 @@ import {
 const STORAGE_KEY = 'novatv-onboarding';
 
 /**
- * Sait-on déjà que l'on tourne dans le navigateur ?
- *
- * Le HTML est pré-généré au build : le premier rendu côté client doit
- * lui être identique, sinon React signale une erreur d'hydratation. On
- * affiche donc un écran neutre tant que ce n'est pas le cas.
- *
- * `useSyncExternalStore` est fait pour cela : son instantané serveur
- * vaut `false`, son instantané client `true`. Aucun abonnement n'est
- * nécessaire — la valeur ne change qu'une fois, à l'hydratation.
+ * Attend le premier rendu navigateur pour éviter une divergence
+ * serveur/client. L'abonnement notifie React une fois le composant
+ * monté ; il ne modifie pas l'état métier et reste compatible avec le
+ * contrôle `set-state-in-effect` du projet.
  */
-const NO_OP_SUBSCRIBE = () => () => {};
+const subscribeAfterHydration = (onStoreChange: () => void) => {
+  const timer = window.setTimeout(onStoreChange, 0);
+  return () => window.clearTimeout(timer);
+};
 
 function useHydrated(): boolean {
   return useSyncExternalStore(
-    NO_OP_SUBSCRIBE,
+    subscribeAfterHydration,
     () => true,
     () => false
   );
 }
 
-/**
- * Relit l'avancement enregistré. Ne lève jamais.
+/** Relit l'avancement enregistré. Ne lève jamais.
  *
  * Appelée à l'initialisation de l'état plutôt que dans un effet :
  * écrire dans l'état depuis un effet déclenche un second rendu en
@@ -115,6 +113,7 @@ export function WelcomePage() {
   const profiles = useAppStore((s) => s.profiles);
   const setOnboarded = useAppStore((s) => s.setOnboarded);
   const playlistCount = useAppStore((s) => s.playlists.length);
+  const { isTV, isReady: deviceReady } = useDeviceType();
 
   const hydrated = useHydrated();
 
@@ -290,7 +289,9 @@ export function WelcomePage() {
      * `overflow-hidden` ici, et défilement interne sur le seul <main> :
      * l'en-tête et les boutons restent ainsi toujours visibles.
      */
-    <div className="h-dvh flex flex-col overflow-hidden bg-[color:var(--surface-0)]">
+    <div className={`onboarding-shell h-dvh flex flex-col overflow-hidden bg-[color:var(--surface-0)] ${
+      deviceReady && isTV ? 'onboarding-shell-tv' : ''
+    }`}>
       {/* Lueur d'ambiance, purement décorative. */}
       <div
         aria-hidden="true"
@@ -300,7 +301,7 @@ export function WelcomePage() {
 
       {/* En-tête : marque et progression. */}
       <header className="relative z-10 flex items-center gap-4 px-6 pt-[max(1.5rem,calc(var(--safe-top)+0.5rem))] md:px-12 md:pt-[max(2rem,calc(var(--safe-top)+0.75rem))]">
-        <span className="text-sm font-extrabold tracking-[0.14em] text-white">
+        <span className="onboarding-header-brand text-sm font-extrabold tracking-[0.14em] text-white">
           NOVA<span className="text-accent">TV</span>
         </span>
 
@@ -332,9 +333,16 @@ export function WelcomePage() {
           ramènerait le défilement de page qu'on vient de supprimer.
           `overflow-y-auto` garde une issue si l'écran est très court
           (téléphone en paysage), mais le défilement reste interne. */}
-      <main className="relative z-10 flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-8 md:px-12">
-        <div className="w-full max-w-2xl text-center">
-          {step === 'welcome' && <WelcomeStep onStart={handleNext} />}
+      <main
+          className={`onboarding-main relative z-10 flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-8 md:px-12 ${[
+            step === 'welcome' ? 'onboarding-main-welcome' : '',
+            step === 'welcome' && deviceReady && isTV ? 'onboarding-main-tv' : '',
+          ].filter(Boolean).join(' ')}`}
+      >
+        <div className="onboarding-content w-full max-w-2xl text-center">
+          {step === 'welcome' && (
+            <WelcomeStep onStart={handleNext} isTV={deviceReady && isTV} />
+          )}
           {step === 'language' && (
             <LanguageStep
               selected={state.draft.locale}
@@ -400,27 +408,69 @@ export function WelcomePage() {
 
 /* ─────────────────────────── Écran d'accueil ─────────────────────── */
 
-function WelcomeStep({ onStart }: { onStart: () => void }) {
+function WelcomeStep({
+  onStart,
+  isTV,
+}: {
+  onStart: () => void;
+  isTV: boolean;
+}) {
   const { t } = useTranslation();
+
+  if (isTV) {
+    return (
+      <div className="onboarding-tv-welcome mx-auto grid w-full max-w-6xl items-center gap-20 text-left md:grid-cols-[1.05fr_0.95fr]">
+        <div className="onboarding-tv-copy">
+          <h1 className="mb-6 text-6xl font-bold tracking-[-0.02em] text-white xl:text-7xl">
+            {t('onboarding.welcomeTitle')}
+          </h1>
+
+          <p className="max-w-xl text-2xl leading-relaxed text-white/[0.72] xl:text-[1.75rem]">
+            {t('onboarding.welcomeSubtitle')}
+          </p>
+
+          <button
+            type="button"
+            onClick={onStart}
+            className={`mt-12 rounded-xl bg-accent px-12 py-4 text-xl font-semibold text-[color:var(--on-accent)] transition-colors hover:bg-accent-hover ${FOCUS_RING}`}
+          >
+            {t('onboarding.start')}
+          </button>
+
+          <p className="mt-12 max-w-xl text-base leading-relaxed text-white/35">
+            {t('onboarding.welcomeDisclaimer')}
+          </p>
+        </div>
+
+        <div className="onboarding-tv-brand flex flex-col items-center justify-center" aria-hidden="true">
+          <NovaLogo variant="icon" size="xl" colorScheme="red" className="mb-8 scale-125" />
+          <p className="text-6xl font-extrabold leading-none tracking-[0.16em] text-white xl:text-7xl">
+            NOVA<span className="text-accent">TV</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div>
+    <div className="onboarding-welcome">
       {/* Le logo dessiné, pas seulement le mot : c'est le premier écran
           de l'application, la marque doit y être complète. */}
-      <NovaLogo variant="icon" size="xl" colorScheme="red" className="mb-6" />
+      <NovaLogo variant="icon" size="xl" colorScheme="red" className="onboarding-welcome-icon mb-6" />
 
       {/* `leading-none` empêche l'interlignage par défaut d'ajouter un
           creux sous un texte à grand corps, ce qui décalait le titre. */}
-      <p className="mb-6 text-[2.125rem] font-extrabold leading-none tracking-[0.16em] text-white md:text-5xl">
+      <p className="onboarding-welcome-wordmark mb-6 text-[2.125rem] font-extrabold leading-none tracking-[0.16em] text-white md:text-5xl">
         NOVA<span className="text-accent">TV</span>
       </p>
 
       {/* `text-balance` répartit le titre sur des lignes de longueur
           voisine au lieu de laisser un mot seul en dernière ligne. */}
-      <h1 className="mb-3 text-[1.625rem] font-bold tracking-[-0.01em] text-balance text-white md:text-4xl">
+      <h1 className="onboarding-welcome-title mb-3 text-[1.625rem] font-bold tracking-[-0.01em] text-balance text-white md:text-4xl">
         {t('onboarding.welcomeTitle')}
       </h1>
 
-      <p className="mx-auto max-w-[29rem] text-base leading-relaxed text-balance text-white/[0.72] md:text-lg">
+      <p className="onboarding-welcome-subtitle mx-auto max-w-[29rem] text-base leading-relaxed text-balance text-white/[0.72] md:text-lg">
         {t('onboarding.welcomeSubtitle')}
       </p>
 
@@ -428,14 +478,14 @@ function WelcomeStep({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         onClick={onStart}
-        className={`mt-9 rounded-xl bg-accent px-10 py-3.5 text-[15px] font-semibold text-[color:var(--on-accent)] transition-colors hover:bg-accent-hover ${FOCUS_RING}`}
+        className={`onboarding-welcome-cta mt-9 rounded-xl bg-accent px-10 py-3.5 text-[15px] font-semibold text-[color:var(--on-accent)] transition-colors hover:bg-accent-hover ${FOCUS_RING}`}
       >
         {t('onboarding.start')}
       </button>
 
       {/* Dire d'emblée ce que le produit n'est pas : NOVA TV lit des
           sources, il n'en fournit aucune. */}
-      <p className="mx-auto mt-9 max-w-[27rem] text-xs leading-relaxed text-white/30">
+      <p className="onboarding-welcome-disclaimer mx-auto mt-9 max-w-[27rem] text-xs leading-relaxed text-white/30">
         {t('onboarding.welcomeDisclaimer')}
       </p>
     </div>
