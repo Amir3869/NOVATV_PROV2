@@ -52,14 +52,18 @@ export function SyncProgress({
   step,
   selection,
   progress,
+  epgSummary,
 }: {
   step: SyncStep | null;
   selection: CategorySelection;
   progress?: XtreamSyncProgress | null;
+  epgSummary?: { programs: number; channels: number } | null;
 }) {
   const { t } = useTranslation();
   const groups = selectedSyncGroups(selection);
   const auth = authStatus(step);
+  const epgStatus: SyncGroupStatus =
+    step === 'epg' ? 'active' : step === 'done' ? 'done' : 'pending';
   const finished = step === 'done';
 
   return (
@@ -100,6 +104,25 @@ export function SyncProgress({
           </div>
         );
       })}
+
+      <div className="flex items-center gap-3">
+        <StatusIcon status={epgStatus} />
+        <div className="min-w-0 flex-1">
+          <p className={cn('text-sm text-white', epgStatus === 'pending' && 'text-white/50')}>
+            {t('playlists.epgStepTitle')}
+          </p>
+          {epgStatus === 'active' && progress?.step === 'epg' && (
+            <p className="text-xs text-white/60 tabular-nums mt-0.5">
+              {Math.round((progress.ratio ?? 0) * 100)} %
+            </p>
+          )}
+          {epgStatus === 'done' && epgSummary && (
+            <p className="text-xs text-white/60 tabular-nums mt-0.5">
+              {t('playlists.epgSummary', epgSummary)}
+            </p>
+          )}
+        </div>
+      </div>
 
       {finished && (
         <div className="mt-2 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-3">

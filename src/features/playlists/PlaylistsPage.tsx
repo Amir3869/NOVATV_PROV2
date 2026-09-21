@@ -29,7 +29,7 @@ import {
 } from '@/services/xtream/categorySelection';
 import { CategoryPicker } from './CategoryPicker';
 import { CatalogManager } from '@/features/categories/CatalogManager';
-import { ERROR_KEYS, STEP_KEYS, EPG_STEP_KEYS, EPG_ERROR_KEYS } from './syncMessages';
+import { ERROR_KEYS, STEP_KEYS, EPG_STEP_KEYS, EPG_ERROR_KEYS, sourceErrorMessage } from './syncMessages';
 import { XtreamForm } from './forms/XtreamForm';
 import { M3UUrlForm } from './forms/M3UUrlForm';
 import { M3UFileForm } from './forms/M3UFileForm';
@@ -38,6 +38,7 @@ import { runPlaylistEpg, schedulePlaylistEpg } from './runPlaylistEpg';
 import { syncM3UFromUrl, toM3UErrorKind } from '@/services/m3u/m3uSync';
 import {
   toEPGErrorKind,
+  type EPGSyncProgress,
   type EPGSyncStep,
 } from '@/services/epg/epgSync';
 import type { Playlist, XtreamConnection } from '@/types';
@@ -230,6 +231,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
    * pour l'affichage, mais `syncEPG` a besoin des objets.
    */
   const channels = useAppStore((s) => s.channels);
+  const epgPrograms = useAppStore((s) => s.epgPrograms);
   const liveCategories = useAppStore((s) => s.liveCategories);
 
   /**
@@ -244,6 +246,9 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
     playlist.type === 'xtream' ? Boolean(playlist.xtream) : Boolean(playlist.m3u?.epgUrl);
 
   const playlistChannels = channels.filter((c) => c.playlistId === playlist.id);
+  const playlistEpgProgramCount = epgPrograms.filter((program) =>
+    program.id.startsWith(`${playlist.id}:epg:`),
+  ).length;
   const playlistCategories = liveCategories.filter(
     (c) => c.playlistId === playlist.id
   );
@@ -266,37 +271,58 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
 
     setEpgBusy(true);
     setEpgStep('download');
+    const epgToastId = `epg-sync-${playlist.id}`;
+    const updateEpgToast = (progress: EPGSyncProgress) => {
+      setEpgStep(progress.step);
+      const label = t(EPG_STEP_KEYS[progress.step]);
+      const percent = Math.round(Math.max(0, Math.min(1, progress.ratio)) * 100);
+      const detail =
+        progress.done !== undefined && progress.total !== undefined && progress.total > 0
+          ? t('playlists.epgProgressChannels', {
+              done: progress.done,
+              total: progress.total,
+              percent,
+            })
+          : progress.step === 'download' && progress.ratio <= 0
+            ? null
+            : `${percent} %`;
+      toast.loading(detail ? `${label} · ${detail}` : label, { id: epgToastId });
+    };
+
+    updateEpgToast({ step: 'download', ratio: 0 });
 
     try {
       const result = await runPlaylistEpg(playlist.id, {
-        onProgress: (p) => setEpgStep(p.step),
+        onProgress: updateEpgToast,
       });
 
       if (!result) {
-        toast.error(t('errors.auth'));
+        toast.error(t('errors.auth'), { id: epgToastId });
         return;
       }
 
       if (result.programs.length === 0) {
         // Le téléchargement a réussi mais aucune chaîne n'a pu être
         // appariée : annoncer « guide récupéré » serait mensonger.
-        toast.error(t('playlists.epgNoMatch'));
+        toast.error(t('playlists.epgNoMatch'), { id: epgToastId });
       } else {
         toast.success(
           t('playlists.epgReady', {
             programs: result.programs.length,
             channels: result.matchedChannels,
-          })
+          }),
+          { id: epgToastId },
         );
       }
     } catch (err) {
       const kind = toEPGErrorKind(err);
       if (kind !== 'aborted') {
         toast.error(
-          kind === 'network'
-            ? `${t('playlists.epgNetwork')} ${t('errors.corsHint')}`
-            : t(EPG_ERROR_KEYS[kind])
+          sourceErrorMessage(kind, t(EPG_ERROR_KEYS[kind]), t('errors.corsHint')),
+          { id: epgToastId },
         );
+      } else {
+        toast.dismiss(epgToastId);
       }
     } finally {
       setEpgBusy(false);
@@ -618,6 +644,11 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             {playlist.channelCount > 0 && <span>{t('playlists.channelCount', { count: playlist.channelCount })}</span>}
             {playlist.movieCount > 0 && <span>{t('playlists.movieCount', { count: playlist.movieCount })}</span>}
             {playlist.seriesCount > 0 && <span>{t('playlists.seriesCount', { count: playlist.seriesCount })}</span>}
+            {playlistEpgProgramCount > 0 && (
+              <Badge variant="new" size="xs">
+                {t('playlists.epgProgramsCount', { count: playlistEpgProgramCount })}
+              </Badge>
+            )}
             {playlist.lastSync && (
               <span>{t('playlists.syncShort', { date: new Date(playlist.lastSync).toLocaleDateString(locale) })}</span>
             )}
@@ -649,7 +680,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           )}
 
           {epgBusy && epgStep && (
-            <p className="text-xs text-white/50 mt-1" role="status" aria-live="polite">
+            <p className="text-xs text-white/70 mt-1 flex items-center gap-1.5" role="status" aria-live="polite">
+              <RefreshCw className="w-3 h-3 animate-spin text-accent" aria-hidden="true" />
               {t(EPG_STEP_KEYS[epgStep])}
             </p>
           )}

@@ -63,6 +63,7 @@ export type SyncStep =
   | 'vod_streams'
   | 'series_categories'
   | 'series'
+  | 'epg'
   | 'done';
 
 export interface SyncProgress {

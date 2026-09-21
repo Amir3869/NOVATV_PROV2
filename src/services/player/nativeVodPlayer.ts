@@ -15,6 +15,7 @@ export interface NativeVodPlayerPlugin {
   setVolume(options: { value: number }): Promise<void>;
   setMuted(options: { value: boolean }): Promise<void>;
   setResizeMode(options: { mode: string }): Promise<void>;
+  setPictureInPictureEnabled(options: { enabled: boolean }): Promise<void>;
   enterPictureInPicture(): Promise<void>;
   release(): Promise<void>;
   addListener(

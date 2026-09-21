@@ -16,7 +16,8 @@ const STEP_INDEX: Record<SyncStep, number> = {
   vod_streams: 4,
   series_categories: 5,
   series: 6,
-  done: 7,
+  epg: 7,
+  done: 8,
 };
 
 /** Bornes d'index [début, fin] pendant lesquelles le groupe est « en cours ». */

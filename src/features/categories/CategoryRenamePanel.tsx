@@ -9,6 +9,7 @@ import { categoryDisplayName } from '@/lib/displayNames';
 import { CategoryRenameDialog } from './CategoryRenameDialog';
 import { useParental } from '@/features/parental/ParentalProvider';
 import { categoryLockKey } from '@/lib/pin';
+import { resolveProfileId } from '@/lib/profileScope';
 import type { LiveCategory } from '@/types';
 import { useTranslation } from '@/i18n';
 import {
@@ -28,8 +29,10 @@ const iconBtn =
  */
 export function CategoryRenamePanel({
   categories,
+  profileId: profileIdProp,
 }: {
   categories: LiveCategory[];
+  profileId?: string;
   title: string;
   hint: string;
 }) {
@@ -38,7 +41,8 @@ export function CategoryRenamePanel({
   const renameCategory = useAppStore((s) => s.renameCategory);
   const lockedItems = useAppStore((s) => s.lockedItems);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
-  const profileId = activeProfileId ?? 'profile-1';
+  const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
+  const profileId = profileIdProp ?? resolveProfileId(activeProfileId, firstProfileId);
   const pins = useAppStore((s) => s.categoryPins[profileId] ?? EMPTY_CATEGORY_IDS);
   const order = useAppStore((s) => s.categoryOrder[profileId] ?? EMPTY_CATEGORY_IDS);
   const toggleCategoryPin = useAppStore((s) => s.toggleCategoryPin);

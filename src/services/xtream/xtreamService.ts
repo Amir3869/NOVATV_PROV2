@@ -25,6 +25,8 @@
  * l'utilisateur dispose légitimement. Il ne fournit aucun accès.
  */
 
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
 export interface XtreamCredentials {
   /** Adresse complète du serveur, ex. `http://exemple.com:8080`. */
   serverUrl: string;
@@ -323,15 +325,60 @@ async function xtreamRequest(
 
   const url = `${safe.serverUrl}/player_api.php?${params.toString()}`;
 
+  const timeoutMs = options.timeoutMs ?? TIMEOUT_LIST;
+
+  // Les portails Xtream n'autorisent généralement pas les appels CORS.
+  // Dans l'APK, passer explicitement par CapacitorHttp évite de dépendre
+  // du patch global de fetch et reproduit le comportement des applications
+  // natives comme Smarters.
+  if (Capacitor.getPlatform() === 'android') {
+    let nativeResponse: Awaited<ReturnType<typeof CapacitorHttp.get>>;
+    try {
+      nativeResponse = await CapacitorHttp.get({
+        url,
+        headers: { Accept: 'application/json' },
+        connectTimeout: timeoutMs,
+        readTimeout: timeoutMs,
+      });
+    } catch (err) {
+      throw toUserFacingError(err, options.signal);
+    }
+
+    if (options.signal?.aborted) {
+      throw new XtreamError('aborted', 'Opération annulée.');
+    }
+    if (nativeResponse.status === 401 || nativeResponse.status === 403) {
+      throw new XtreamError(
+        'auth',
+        'Identifiant ou mot de passe refusé par le serveur.',
+        `HTTP ${nativeResponse.status}`
+      );
+    }
+    if (nativeResponse.status < 200 || nativeResponse.status >= 300) {
+      throw new XtreamError(
+        'http',
+        `Le serveur a répondu par une erreur (${nativeResponse.status}). Réessayez plus tard.`,
+        `HTTP ${nativeResponse.status}`
+      );
+    }
+
+    if (typeof nativeResponse.data !== 'string') return nativeResponse.data;
+    try {
+      return JSON.parse(nativeResponse.data) as unknown;
+    } catch {
+      throw new XtreamError(
+        'bad_response',
+        "Le serveur n'a pas renvoyé de données exploitables. L'adresse pointe peut-être vers autre chose qu'un serveur Xtream.",
+        nativeResponse.data.slice(0, 200)
+      );
+    }
+  }
+
   let resp: Response;
   try {
     resp = await fetch(url, {
-      // Note : `User-Agent` ne peut pas être défini depuis un navigateur
-      // (en-tête interdit par la spécification fetch, silencieusement
-      // ignoré). L'ancienne version le posait pour rien. Sur Android via
-      // Capacitor, il faudra le régler côté natif si un serveur l'exige.
       headers: { Accept: 'application/json' },
-      signal: combineSignals(options.timeoutMs ?? TIMEOUT_LIST, options.signal),
+      signal: combineSignals(timeoutMs, options.signal),
     });
   } catch (err) {
     throw toUserFacingError(err, options.signal);
@@ -352,8 +399,7 @@ async function xtreamRequest(
     );
   }
 
-  // Un portail mal configuré renvoie une page HTML d'erreur avec un
-  // code 200. `resp.json()` lèverait alors une exception illisible.
+  // Un portail mal configuré renvoie parfois une page HTML avec un code 200.
   const text = await resp.text();
   try {
     return JSON.parse(text) as unknown;

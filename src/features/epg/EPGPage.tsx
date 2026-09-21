@@ -19,7 +19,8 @@ import { ImageWithFallback } from '@/design-system/components/ImageWithFallback'
 import { useAppStore } from '@/store/useAppStore';
 import { channelDisplayName } from '@/lib/displayNames';
 import { runPlaylistEpg } from '@/features/playlists/runPlaylistEpg';
-import { indexNowPlaying, indexUpcoming } from '@/services/epg/epgSync';
+import { EPG_STEP_KEYS } from '@/features/playlists/syncMessages';
+import { indexNowPlaying, indexUpcoming, type EPGSyncProgress } from '@/services/epg/epgSync';
 import toast from 'react-hot-toast';
 import type { EPGProgram, LiveChannel } from '@/types';
 
@@ -120,24 +121,45 @@ export function EPGPage() {
   const handleRetryEpg = async () => {
     if (!activePlaylistId || epgBusy) return;
     setEpgBusy(true);
+    const epgToastId = `epg-retry-${activePlaylistId}`;
+    const updateEpgToast = (progress: EPGSyncProgress) => {
+      const label = t(EPG_STEP_KEYS[progress.step]);
+      const percent = Math.round(Math.max(0, Math.min(1, progress.ratio)) * 100);
+      const detail =
+        progress.done !== undefined && progress.total !== undefined && progress.total > 0
+          ? t('playlists.epgProgressChannels', {
+              done: progress.done,
+              total: progress.total,
+              percent,
+            })
+          : progress.step === 'download' && progress.ratio <= 0
+            ? null
+            : `${percent} %`;
+      toast.loading(detail ? `${label} · ${detail}` : label, { id: epgToastId });
+    };
+
+    updateEpgToast({ step: 'download', ratio: 0 });
     try {
-      const result = await runPlaylistEpg(activePlaylistId);
+      const result = await runPlaylistEpg(activePlaylistId, {
+        onProgress: updateEpgToast,
+      });
       if (!result) {
-        toast.error(t('epg.loadFailed'));
+        toast.error(t('epg.loadFailed'), { id: epgToastId });
         return;
       }
       if (result.programs.length === 0) {
-        toast.error(t('playlists.epgNoMatch'));
+        toast.error(t('playlists.epgNoMatch'), { id: epgToastId });
         return;
       }
       toast.success(
         t('playlists.epgSummary', {
           programs: result.programs.length,
           channels: result.matchedChannels,
-        })
+        }),
+        { id: epgToastId },
       );
     } catch {
-      toast.error(t('epg.loadFailed'));
+      toast.error(t('epg.loadFailed'), { id: epgToastId });
     } finally {
       setEpgBusy(false);
     }

@@ -47,13 +47,18 @@ export function HomePage() {
   const profileId = historyProfileId(activeProfileId);
 
   const homePick = React.useMemo(() => {
-    const listChannelIds: string[] = [];
-    for (const list of customLists) {
-      if (list.profileId !== profileId) continue;
-      for (const item of list.items) {
-        if (item.mediaType === 'channel') listChannelIds.push(item.mediaId);
-      }
-    }
+    const latestList = customLists
+      .filter((list) => list.profileId === profileId)
+      .sort((a, b) => {
+        const created = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return created || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      })[0];
+    const listChannelIds = latestList
+      ? latestList.items
+          .filter((item) => item.mediaType === 'channel')
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((item) => item.mediaId)
+      : [];
     const favoriteChannelIds: string[] = [];
     for (const fav of favorites) {
       if (fav.profileId !== profileId) continue;
@@ -180,7 +185,7 @@ export function HomePage() {
     <div key={activePlaylistId} className="home-page min-h-screen">
       {featured.length > 0 && <HeroBanner items={featured} />}
 
-      <div className="home-page-content px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-12 md:space-y-14">
+      <div className="home-page-content px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6 md:space-y-8">
         {continueWatching.length > 0 && (
           <section>
             <SectionHeader

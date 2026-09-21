@@ -15,6 +15,7 @@
  * langue de depart apres un changement de langue.
  */
 
+import { Capacitor } from '@capacitor/core';
 import type { SourceErrorKind } from '@/types';
 import type { SyncStep } from '@/services/xtream/xtreamSync';
 import type { EPGSyncStep } from '@/services/epg/epgSync';
@@ -41,6 +42,7 @@ export const STEP_KEYS: Record<SyncStep, MessageKey> = {
   vod_streams: 'playlists.stepVodStreams',
   series_categories: 'playlists.stepSeriesCategories',
   series: 'playlists.stepSeries',
+  epg: 'playlists.epgStepTitle',
   done: 'playlists.stepDone',
 };
 
@@ -56,6 +58,16 @@ export const EPG_STEP_KEYS: Record<EPGSyncStep, MessageKey> = {
  * Erreurs du guide : phrases propres, pas les textes Xtream
  * (`errors.badResponse` parlerait d'un serveur Codes).
  */
+export function sourceErrorMessage(
+  kind: SourceErrorKind,
+  message: string,
+  corsHint: string,
+): string {
+  return kind === 'network' && Capacitor.getPlatform() === 'web'
+    ? `${message} ${corsHint}`
+    : message;
+}
+
 export const EPG_ERROR_KEYS: Record<SourceErrorKind, MessageKey> = {
   invalid_url: 'playlists.epgFailed',
   network: 'playlists.epgNetwork',

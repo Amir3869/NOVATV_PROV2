@@ -82,6 +82,8 @@ export interface EPGParseOptions {
    * d'accumuler le guide complet d'un abonnement.
    */
   wantedChannelIds?: ReadonlySet<string>;
+  /** Noms normalisés autorisés quand le fournisseur n'a pas de tvg-id fiable. */
+  wantedChannelNames?: ReadonlySet<string>;
 }
 
 /**
@@ -143,6 +145,7 @@ export async function parseXMLTV(
     dropOlderThanHours = 0,
     keepAheadDays = 0,
     wantedChannelIds,
+    wantedChannelNames,
   } = options;
 
   const result: EPGParseResult = { channels: [], programs: [], errors: [] };
@@ -204,6 +207,7 @@ export async function parseXMLTV(
 
   // --- Chaînes ---
   const seenChannelIds = new Set<string>();
+  const channelNameById = new Map<string, string>();
 
   for (let i = 0; i < channelEls.length; i++) {
     const el = channelEls[i];
@@ -223,11 +227,13 @@ export async function parseXMLTV(
         }
       }
 
+      const resolvedName = displayName || id;
+      channelNameById.set(id, resolvedName);
       result.channels.push({
         id,
         // Une chaîne sans nom lisible reste utile : son identifiant
         // permet quand même de rattacher les programmes.
-        displayName: displayName || id,
+        displayName: resolvedName,
         icon: xmltvMediaUrl(el),
         url: el.querySelector('url')?.textContent?.trim() || undefined,
       });
@@ -253,7 +259,15 @@ export async function parseXMLTV(
     const startStr = el.getAttribute('start');
     const stopStr = el.getAttribute('stop');
 
-    if (wantedChannelIds && wantedChannelIds.size > 0 && (!channelId || !wantedChannelIds.has(channelId))) {
+    if (
+      wantedChannelIds &&
+      wantedChannelIds.size > 0 &&
+      (!channelId ||
+        (!wantedChannelIds.has(channelId) &&
+          !wantedChannelNames?.has(
+            normalizeChannelName(channelNameById.get(channelId) || channelId)
+          )))
+    ) {
       processed++;
       if (processed % chunkSize === 0) await yieldToUI();
       continue;
@@ -471,7 +485,7 @@ export function matchChannelsWithEPG(
  * « TF1 HD », « tf1  hd » et « TF-1 » doivent se rapprocher.
  * Les suffixes de qualité sont retirés : ils désignent la même chaîne.
  */
-function normalizeChannelName(name: string): string {
+export function normalizeChannelName(name: string): string {
   return name
     .toLowerCase()
     // Sépare les lettres de leurs accents, puis retire les accents.

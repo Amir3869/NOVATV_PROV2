@@ -742,6 +742,23 @@ html.light .cinema .border-white\/15 { border-color: rgb(255 255 255 / 0.15); }
   min-height: 2.75rem;
 }
 
+/* TV en direct paysage mobile : la liste interne des catégories garde
+   une respiration en bas pour que son dernier élément ne soit pas mangé
+   par le bord de la WebView ou la zone système. Le portrait conserve le
+   même sélecteur compact que Films et Séries. */
+@media (max-width: 767px) and (orientation: landscape) {
+  .live-tv-page .hierarchical-category-mobile-open {
+    padding-bottom: calc(1rem + var(--safe-bottom));
+    scroll-padding-bottom: calc(1rem + var(--safe-bottom));
+  }
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+  .live-tv-page {
+    padding-top: 1rem !important;
+  }
+}
+
 @media (min-width: 768px) {
   .category-browse-layout-hierarchical {
     grid-template-columns: minmax(18rem, 23rem) minmax(0, 1fr);
@@ -1128,7 +1145,7 @@ html.native-vod .cinema {
   }
 
   .home-page .home-page-content > :not(:first-child) {
-    margin-top: 1.5rem !important;
+    margin-top: 0.75rem !important;
   }
 
   .home-channel-card {
@@ -1141,6 +1158,13 @@ html.native-vod .cinema {
 
   .home-continue-card {
     width: 14rem !important;
+  }
+}
+
+@media (max-width: 767px) and (orientation: landscape) {
+  .mobile-landscape-catalog-card,
+  .home-media-card {
+    width: 7.5rem !important;
   }
 }
 

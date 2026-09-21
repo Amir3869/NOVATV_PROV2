@@ -16,6 +16,8 @@ export interface HierarchicalCategoryDirectoryProps {
   allCount?: number;
   activeId: string | null;
   pinnedIds?: readonly string[];
+  /** Ordre personnalisé des catégories non épinglées. */
+  orderIds?: readonly string[];
   search?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
@@ -47,6 +49,7 @@ export function HierarchicalCategoryDirectory({
   allCount,
   activeId,
   pinnedIds = [],
+  orderIds = [],
   search,
   onSearchChange,
   searchPlaceholder,
@@ -66,8 +69,30 @@ export function HierarchicalCategoryDirectory({
 
   const hasSearch = search !== undefined && onSearchChange !== undefined;
   const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
-  const byId = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const childrenByParent = useMemo(() => {
+  const categoryRanks = useMemo(() => {
+    const ranks = new Map<string, number>();
+    let rank = 0;
+    for (const id of pinnedIds) {
+      if (!ranks.has(id)) ranks.set(id, rank++);
+    }
+    for (const id of orderIds) {
+      if (!ranks.has(id)) ranks.set(id, rank++);
+    }
+    return ranks;
+  }, [orderIds, pinnedIds]);
+  const sourceRanks = useMemo(
+    () => new Map(nodes.map((node, index) => [node.id, index])),
+    [nodes],
+  );
+  const orderedLists = useMemo(() => {
+    const sortNodes = (items: readonly CategoryHierarchyNode[]) =>
+      [...items].sort((left, right) => {
+        const leftRank = categoryRanks.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+        const rightRank = categoryRanks.get(right.id) ?? Number.MAX_SAFE_INTEGER;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return (sourceRanks.get(left.id) ?? 0) - (sourceRanks.get(right.id) ?? 0);
+      });
+
     const map = new Map<string, CategoryHierarchyNode[]>();
     for (const node of nodes) {
       if (!node.parentId) continue;
@@ -75,12 +100,17 @@ export function HierarchicalCategoryDirectory({
       children.push(node);
       map.set(node.parentId, children);
     }
-    return map;
-  }, [nodes]);
-  const roots = useMemo(
-    () => nodes.filter((node) => !node.parentId),
-    [nodes],
-  );
+    for (const [parentId, children] of map) {
+      map.set(parentId, sortNodes(children));
+    }
+
+    return {
+      childrenByParent: map,
+      roots: sortNodes(nodes.filter((node) => !node.parentId)),
+    };
+  }, [categoryRanks, nodes, sourceRanks]);
+  const byId = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const { childrenByParent, roots } = orderedLists;
 
   const activeNode = activeId ? byId.get(activeId) : undefined;
   const activeRoot = useMemo(() => {

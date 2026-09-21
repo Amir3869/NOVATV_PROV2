@@ -14,6 +14,7 @@ import {
   parseXMLTV,
   endOfDayAhead,
   matchChannelsWithEPG,
+  normalizeChannelName,
   type EPGParseResult,
   type ParsedEPGChannel,
   type ParsedEPGProgram,
@@ -21,6 +22,7 @@ import {
 import { shortHash } from '../m3u/m3uSync';
 import type { EPGProgram, LiveChannel, SourceErrorKind } from '@/types';
 import { xtreamService, type XtreamCredentials } from '../xtream/xtreamService';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 /**
  * Les guides XMLTV ne sont plus refusés sur un plafond arbitraire.
@@ -47,6 +49,13 @@ export interface EPGSyncProgress {
   step: EPGSyncStep;
   /** Progression de 0 à 1, approximative. */
   ratio: number;
+  /** Nombre de chaînes courtes déjà interrogées, si disponible. */
+  done?: number;
+  /** Nombre total de chaînes à interroger, si disponible. */
+  total?: number;
+  /** Compteurs finaux transmis au toast. */
+  programs?: number;
+  channels?: number;
 }
 
 export interface EPGSyncOptions {
@@ -148,6 +157,81 @@ function programId(playlistId: string, channelId: string, start: Date, title: st
   return `${playlistId}:epg:${shortHash(`${channelId}|${start.getTime()}|${title}`)}`;
 }
 
+const EPG_FALLBACK_TITLE = 'Programme TV';
+
+const XML_ENTITIES: Record<string, string> = {
+  '&lt;': '<',
+  '&gt;': '>',
+  '&amp;': '&',
+  '&quot;': '"',
+  '&apos;': "'",
+  '&#39;': "'",
+  '&#x27;': "'",
+};
+
+function decodeKnownXmlEntities(value: string): string {
+  let decoded = value;
+  // Certains portails renvoient par exemple `&amp;lt;` : deux passes
+  // suffisent pour ce double échappement sans interpréter du HTML libre.
+  for (let pass = 0; pass < 2; pass += 1) {
+    const next = decoded.replace(
+      /&(?:lt|gt|amp|quot|apos|#39|#x27);/gi,
+      (entity) => XML_ENTITIES[entity.toLowerCase()] ?? entity,
+    );
+    if (next === decoded) break;
+    decoded = next;
+  }
+  return decoded;
+}
+
+function isReadableEpgText(value: string): boolean {
+  if (!value.trim()) return false;
+  const characters = [...value];
+  const controls = characters.filter((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 && !'\n\r\t'.includes(character);
+  }).length;
+  return controls === 0 && /[\p{L}\p{N}]/u.test(value);
+}
+
+function tryDecodeBase64Text(value: string): string | undefined {
+  const compact = value.replace(/\s+/g, '');
+  if (compact.length < 8 || !/^[A-Za-z0-9+/_-]+={0,2}$/.test(compact)) return undefined;
+
+  const normalized = compact.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  try {
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trim();
+    return isReadableEpgText(decoded) ? decoded : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Nettoie les titres EPG fournis par certains portails.
+ *
+ * Les réponses Xtream peuvent contenir du Base64, des entités XML
+ * (`&lt;`) ou un fragment de balise à la place du titre. On ne décode
+ * que les chaînes qui donnent un texte réellement lisible ; un titre
+ * normal reste donc inchangé.
+ */
+export function normalizeEpgText(value: string | undefined, fallback?: string): string | undefined {
+  if (!value?.trim()) return fallback;
+
+  let text = decodeKnownXmlEntities(value.trim());
+  const decodedBase64 = tryDecodeBase64Text(text);
+  if (decodedBase64) text = decodeKnownXmlEntities(decodedBase64);
+
+  text = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  // Cas observé sur certains guides : `&lt;jfis6` devient `<jfis6`,
+  // une pseudo-balise incomplète qui ne doit pas être affichée.
+  if (/^<[A-Za-z][\w:-]*$/.test(text)) return fallback;
+  return isReadableEpgText(text) ? text : fallback;
+}
+
 /**
  * Télécharge le XMLTV en refusant les fichiers démesurés.
  *
@@ -165,6 +249,39 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
     signal && typeof AbortSignal.any === 'function'
       ? AbortSignal.any([timeout, signal])
       : timeout;
+
+  if (Capacitor.getPlatform() === 'android') {
+    try {
+      const nativeResponse = await CapacitorHttp.get({
+        url,
+        headers: { Accept: 'application/xml,text/xml,*/*' },
+        connectTimeout: 120_000,
+        readTimeout: 120_000,
+      });
+      if (signal?.aborted) {
+        throw new EPGSyncError('aborted', 'Téléchargement du guide annulé.');
+      }
+      if (nativeResponse.status < 200 || nativeResponse.status >= 300) {
+        const kind: SourceErrorKind =
+          nativeResponse.status === 401 || nativeResponse.status === 403 ? 'auth' : 'http';
+        throw new EPGSyncError(
+          kind,
+          `Le serveur du guide a répondu par une erreur (${nativeResponse.status}).`,
+        );
+      }
+      if (typeof nativeResponse.data === 'string') return nativeResponse.data;
+      return JSON.stringify(nativeResponse.data) ?? '';
+    } catch (error) {
+      if (error instanceof EPGSyncError) throw error;
+      if (signal?.aborted) {
+        throw new EPGSyncError('aborted', 'Téléchargement du guide annulé.');
+      }
+      throw new EPGSyncError(
+        'network',
+        "Impossible de télécharger le guide des programmes. Vérifiez votre connexion.",
+      );
+    }
+  }
 
   let resp: Response;
   try {
@@ -366,7 +483,11 @@ export async function syncEPG(
   options: EPGSyncOptions = {}
 ): Promise<EPGSyncResult> {
   const { onProgress, signal, keepAheadDays } = options;
-  const report = (step: EPGSyncStep, ratio: number) => onProgress?.({ step, ratio });
+  const report = (
+    step: EPGSyncStep,
+    ratio: number,
+    details: Pick<EPGSyncProgress, 'done' | 'total' | 'programs' | 'channels'> = {},
+  ) => onProgress?.({ step, ratio, ...details });
 
   if (channels.length === 0) {
     throw new EPGSyncError(
@@ -379,7 +500,12 @@ export async function syncEPG(
   const xml = await downloadXMLTV(url, signal);
 
   const wantedChannelIds = new Set(
-    channels.flatMap((channel) => [channel.epgChannelId, channel.tvgId].filter((id): id is string => Boolean(id))),
+    channels.flatMap((channel) =>
+      [channel.epgChannelId, channel.tvgId].filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const wantedChannelNames = new Set(
+    channels.map((channel) => normalizeChannelName(channel.name)).filter(Boolean),
   );
 
   const parsed: EPGParseResult = await parseXMLTV(xml, {
@@ -387,6 +513,8 @@ export async function syncEPG(
     dropOlderThanHours: DROP_OLDER_THAN_HOURS,
     keepAheadDays,
     wantedChannelIds: wantedChannelIds.size > 0 ? wantedChannelIds : undefined,
+    wantedChannelNames,
+
     // L'analyse couvre la tranche 0,1 → 0,8 de la progression globale :
     // le téléchargement occupe le début, l'appariement la fin.
     onProgress: (ratio) => report('parse', 0.1 + ratio * 0.7),
@@ -394,21 +522,47 @@ export async function syncEPG(
 
   report('match', 0.85);
 
+  const resolveGuideMediaUrl = (raw?: string): string | undefined => {
+    if (!raw) return undefined;
+    try {
+      return new URL(raw, url).toString();
+    } catch {
+      return raw;
+    }
+  };
+  const resolvedParsed: EPGParseResult = {
+    ...parsed,
+    channels: parsed.channels.map((channel) => ({
+      ...channel,
+      icon: resolveGuideMediaUrl(channel.icon),
+    })),
+    programs: parsed.programs.map((program) => ({
+      ...program,
+      title: normalizeEpgText(program.title, EPG_FALLBACK_TITLE) ?? EPG_FALLBACK_TITLE,
+      description: normalizeEpgText(program.description),
+      category: normalizeEpgText(program.category),
+      icon: resolveGuideMediaUrl(program.icon),
+    })),
+  };
+
   const mapping = matchChannelsWithEPG(
     channels.map((c) => ({
       id: c.id,
       name: c.name,
       // Un portail Xtream renseigne `epgChannelId` ; un M3U renseigne
       // `tvgId`. On accepte les deux, le premier disponible gagne.
-      tvgId: c.epgChannelId ?? c.tvgId,
+      tvgId: c.epgChannelId || c.tvgId,
       streamId: c.streamId,
     })),
-    parsed.channels
+    resolvedParsed.channels
   );
 
-  const programs = mapEPGPrograms(parsed.programs, mapping, playlistId);
+  const programs = mapEPGPrograms(resolvedParsed.programs, mapping, playlistId);
 
-  report('done', 1);
+  report('done', 1, {
+    programs: programs.length,
+    channels: mapping.size,
+  });
 
   const fromPrograms: Record<string, string> = {};
   for (const program of programs) {
@@ -423,7 +577,10 @@ export async function syncEPG(
     matchedChannels: mapping.size,
     unmatchedChannels: channels.length - mapping.size,
     warnings: parsed.errors,
-    logoFallbacks: { ...fromPrograms, ...logoFallbacksFromEpg(mapping, parsed.channels) },
+    logoFallbacks: {
+      ...fromPrograms,
+      ...logoFallbacksFromEpg(mapping, resolvedParsed.channels),
+    },
   };
 }
 
@@ -452,6 +609,15 @@ function stringField(record: Record<string, unknown>, keys: string[]): string | 
   return undefined;
 }
 
+function resolveXtreamMediaUrl(raw: string | undefined, creds: XtreamCredentials): string | undefined {
+  if (!raw) return undefined;
+  try {
+    return new URL(raw, `${creds.serverUrl}/`).toString();
+  } catch {
+    return raw;
+  }
+}
+
 function shortEpgListings(raw: unknown): Record<string, unknown>[] {
   if (Array.isArray(raw)) {
     return raw.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'));
@@ -477,9 +643,11 @@ export async function syncXtreamShortEPG(
   creds: XtreamCredentials,
   channels: readonly LiveChannel[],
   playlistId: string,
-  options: Pick<EPGSyncOptions, 'signal' | 'keepAheadDays'> = {},
+  options: Pick<EPGSyncOptions, 'signal' | 'keepAheadDays' | 'onProgress'> = {},
 ): Promise<EPGSyncResult> {
   const now = Date.now();
+  let completed = 0;
+  options.onProgress?.({ step: 'download', ratio: 0, done: 0, total: channels.length });
   const end = options.keepAheadDays && options.keepAheadDays > 0
     ? endOfDayAhead(options.keepAheadDays).getTime()
     : Infinity;
@@ -494,7 +662,16 @@ export async function syncXtreamShortEPG(
       const index = cursor++;
       const channel = channels[index];
       if (!channel) return;
-      if (typeof channel.streamId !== 'number' || channel.streamId <= 0) continue;
+      if (typeof channel.streamId !== 'number' || channel.streamId <= 0) {
+        completed += 1;
+        options.onProgress?.({
+          step: 'download',
+          ratio: completed / channels.length,
+          done: completed,
+          total: channels.length,
+        });
+        continue;
+      }
 
       try {
         const raw = await xtreamService.getShortEpg(creds, channel.streamId, 12, {
@@ -511,10 +688,21 @@ export async function syncXtreamShortEPG(
           if (stop.getTime() < now - DROP_OLDER_THAN_HOURS * 60 * 60 * 1000) continue;
           if (start.getTime() > end) continue;
 
-          const title = stringField(listing, ['title', 'name', 'program_name']);
+          const title = normalizeEpgText(
+            stringField(listing, ['title', 'name', 'program_name']),
+            EPG_FALLBACK_TITLE,
+          );
           if (!title) continue;
-          const description = stringField(listing, ['description', 'desc', 'plot']);
-          const icon = stringField(listing, ['icon', 'image', 'poster']);
+          const description = normalizeEpgText(
+            stringField(listing, ['description', 'desc', 'plot']),
+          );
+          const category = normalizeEpgText(
+            stringField(listing, ['category', 'genre']),
+          );
+          const icon = resolveXtreamMediaUrl(
+            stringField(listing, ['icon', 'image', 'poster']),
+            creds,
+          );
           const id = `${playlistId}:epg:short:${shortHash(`${channel.id}|${start.toISOString()}|${title}`)}`;
           programs.push({
             id,
@@ -523,6 +711,7 @@ export async function syncXtreamShortEPG(
             start: start.toISOString(),
             stop: stop.toISOString(),
             ...(description ? { description } : {}),
+            ...(category ? { category } : {}),
             ...(icon ? { icon } : {}),
           });
           matched.add(channel.id);
@@ -531,11 +720,26 @@ export async function syncXtreamShortEPG(
         if (options.signal?.aborted) throw error;
         errors.push(error instanceof Error ? error.message : 'short EPG request failed');
       }
+      completed += 1;
+      options.onProgress?.({
+        step: 'download',
+        ratio: Math.min(1, completed / channels.length),
+        done: completed,
+        total: channels.length,
+      });
     }
   };
 
   await Promise.all(Array.from({ length: width }, () => worker()));
   programs.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  options.onProgress?.({
+    step: 'done',
+    ratio: 1,
+    done: channels.length,
+    total: channels.length,
+    programs: programs.length,
+    channels: matched.size,
+  });
 
   return {
     source: 'xtream_short',

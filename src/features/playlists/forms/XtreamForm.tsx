@@ -37,9 +37,10 @@ import { CategoryPicker } from '../CategoryPicker';
 import { SyncProgress } from '../SyncProgress';
 import type { Playlist } from '@/types';
 import { phrase, useTranslation, type MessageKey } from '@/i18n';
-import { ERROR_KEYS } from '../syncMessages';
+import { ERROR_KEYS, EPG_ERROR_KEYS, sourceErrorMessage } from '../syncMessages';
 import { PasswordField } from '@/design-system/components/PasswordField';
-import { schedulePlaylistEpg } from '../runPlaylistEpg';
+import { runPlaylistEpg } from '../runPlaylistEpg';
+import { toEPGErrorKind } from '@/services/epg/epgSync';
 import { findDuplicateSource } from '@/services/playlists/sourceIdentity';
 
 export function XtreamForm({ onClose }: { onClose: () => void }) {
@@ -53,6 +54,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [progress, setProgress] = useState<XtreamSyncProgress | null>(null);
+  const [epgSummary, setEpgSummary] = useState<{ programs: number; channels: number } | null>(null);
 
   /**
    * Étape courante du formulaire.
@@ -116,7 +118,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       // localhost:3000 la plupart des portails refusent l'appel, alors
       // que la même adresse fonctionnera dans l'application installée.
       setTestMessage(
-        kind === 'network' ? `${t('errors.network')} ${t('errors.corsHint')}` : t(ERROR_KEYS[kind])
+        sourceErrorMessage(kind, t(ERROR_KEYS[kind]), t('errors.corsHint'))
       );
     } finally {
       setTesting(false);
@@ -172,7 +174,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       if (kind === 'aborted') return;
       setTestResult('error');
       setTestMessage(
-        kind === 'network' ? `${t('errors.network')} ${t('errors.corsHint')}` : t(ERROR_KEYS[kind])
+        sourceErrorMessage(kind, t(ERROR_KEYS[kind]), t('errors.corsHint'))
       );
     } finally {
       setLoadingCategories(false);
@@ -202,6 +204,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
     }
     setAdding(true);
     setProgress({ step: 'auth', ratio: 0 });
+    setEpgSummary(null);
     setTestResult(null);
     setTestMessage(null);
 
@@ -257,15 +260,44 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       // l'activation ici volerait le catalogue affiché.
       updatePlaylist(id, { updatedAt: new Date().toISOString() });
 
+      setProgress({ step: 'epg', ratio: 0 });
+      let epgResult: Awaited<ReturnType<typeof runPlaylistEpg>> = null;
+      try {
+        epgResult = await runPlaylistEpg(id, {
+          onProgress: (epgProgress) =>
+            setProgress({ step: 'epg', ratio: epgProgress.ratio }),
+        });
+        if (epgResult) {
+          setEpgSummary({
+            programs: epgResult.programs.length,
+            channels: epgResult.matchedChannels,
+          });
+        }
+      } catch (epgError) {
+        const kind = toEPGErrorKind(epgError);
+        toast.error(t(EPG_ERROR_KEYS[kind]));
+      } finally {
+        setProgress({ step: 'done', ratio: 1 });
+      }
+
       toast.success(t('playlists.syncSummary', result.counts));
-      schedulePlaylistEpg(id);
+      if (epgResult?.programs.length) {
+        toast.success(
+          t('playlists.epgReady', {
+            programs: epgResult.programs.length,
+            channels: epgResult.matchedChannels,
+          }),
+        );
+      } else if (epgResult) {
+        toast.error(t('playlists.epgNoMatch'));
+      }
       onClose();
       return;
     } catch (err) {
       const kind = toSourceErrorKind(err);
       setTestResult('error');
       setTestMessage(
-        kind === 'network' ? `${t('errors.network')} ${t('errors.corsHint')}` : t(ERROR_KEYS[kind])
+        sourceErrorMessage(kind, t(ERROR_KEYS[kind]), t('errors.corsHint'))
       );
       if (kind !== 'aborted') toast.error(t(ERROR_KEYS[kind]));
     } finally {
@@ -298,7 +330,12 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       showClose={!adding}
     >
       {adding ? (
-        <SyncProgress step={progress?.step ?? null} selection={selection} progress={progress} />
+        <SyncProgress
+          step={progress?.step ?? null}
+          selection={selection}
+          progress={progress}
+          epgSummary={epgSummary}
+        />
       ) : phase === 'categories' ? (
         <>
           <CategoryPicker

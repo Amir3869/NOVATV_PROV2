@@ -497,6 +497,9 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
     let cancelled = false;
     const handles: PluginListenerHandle[] = [];
     document.documentElement.classList.add('native-vod');
+    void NativeVodPlayer.setPictureInPictureEnabled({ enabled: true }).catch(() => {
+      /* Ancien APK sans le contrôle PiP : la lecture reste utilisable. */
+    });
 
     const resume = resumeAtRef.current;
     void NativeVodPlayer.play({
@@ -560,6 +563,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): VideoPlayerState
       cancelled = true;
       document.documentElement.classList.remove('native-vod');
       handles.forEach((h) => void h.remove());
+      void NativeVodPlayer.setPictureInPictureEnabled({ enabled: false }).catch(() => {});
       void NativeVodPlayer.release();
     };
   }, [url, isLive, retryToken]);

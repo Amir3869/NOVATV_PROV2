@@ -46,6 +46,7 @@ public class NativeVodPlayerPlugin extends Plugin {
     @Nullable private Runnable tick;
     private float lastVolume = 1f;
     private String lastResizeMode = "contain";
+    private boolean pictureInPictureEnabled;
 
     @Override
     public void load() {
@@ -139,6 +140,18 @@ public class NativeVodPlayerPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setPictureInPictureEnabled(PluginCall call) {
+        pictureInPictureEnabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        getActivity().runOnUiThread(() -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getActivity().setPictureInPictureParams(
+                        pictureInPictureParams(pictureInPictureEnabled));
+            }
+        });
+        call.resolve();
+    }
+
+    @PluginMethod
     public void enterPictureInPicture(PluginCall call) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             call.reject("Le mode Picture-in-Picture nécessite Android 8 ou une version ultérieure.");
@@ -217,6 +230,7 @@ public class NativeVodPlayerPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        pictureInPictureEnabled = false;
         releaseInternal();
         if (activeInstance == this) activeInstance = null;
         super.handleOnDestroy();
@@ -238,11 +252,15 @@ public class NativeVodPlayerPlugin extends Plugin {
 
     private void updatePictureInPictureParams() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        getActivity().setPictureInPictureParams(pictureInPictureParams(true));
+        getActivity().setPictureInPictureParams(
+                pictureInPictureParams(pictureInPictureEnabled));
     }
 
     private void enterPictureInPictureInternal() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || player == null) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                || player == null
+                || !player.isPlaying()
+                || !pictureInPictureEnabled) return;
         if (isInPictureInPictureMode()) return;
         getActivity().enterPictureInPictureMode(pictureInPictureParams(false));
     }

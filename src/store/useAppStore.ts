@@ -20,6 +20,7 @@ import {
   clearStoredCatalog,
   hasCatalogContent,
 } from '@/lib/catalogStore';
+import { resolveProfileId } from '@/lib/profileScope';
 import {
   MAX_PINNED_CATEGORIES,
   dropIdsWithPrefix,
@@ -1259,7 +1260,7 @@ export const useAppStore = create<AppState>()(
 
       toggleCategoryPin: (categoryId) =>
         set((state) => {
-          const profileId = state.activeProfileId ?? 'profile-1';
+          const profileId = resolveProfileId(state.activeProfileId, state.profiles[0]?.id);
           const current = state.categoryPins[profileId] ?? [];
           const next = current.includes(categoryId)
             ? current.filter((id) => id !== categoryId)
@@ -1271,7 +1272,7 @@ export const useAppStore = create<AppState>()(
 
       moveCategory: (categoryId, delta, availableIds) =>
         set((state) => {
-          const profileId = state.activeProfileId ?? 'profile-1';
+          const profileId = resolveProfileId(state.activeProfileId, state.profiles[0]?.id);
           const pins = state.categoryPins[profileId] ?? [];
           if (pins.includes(categoryId)) {
             return {

@@ -23,7 +23,7 @@ import {
 } from '@/services/m3u/m3uSync';
 import type { Playlist } from '@/types';
 import { phrase, useTranslation } from '@/i18n';
-import { ERROR_KEYS } from '../syncMessages';
+import { ERROR_KEYS, sourceErrorMessage } from '../syncMessages';
 import { schedulePlaylistEpg } from '../runPlaylistEpg';
 import { findDuplicateSource } from '@/services/playlists/sourceIdentity';
 
@@ -125,7 +125,7 @@ export function useM3UImport(type: 'm3u_url' | 'm3u_file', onClose: () => void) 
     } catch (err) {
       const kind = toM3UErrorKind(err);
       setError(
-        kind === 'network' ? `${t('errors.network')} ${t('errors.corsHint')}` : t(ERROR_KEYS[kind])
+        sourceErrorMessage(kind, t(ERROR_KEYS[kind]), t('errors.corsHint'))
       );
       if (kind !== 'aborted') toast.error(t(ERROR_KEYS[kind]));
     } finally {

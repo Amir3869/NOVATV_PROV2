@@ -6,7 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useHydrated } from '@/hooks/useHydrated';
 import { Skeleton, MediaCardSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { Star, Film, ChevronLeft } from 'lucide-react';
-import { CategoryDirectory, type CategoryDirectoryItem } from '@/design-system/components/CategoryDirectory';
+import { HierarchicalCategoryDirectory } from '@/design-system/components/HierarchicalCategoryDirectory';
 import { CatalogRail } from '@/design-system/components/CatalogRail';
 import { MovieCard } from '@/design-system/components/MediaCard';
 import { VirtualGrid } from '@/design-system/components/VirtualGrid';
@@ -16,6 +16,13 @@ import Link from 'next/link';
 import { useTranslation } from '@/i18n';
 import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 import { groupByName, RAIL_PREVIEW } from '@/services/catalog/groupByName';
+import {
+  categoryAndDescendants,
+  categoryNodesFromStored,
+  type CategoryHierarchyNode,
+} from '@/services/catalog/categoryHierarchy';
+import { channelMatchesCategory } from '@/services/catalog/categoryMatch';
+import { categoryDisplayName } from '@/lib/displayNames';
 
 // La valeur « ALL_CATEGORY » sert de sentinelle interne (jamais affichée) :
 // elle ne doit pas être traduite, sinon le filtre casse au changement de langue.
@@ -24,8 +31,9 @@ const FAVORITES_CATEGORY = '__favorites__';
 
 export function MoviesPage() {
   const { t } = useTranslation();
-  const { movies: allMovies } = useActiveCatalog();
+  const { movies: allMovies, movieCategories } = useActiveCatalog();
   const favorites = useAppStore((s) => s.favorites);
+  const categoryRenames = useAppStore((s) => s.categoryRenames);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const [search, setSearch] = useState('');
   const view = 'grid' as const;
@@ -46,13 +54,62 @@ export function MoviesPage() {
     [allMovies, uncategorized],
   );
 
+  const categoryNodes = useMemo<CategoryHierarchyNode[]>(() => {
+    const source = movieCategories.length
+      ? movieCategories.map((category) => ({
+          id: category.id,
+          name: category.name,
+          count: category.movieCount,
+          parentId: category.parentId,
+          childIds: category.childIds,
+          level: category.level,
+          path: category.path,
+          relation: category.relation,
+          originalName: category.originalName,
+          regionCode: category.regionCode,
+          qualities: category.qualities,
+        }))
+      : Array.from(
+          new Map(
+            allMovies
+              .filter((movie) => movie.categoryId && movie.categoryName)
+              .map((movie) => [movie.categoryId!, { id: movie.categoryId!, name: movie.categoryName! }]),
+          ).values(),
+        ).map((category) => ({ ...category, count: allMovies.filter((movie) => movie.categoryId === category.id).length }));
+
+    const favoritesNode: CategoryHierarchyNode = {
+      id: FAVORITES_CATEGORY,
+      name: t('common.favorites'),
+      originalName: t('common.favorites'),
+      parentId: null,
+      childIds: [],
+      level: 0,
+      path: [t('common.favorites')],
+      count: allMovies.filter((movie) => favoriteMovieIds.has(movie.id) || movie.isFavorite).length,
+      relation: 'flat',
+      qualities: [],
+    };
+
+    return [favoritesNode, ...categoryNodesFromStored(source, { family: 'movie' })];
+  }, [allMovies, favoriteMovieIds, movieCategories, t]);
+
+  const selectedCategoryIds = useMemo(() => {
+    if (category === ALL_CATEGORY || category === FAVORITES_CATEGORY) return null;
+    return new Set(categoryAndDescendants(categoryNodes, category).map((node) => node.id));
+  }, [category, categoryNodes]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return allMovies.filter((m) => {
       if (category === FAVORITES_CATEGORY) {
         if (!favoriteMovieIds.has(m.id) && !m.isFavorite) return false;
-      } else if (category !== ALL_CATEGORY && m.categoryName !== category && !m.genre?.includes(category)) {
-        return false;
+      } else if (selectedCategoryIds) {
+        const matchingNode = categoryNodes.find((node) => selectedCategoryIds.has(node.id) && node.id === m.categoryId);
+        const matchesId = m.categoryId
+          ? [...selectedCategoryIds].some((id) => channelMatchesCategory(m.categoryId, id))
+          : false;
+        const matchesName = matchingNode ? m.categoryName === matchingNode.name : false;
+        if (!matchesId && !matchesName && !m.genre?.includes(category)) return false;
       }
       if (
         search &&
@@ -64,28 +121,7 @@ export function MoviesPage() {
       }
       return true;
     });
-  }, [search, category, allMovies, favoriteMovieIds]);
-
-  const directoryCategories = useMemo<CategoryDirectoryItem[]>(
-    () => [
-      {
-        id: ALL_CATEGORY,
-        label: t('common.all'),
-        count: allMovies.length,
-      },
-      {
-        id: FAVORITES_CATEGORY,
-        label: t('common.favorites'),
-        count: allMovies.filter((movie) => favoriteMovieIds.has(movie.id) || movie.isFavorite).length,
-      },
-      ...rails.map((rail) => ({
-        id: rail.name,
-        label: rail.name,
-        count: rail.items.length,
-      })),
-    ],
-    [allMovies, favoriteMovieIds, rails, t],
-  );
+  }, [search, category, allMovies, favoriteMovieIds, selectedCategoryIds, categoryNodes]);
 
   // Voir useHydrated : ne pas annoncer « aucun film » avant d'avoir lu
   // les données enregistrées.
@@ -108,17 +144,21 @@ export function MoviesPage() {
 
   return (
     <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
-      <div className="category-browse-layout">
-        <CategoryDirectory
+      <div className="category-browse-layout category-browse-layout-hierarchical">
+        <HierarchicalCategoryDirectory
           title={t('liveTV.categories')}
           subtitle={t('movies.count', { count: allMovies.length })}
-          categories={directoryCategories}
+          nodes={categoryNodes}
+          allId={ALL_CATEGORY}
+          allLabel={t('common.all')}
+          allCount={allMovies.length}
           activeId={category}
           onSelect={setCategory}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder={t('movies.searchPlaceholder')}
           searchLabel={t('nav.search')}
+          labelForNode={(node) => categoryDisplayName(node.id, node.name, categoryRenames)}
           className="mb-4 md:mb-0"
         />
         <div className="catalog-category-content space-y-8 md:space-y-10">
@@ -135,7 +175,7 @@ export function MoviesPage() {
               <CatalogRail
                 title={rail.name}
                 subtitle={t('movies.railCount', { count: rail.items.length })}
-                onSeeAll={() => setCategory(rail.name)}
+                onSeeAll={() => setCategory(categoryNodes.find((node) => node.name === rail.name)?.id ?? rail.name)}
                 seeAllLabel={t('common.seeAll')}
               >
                 {rail.items.slice(0, RAIL_PREVIEW).map((movie) => (

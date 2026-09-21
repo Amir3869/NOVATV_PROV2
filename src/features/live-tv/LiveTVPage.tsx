@@ -46,6 +46,7 @@ export function LiveTVPage() {
   const firstProfileId = useAppStore((s) => s.profiles[0]?.id);
   const profileId = resolveProfileId(activeProfileId, firstProfileId);
   const categoryPins = useAppStore((s) => s.categoryPins[profileId] ?? EMPTY_CATEGORY_IDS);
+  const categoryOrder = useAppStore((s) => s.categoryOrder[profileId] ?? EMPTY_CATEGORY_IDS);
   const { isCategoryBlocked, ensureUnlocked } = useParental();
   const nowMs = useClock();
   const effectiveActiveCategory =
@@ -68,20 +69,35 @@ export function LiveTVPage() {
     );
 
     if (hasPersistedHierarchy) {
-      return allCategories.map((category) => ({
-        id: category.id,
-        sourceId: category.id,
-        name: category.name,
-        originalName: category.originalName ?? category.name,
-        parentId: category.parentId ?? null,
-        childIds: category.childIds ?? [],
-        level: category.level ?? 0,
-        path: category.path ?? [category.name],
-        count: category.channelCount,
-        relation: category.relation ?? 'flat',
-        regionCode: category.regionCode,
-        qualities: category.qualities ?? [],
-      }));
+      const visibleIds = new Set(allCategories.map((category) => category.id));
+      return allCategories.map((category) => {
+        // L'import Xtream peut masquer un parent technique sans flux
+        // direct (`FR`) tout en conservant son parentId pour la sélection
+        // des descendants et l'EPG. Dans l'annuaire, un enfant dont le
+        // parent n'est plus visible doit devenir une racine : sinon la
+        // colonne des parents est vide et les vraies catégories restent
+        // bloquées dans un second niveau inaccessible.
+        const hasVisibleParent = Boolean(
+          category.parentId && visibleIds.has(category.parentId),
+        );
+        const parentId = hasVisibleParent ? category.parentId : undefined;
+        const childIds = (category.childIds ?? []).filter((id) => visibleIds.has(id));
+
+        return {
+          id: category.id,
+          sourceId: category.id,
+          name: category.name,
+          originalName: category.originalName ?? category.name,
+          parentId: parentId ?? null,
+          childIds,
+          level: parentId ? category.level ?? 0 : 0,
+          path: parentId ? category.path ?? [category.name] : [category.name],
+          count: category.channelCount,
+          relation: parentId ? category.relation ?? 'flat' : 'flat',
+          regionCode: category.regionCode,
+          qualities: category.qualities ?? [],
+        };
+      });
     }
 
     return buildCategoryHierarchy(
@@ -197,7 +213,7 @@ export function LiveTVPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
+    <div className="live-tv-page min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
       <AppDialog
         open={showCategories}
         onClose={() => setShowCategories(false)}
@@ -207,6 +223,7 @@ export function LiveTVPage() {
       >
         <CategoryRenamePanel
           categories={managementCategories}
+          profileId={profileId}
           title={t('liveTV.myCategories')}
           hint={t('liveTV.myCategoriesHint')}
         />
@@ -225,6 +242,7 @@ export function LiveTVPage() {
           allCount={allChannels.length}
           activeId={effectiveActiveCategory}
           pinnedIds={categoryPins}
+          orderIds={categoryOrder}
           onSelect={(id) => applyCategory(id)}
           onManage={() => setShowCategories(true)}
           manageLabel={t('liveTV.manageCategories')}

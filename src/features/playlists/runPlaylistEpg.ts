@@ -100,33 +100,31 @@ export async function runPlaylistEpg(
   if (!url) return null;
 
   let result: EPGSyncResult;
-  const hasExplicitLiveSelection = Boolean(playlist.xtream?.categorySelection);
 
-  if (xtreamCredentials && hasExplicitLiveSelection) {
-    // Une sélection de catégories signifie que le XMLTV global serait
-    // disproportionné : interroger uniquement les chaînes importées
-    // évite de télécharger plusieurs centaines de mégaoctets pour en
-    // conserver une petite partie.
+  if (xtreamCredentials) {
+    // Priorité au guide court : il interroge uniquement les chaînes
+    // réellement importées et évite le XMLTV global parfois gigantesque.
     result = await syncXtreamShortEPG(xtreamCredentials, channels, playlistId, {
       signal: options.signal,
+      onProgress: options.onProgress,
       keepAheadDays: state.preferences.epgDays,
     });
-  } else {
-    try {
+
+    // Certains portails ne proposent pas get_short_epg. On conserve le
+    // XMLTV complet uniquement comme repli, jamais comme premier choix.
+    if (result.programs.length === 0) {
       result = await syncEPG(url, channels, playlistId, {
         onProgress: options.onProgress,
         signal: options.signal,
         keepAheadDays: state.preferences.epgDays,
       });
-    } catch (error) {
-      // Certains portails Xtream exposent get_short_epg mais refusent ou
-      // désactivent xmltv.php. On tente alors un guide court par chaîne.
-      if (!xtreamCredentials || toEPGErrorKind(error) === 'aborted') throw error;
-      result = await syncXtreamShortEPG(xtreamCredentials, channels, playlistId, {
-        signal: options.signal,
-        keepAheadDays: state.preferences.epgDays,
-      });
     }
+  } else {
+    result = await syncEPG(url, channels, playlistId, {
+      onProgress: options.onProgress,
+      signal: options.signal,
+      keepAheadDays: state.preferences.epgDays,
+    });
   }
   const store = useAppStore.getState();
   store.setEpgPrograms(playlistId, result.programs);

@@ -34,7 +34,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
-    <div className={cn('catalog-card media-card group relative flex-shrink-0', widthClass, className)}>
+    <div className={cn('catalog-card media-card mobile-landscape-catalog-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/movies?id=${encodeURIComponent(movie.id)}`}>
         <div className="media-card-poster relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
           <ImageWithFallback
@@ -133,7 +133,7 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
   const widthClass = size === 'sm' ? 'w-28' : size === 'md' ? 'w-40 sm:w-44 md:w-48 lg:w-52' : 'w-48 sm:w-56 md:w-60 lg:w-64';
 
   return (
-    <div className={cn('catalog-card media-card group relative flex-shrink-0', widthClass, className)}>
+    <div className={cn('catalog-card media-card mobile-landscape-catalog-card group relative flex-shrink-0', widthClass, className)}>
       <Link href={`/series?id=${encodeURIComponent(series.id)}`}>
         <div className="media-card-poster relative aspect-[2/3] rounded-xl overflow-hidden bg-surface-3">
           <ImageWithFallback
