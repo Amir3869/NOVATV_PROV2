@@ -240,7 +240,6 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
       name: playlist.name,
       type: playlist.type,
       server: sourceServer(playlist),
-      playlistUrl: safeUrl(playlist.m3u?.url),
       selectedCategories: playlist.xtream?.categorySelection,
     },
     catalog: {
@@ -268,14 +267,25 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
   };
 }
 
-export function downloadSourceDiagnostic(report: SourceDiagnosticReport): void {
-  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-  const href = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = href;
-  anchor.download = `nova-tv-diagnostic-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(href);
+export function formatSourceDiagnostic(report: SourceDiagnosticReport): string {
+  return JSON.stringify(report, null, 2);
+}
+
+/** Copie le rapport sans dépendance native : l'utilisateur le colle ici. */
+export async function copySourceDiagnostic(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('clipboard_unavailable');
 }

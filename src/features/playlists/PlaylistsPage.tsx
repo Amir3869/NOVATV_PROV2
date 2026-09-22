@@ -37,7 +37,8 @@ import { EditSourceDialog } from './EditSourceDialog';
 import { runPlaylistEpg, schedulePlaylistEpg } from './runPlaylistEpg';
 import {
   buildSourceDiagnosticReport,
-  downloadSourceDiagnostic,
+  copySourceDiagnostic,
+  formatSourceDiagnostic,
 } from '@/services/diagnostics/sourceDiagnostic';
 import { syncM3UFromUrl, toM3UErrorKind } from '@/services/m3u/m3uSync';
 import {
@@ -206,6 +207,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const [epgBusy, setEpgBusy] = useState(false);
   const [epgStep, setEpgStep] = useState<EPGSyncStep | null>(null);
   const [diagnosticBusy, setDiagnosticBusy] = useState(false);
+  const [diagnosticText, setDiagnosticText] = useState<string | null>(null);
 
   /**
    * Écran de modification des catégories.
@@ -529,12 +531,22 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
     setDiagnosticBusy(true);
     try {
       const report = await buildSourceDiagnosticReport(playlist.id);
-      downloadSourceDiagnostic(report);
+      setDiagnosticText(formatSourceDiagnostic(report));
       toast.success(t('playlists.diagnosticReady'));
     } catch {
       toast.error(t('playlists.diagnosticFailed'));
     } finally {
       setDiagnosticBusy(false);
+    }
+  };
+
+  const handleCopyDiagnostic = async () => {
+    if (!diagnosticText) return;
+    try {
+      await copySourceDiagnostic(diagnosticText);
+      toast.success(t('playlists.diagnosticCopied'));
+    } catch {
+      toast.error(t('playlists.diagnosticFailed'));
     }
   };
 
@@ -793,7 +805,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
       </AppDialog>
 
       {/* Une suppression efface la source, son catalogue et son mot de
-          passe : rien de tout cela n'est récupérable. */}
+          passe : rien de tout cela n'est r�. */}
       <ConfirmDialog
         open={confirmDelete}
         busy={deleting}
@@ -808,6 +820,40 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+
+      <AppDialog
+        open={diagnosticText !== null}
+        onClose={() => setDiagnosticText(null)}
+        title={t('playlists.diagnosticTitle')}
+        description={t('playlists.diagnosticHint')}
+        size="lg"
+      >
+        <div className="space-y-3">
+          <textarea
+            readOnly
+            value={diagnosticText ?? ''}
+            onFocus={(event) => event.currentTarget.select()}
+            aria-label={t('playlists.diagnosticTitle')}
+            className="h-80 w-full resize-y rounded-xl border border-line bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-white/80 outline-none focus:border-accent"
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDiagnosticText(null)}
+              className="min-h-11 rounded-xl bg-white/5 px-4 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white"
+            >
+              {t('common.close')}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyDiagnostic}
+              className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover"
+            >
+              {t('playlists.copyDiagnostic')}
+            </button>
+          </div>
+        </div>
+      </AppDialog>
     </GlassCard>
   );
 }
