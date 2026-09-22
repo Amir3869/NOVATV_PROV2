@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Server, Link as LinkIcon, FileText, RefreshCw, Trash2, Edit2, AlertCircle, Wifi, CheckCircle2, CalendarDays, Layers, Tags } from 'lucide-react';
+import { Plus, Server, Link as LinkIcon, FileText, RefreshCw, Trash2, Edit2, AlertCircle, Wifi, CheckCircle2, CalendarDays, Layers, Tags, FileDown } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { GlassCard } from '@/design-system/components/GlassCard';
 import { EmptyState } from '@/design-system/components/EmptyState';
@@ -35,6 +35,10 @@ import { M3UUrlForm } from './forms/M3UUrlForm';
 import { M3UFileForm } from './forms/M3UFileForm';
 import { EditSourceDialog } from './EditSourceDialog';
 import { runPlaylistEpg, schedulePlaylistEpg } from './runPlaylistEpg';
+import {
+  buildSourceDiagnosticReport,
+  downloadSourceDiagnostic,
+} from '@/services/diagnostics/sourceDiagnostic';
 import { syncM3UFromUrl, toM3UErrorKind } from '@/services/m3u/m3uSync';
 import {
   toEPGErrorKind,
@@ -201,6 +205,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const [deleting, setDeleting] = useState(false);
   const [epgBusy, setEpgBusy] = useState(false);
   const [epgStep, setEpgStep] = useState<EPGSyncStep | null>(null);
+  const [diagnosticBusy, setDiagnosticBusy] = useState(false);
 
   /**
    * Écran de modification des catégories.
@@ -520,6 +525,19 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
     }
   };
 
+  const handleExportDiagnostic = async () => {
+    setDiagnosticBusy(true);
+    try {
+      const report = await buildSourceDiagnosticReport(playlist.id);
+      downloadSourceDiagnostic(report);
+      toast.success(t('playlists.diagnosticReady'));
+    } catch {
+      toast.error(t('playlists.diagnosticFailed'));
+    } finally {
+      setDiagnosticBusy(false);
+    }
+  };
+
   const typeLabel =
     playlist.type === 'xtream'
       ? t('playlists.xtreamCodes')
@@ -605,6 +623,16 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
               <CalendarDays className={cn('h-4 w-4', epgBusy && 'animate-pulse')} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={handleExportDiagnostic}
+            disabled={diagnosticBusy || syncing}
+            aria-label={t('playlists.exportDiagnostic')}
+            title={t('playlists.exportDiagnostic')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+          >
+            <FileDown className={cn('h-4 w-4', diagnosticBusy && 'animate-pulse')} />
+          </button>
           <button
             type="button"
             onClick={() => setEditing(true)}
