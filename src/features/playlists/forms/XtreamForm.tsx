@@ -281,6 +281,9 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
       }
 
       toast.success(t('playlists.syncSummary', result.counts));
+      for (const kind of Object.values(result.familyErrors ?? {})) {
+        toast.error(t(ERROR_KEYS[kind]));
+      }
       if (epgResult?.programs.length) {
         toast.success(
           t('playlists.epgReady', {

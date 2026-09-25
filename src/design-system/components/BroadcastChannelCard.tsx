@@ -76,13 +76,13 @@ export function BroadcastChannelCard({
           )}
         >
           {art ? (
-            <img
+            <ImageWithFallback
               key={art}
               src={art}
               alt=""
               className="absolute inset-0 h-full w-full object-cover opacity-35"
-              referrerPolicy="no-referrer"
-              decoding="async"
+              fallbackClassName="absolute inset-0"
+              fallback={<span aria-hidden="true" />}
             />
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-r from-surface-2 via-surface-2/85 to-surface-2/20" />
@@ -163,7 +163,7 @@ export function BroadcastChannelCard({
             : `Ajouter ${displayName} aux favoris`
         }
         aria-pressed={isFav}
-        className="absolute end-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white/80 backdrop-blur-sm"
+        className="absolute end-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white/80 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Heart className={cn('h-4 w-4', isFav && 'fill-accent text-accent')} />
       </button>

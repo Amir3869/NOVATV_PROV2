@@ -587,6 +587,52 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
     expect(urls.filter((u) => u.includes('get_live_streams')).length).toBe(2);
   });
 
+  it('retente globalement les séries puis conserve le filtre sélectionné', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const url = new URL(String(input));
+      const action = url.searchParams.get('action') ?? 'auth';
+      const categoryId = url.searchParams.get('category_id');
+      urls.push(url.search);
+      if (action === 'get_series' && categoryId !== null) {
+        return {
+          ok: false,
+          status: 500,
+          headers: { get: () => 'text/html' },
+          text: async () => '<html>filter unavailable</html>',
+        };
+      }
+      const body: Record<string, unknown> = {
+        auth: AUTH_OK,
+        get_live_categories: [],
+        get_live_streams: [],
+        get_vod_categories: [],
+        get_vod_streams: [],
+        get_series_categories: [{ category_id: '3', category_name: 'Drama', parent_id: 0 }],
+        get_series: categoryId === null
+          ? [
+              { num: 1, name: 'Selected', series_id: 31, category_id: '3' },
+              { num: 2, name: 'Other', series_id: 32, category_id: '99' },
+            ]
+          : [],
+      };
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => JSON.stringify(body[action] ?? []),
+      };
+    });
+
+    const result = await syncXtreamCatalog(creds, 'p1', {
+      selection: { live: [], vod: [], series: ['3'] },
+    });
+
+    expect(result.catalog.series.map((item) => item.name)).toEqual(['Selected']);
+    expect(urls.some((query) => query.includes('action=get_series&category_id=3'))).toBe(true);
+    expect(urls.some((query) => query.includes('action=get_series') && !query.includes('category_id'))).toBe(true);
+  });
+
   it('ne contacte pas le serveur pour une famille au tableau vide', async () => {
     // [] veut dire « rien », et non « tout » : la distinction est le
     // point le plus facile à casser de cette fonctionnalité.

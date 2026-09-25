@@ -76,7 +76,7 @@ export const EPG_ERROR_KEYS: Record<SourceErrorKind, MessageKey> = {
   auth: 'errors.auth',
   account_inactive: 'errors.accountInactive',
   http: 'playlists.epgFailed',
-  bad_response: 'playlists.epgTooLarge',
+  bad_response: 'playlists.epgFailed',
   parse: 'playlists.epgCorrupt',
   unknown: 'playlists.epgFailed',
 };

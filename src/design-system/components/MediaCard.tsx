@@ -100,7 +100,7 @@ export function MovieCard({ movie, size = 'md', className }: MovieCardProps) {
             aria-label={isFav ? `Retirer ${movie.name} des favoris` : `Ajouter ${movie.name} aux favoris`}
             aria-pressed={isFav}
             className={cn(
-              'media-card-favorite absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
+              'media-card-favorite absolute top-2 end-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
               hasHover
                 ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
                 : 'opacity-100',
@@ -183,7 +183,7 @@ export function SeriesCard({ series, size = 'md', className }: SeriesCardProps) 
             aria-label={isFav ? `Retirer ${series.name} des favoris` : `Ajouter ${series.name} aux favoris`}
             aria-pressed={isFav}
             className={cn(
-              'media-card-favorite absolute top-2 end-2 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity',
+              'media-card-favorite absolute top-2 end-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
               hasHover
                 ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100'
                 : 'opacity-100',
@@ -259,13 +259,13 @@ export function ChannelCard({ channel, className, variant = 'list', listId, from
           <div className={cn('relative overflow-hidden rounded-xl md:rounded-2xl border border-line bg-gradient-to-br from-surface-3 via-surface-3 to-surface-1 shadow-lg shadow-black/10 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-black/25 focus-within:-translate-y-1 focus-within:border-white/30 focus-within:ring-2 focus-within:ring-accent/70 focus-within:ring-offset-2 focus-within:ring-offset-surface-0', blocked && 'opacity-60')}>
             <div className="relative aspect-video flex items-center justify-center bg-black/10 p-2 md:p-5 overflow-hidden">
               {artwork ? (
-                <img
+                <ImageWithFallback
                   key={artwork}
                   src={artwork}
                   alt=""
                   className="absolute inset-0 h-full w-full object-cover opacity-35"
-                  referrerPolicy="no-referrer"
-                  decoding="async"
+                  fallbackClassName="absolute inset-0"
+                  fallback={<span aria-hidden="true" />}
                 />
               ) : null}
               <div className="relative z-[1] flex max-h-12 max-w-full items-center justify-center">
@@ -364,7 +364,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId, from
         onClick={(e) => { e.preventDefault(); toggleFavorite(channel.id, 'channel'); }}
         aria-label={isFav ? `Retirer ${displayName} des favoris` : `Ajouter ${displayName} aux favoris`}
         aria-pressed={isFav}
-        className="flex-shrink-0 text-white/30 hover:text-accent transition-colors p-1"
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/5 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Heart className={cn('w-4 h-4', isFav ? 'fill-accent text-accent' : '')} />
       </button>

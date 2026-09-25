@@ -23,6 +23,7 @@ import { shortHash } from '../m3u/m3uSync';
 import type { EPGProgram, LiveChannel, SourceErrorKind } from '@/types';
 import { xtreamService, type XtreamCredentials } from '../xtream/xtreamService';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { normalizeMediaUrl } from '@/services/media/mediaUrl';
 
 /**
  * Les guides XMLTV ne sont plus refusés sur un plafond arbitraire.
@@ -135,13 +136,25 @@ export function toEPGErrorKind(err: unknown): SourceErrorKind {
  * Sans elle, `toEPGErrorKind` devrait deviner le code en cherchant des
  * mots dans un message français — fragile, et cassé dès qu'on traduit.
  */
+export interface EPGTransportMetadata {
+  status: number;
+  requestedUrl: string;
+  finalUrl: string;
+  redirects: string[];
+  contentType?: string;
+  responseType: 'xml' | 'html' | 'json' | 'other' | 'unknown';
+  safeExcerpt?: string;
+}
+
 export class EPGSyncError extends Error {
   readonly kind: SourceErrorKind;
+  readonly transport?: EPGTransportMetadata;
 
-  constructor(kind: SourceErrorKind, message: string) {
+  constructor(kind: SourceErrorKind, message: string, transport?: EPGTransportMetadata) {
     super(message);
     this.name = 'EPGSyncError';
     this.kind = kind;
+    this.transport = transport;
   }
 }
 
@@ -245,24 +258,134 @@ export function normalizeEpgText(value: string | undefined, fallback?: string): 
  */
 const XMLTV_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+function redactEpgUrl(raw: string): string {
+  try {
+    const parsed = new URL(raw);
+    for (const key of ['username', 'password', 'user', 'pass', 'token']) {
+      parsed.searchParams.delete(key);
+    }
+    return parsed.toString();
+  } catch {
+    return raw.replace(/([?&](?:username|password|user|pass|token)=)[^&]*/gi, '$1[redacted]');
+  }
+}
+
+function epgResponseType(contentType: string | undefined, body: unknown): EPGTransportMetadata['responseType'] {
+  const text = typeof body === 'string' ? body.trimStart() : '';
+  if (contentType?.toLowerCase().includes('html') || /^<(?:!doctype\s+)?html(?:\s|>)/i.test(text)) return 'html';
+  if (contentType?.toLowerCase().includes('json') || text.startsWith('{') || text.startsWith('[')) return 'json';
+  if (contentType?.toLowerCase().includes('xml') || /^<\?xml|^<tv(?:\s|>)/i.test(text)) return 'xml';
+  if (contentType || text) return 'other';
+  return 'unknown';
+}
+
+function epgTransport(
+  requestedUrl: string,
+  finalUrl: string,
+  redirects: string[],
+  status: number,
+  contentType: string | undefined,
+  body: unknown,
+): EPGTransportMetadata {
+  const text = typeof body === 'string' ? body : '';
+  const secrets: string[] = [];
+  try {
+    const parsed = new URL(requestedUrl);
+    for (const key of ['username', 'password', 'user', 'pass', 'token']) {
+      const value = parsed.searchParams.get(key);
+      if (value) secrets.push(value);
+    }
+  } catch {
+    // L'URL est déjà validée par l'appelant ; l'extrait reste borné même
+    // si un fournisseur a fourni une adresse atypique.
+  }
+  const safeExcerpt = secrets.reduce((value, secret) => value.replaceAll(secret, '[redacted]'), text.slice(0, 240));
+  return {
+    status,
+    requestedUrl: redactEpgUrl(requestedUrl),
+    finalUrl: redactEpgUrl(finalUrl),
+    redirects: redirects.map(redactEpgUrl),
+    ...(contentType ? { contentType } : {}),
+    responseType: epgResponseType(contentType, body),
+    ...(safeExcerpt ? { safeExcerpt } : {}),
+  };
+}
+
+function validateXmltvPayload(
+  raw: string,
+  transport: EPGTransportMetadata,
+): string {
+  const text = raw.trimStart();
+  const looksLikeHtml = /^<(?:!doctype\s+)?html(?:\s|>)/i.test(text);
+  if (looksLikeHtml || (transport.responseType === 'html' && !/<tv(?:\s|>)/i.test(text))) {
+    throw new EPGSyncError(
+      'bad_response',
+      "Le serveur du guide a renvoyé une page HTML au lieu d'un fichier XMLTV.",
+      { ...transport, responseType: 'html', safeExcerpt: text.slice(0, 240) },
+    );
+  }
+  if (!/<tv(?:\s|>)/i.test(text)) {
+    throw new EPGSyncError(
+      'bad_response',
+      "Le serveur du guide n'a pas renvoyé un fichier XMLTV exploitable.",
+      { ...transport, safeExcerpt: text.slice(0, 240) },
+    );
+  }
+  return raw;
+}
+
 async function nativeXmltvGet(url: string) {
   const request = {
-    url,
     headers: { Accept: 'application/xml,text/xml,*/*' },
     connectTimeout: 120_000,
     readTimeout: 120_000,
   };
-  let response = await CapacitorHttp.get(request);
-  if (XMLTV_REDIRECT_STATUSES.has(response.status) && /^http:\/\//i.test(url)) {
-    try {
-      const secureUrl = new URL(url);
-      secureUrl.protocol = 'https:';
-      response = await CapacitorHttp.get({ ...request, url: secureUrl.toString() });
-    } catch {
-      // Conserver le statut initial si le serveur HTTPS n'est pas disponible.
+  const visited = new Set<string>();
+  const redirects: string[] = [];
+  let currentUrl = url;
+  let response = await CapacitorHttp.get({ ...request, url: currentUrl });
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (attempt > 0) {
+      response = await CapacitorHttp.get({ ...request, url: currentUrl });
     }
+    if (!XMLTV_REDIRECT_STATUSES.has(response.status)) {
+      return { response, finalUrl: currentUrl, redirects };
+    }
+
+    const headers = response.headers as Record<string, unknown> | undefined;
+    const locationKey = Object.keys(headers ?? {}).find(
+      (key) => key.toLowerCase() === 'location',
+    );
+    const location = locationKey && typeof headers?.[locationKey] === 'string'
+      ? headers[locationKey] as string
+      : undefined;
+    let nextUrl: string | undefined;
+    try {
+      const next = new URL(location ?? currentUrl, currentUrl);
+      if (!next.search && new URL(currentUrl).search) {
+        next.search = new URL(currentUrl).search;
+      }
+      nextUrl = next.toString();
+    } catch {
+      nextUrl = undefined;
+    }
+    if (!location && /^http:\/\//i.test(currentUrl)) {
+      try {
+        const secure = new URL(currentUrl);
+        secure.protocol = 'https:';
+        nextUrl = secure.toString();
+      } catch {
+        nextUrl = undefined;
+      }
+    }
+    if (!nextUrl || visited.has(nextUrl)) return { response, finalUrl: currentUrl, redirects };
+    visited.add(currentUrl);
+    redirects.push(nextUrl);
+    currentUrl = nextUrl;
   }
-  return response;
+
+  return { response, finalUrl: currentUrl, redirects };
 }
 
 async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string> {
@@ -274,9 +397,28 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
 
   if (Capacitor.getPlatform() === 'android') {
     try {
-      const nativeResponse = await nativeXmltvGet(url);
+      const nativeResult = await nativeXmltvGet(url);
+      const nativeResponse = nativeResult.response;
+      const headers = nativeResponse.headers as Record<string, unknown> | undefined;
+      const contentTypeKey = Object.keys(headers ?? {}).find(
+        (key) => key.toLowerCase() === 'content-type',
+      );
+      const contentType = contentTypeKey && typeof headers?.[contentTypeKey] === 'string'
+        ? headers[contentTypeKey] as string
+        : undefined;
+      const body = typeof nativeResponse.data === 'string'
+        ? nativeResponse.data
+        : JSON.stringify(nativeResponse.data) ?? '';
+      const metadata = epgTransport(
+        url,
+        nativeResult.finalUrl,
+        nativeResult.redirects,
+        nativeResponse.status,
+        contentType,
+        body,
+      );
       if (signal?.aborted) {
-        throw new EPGSyncError('aborted', 'Téléchargement du guide annulé.');
+        throw new EPGSyncError('aborted', 'Téléchargement du guide annulé.', metadata);
       }
       if (nativeResponse.status < 200 || nativeResponse.status >= 300) {
         const kind: SourceErrorKind =
@@ -284,10 +426,10 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
         throw new EPGSyncError(
           kind,
           `Le serveur du guide a répondu par une erreur (${nativeResponse.status}).`,
+          metadata,
         );
       }
-      if (typeof nativeResponse.data === 'string') return nativeResponse.data;
-      return JSON.stringify(nativeResponse.data) ?? '';
+      return validateXmltvPayload(body, metadata);
     } catch (error) {
       if (error instanceof EPGSyncError) throw error;
       if (signal?.aborted) {
@@ -317,11 +459,18 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
   }
 
   if (!resp.ok) {
-    const kind: SourceErrorKind =
-      resp.status === 401 || resp.status === 403 ? 'auth' : 'http';
+    const errorBody = await resp.text().catch(() => '');
     throw new EPGSyncError(
-      kind,
-      `Le serveur du guide a répondu par une erreur (${resp.status}).`
+      resp.status === 401 || resp.status === 403 ? 'auth' : 'http',
+      `Le serveur du guide a répondu par une erreur (${resp.status}).`,
+      epgTransport(
+        url,
+        resp.url || url,
+        resp.url && resp.url !== url ? [resp.url] : [],
+        resp.status,
+        resp.headers.get('content-type') ?? undefined,
+        errorBody,
+      ),
     );
   }
 
@@ -335,7 +484,18 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
   // guide de toute taille supportée par l'appareil.
   if (!resp.body) {
     const raw = new Uint8Array(await resp.arrayBuffer());
-    return decodeXmltvBytes(raw);
+    const decoded = await decodeXmltvBytes(raw);
+    return validateXmltvPayload(
+      decoded,
+      epgTransport(
+        url,
+        resp.url || url,
+        resp.url && resp.url !== url ? [resp.url] : [],
+        resp.status,
+        resp.headers.get('content-type') ?? undefined,
+        decoded,
+      ),
+    );
   }
 
   const reader = resp.body.getReader();
@@ -358,7 +518,18 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
     offset += chunk.byteLength;
   }
 
-  return decodeXmltvBytes(merged);
+  const decoded = await decodeXmltvBytes(merged);
+  return validateXmltvPayload(
+    decoded,
+    epgTransport(
+      url,
+      resp.url || url,
+      resp.url && resp.url !== url ? [resp.url] : [],
+      resp.status,
+      resp.headers.get('content-type') ?? undefined,
+      decoded,
+    ),
+  );
 }
 
 /** Gzip (magic `1f 8b`) même sans en-tête `Content-Encoding` — cas iptv-org et beaucoup de xmltv.php. */
@@ -633,12 +804,7 @@ function stringField(record: Record<string, unknown>, keys: string[]): string | 
 }
 
 function resolveXtreamMediaUrl(raw: string | undefined, creds: XtreamCredentials): string | undefined {
-  if (!raw) return undefined;
-  try {
-    return new URL(raw, `${creds.serverUrl}/`).toString();
-  } catch {
-    return raw;
-  }
+  return normalizeMediaUrl(raw, creds.serverUrl);
 }
 
 function shortEpgListings(raw: unknown): Record<string, unknown>[] {

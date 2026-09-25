@@ -416,12 +416,12 @@ function EPGPageContent() {
                           />
                         )}
                         {prog.icon ? (
-                          <img
+                          <ImageWithFallback
                             src={prog.icon}
                             alt=""
                             className="h-12 w-20 shrink-0 rounded-md object-cover"
-                            referrerPolicy="no-referrer"
-                            decoding="async"
+                            fallbackClassName="flex h-12 w-20 shrink-0 items-center justify-center rounded-md bg-white/5"
+                            fallback={<Radio className="h-4 w-4 text-white/20" />}
                           />
                         ) : null}
                         <div className="flex-1 min-w-0">

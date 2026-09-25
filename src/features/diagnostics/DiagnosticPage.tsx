@@ -149,7 +149,9 @@ export function DiagnosticPage() {
     );
   }
 
-  const imageFailures = report.images.filter((image) => image.status === 'error' || image.status === 'timeout').length;
+  const imageFailures = report.images.filter(
+    (image) => image.status === 'error' || image.status === 'timeout' || image.status === 'missing-url',
+  ).length;
   const epgProblems = report.epg.probes.filter(
     (probe) =>
       probe.requestStatus !== 'not-tested' &&

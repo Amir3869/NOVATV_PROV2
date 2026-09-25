@@ -334,6 +334,26 @@ describe('syncEPG', () => {
     expect(result.programs).toEqual([]);
   });
 
+  it('refuse une page HTML au lieu de la traiter comme un guide vide', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response('<html><body>Apps</body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html', location: 'https://portal.example/apps' },
+        }),
+      ),
+    );
+
+    const err = await syncEPG('http://x/xmltv.php', [channel()], 'pl1').catch((e) => e);
+    expect(err).toMatchObject({ kind: 'bad_response' });
+    expect((err as EPGSyncError).transport).toMatchObject({
+      status: 200,
+      responseType: 'html',
+      safeExcerpt: expect.stringContaining('Apps'),
+    });
+  });
+
   it('conserve un XMLTV identifie par le streamId Xtream', async () => {
     const start = new Date(Date.now() + 60 * 60 * 1000);
     const stop = new Date(start.getTime() + 60 * 60 * 1000);

@@ -162,6 +162,9 @@ export function EditSourceDialog({
       });
       toast.success(t('playlists.savedCredentials'));
       toast.success(t('playlists.syncSummary', result.counts));
+      for (const kind of Object.values(result.familyErrors ?? {})) {
+        toast.error(t(ERROR_KEYS[kind]));
+      }
       schedulePlaylistEpg(playlist.id);
       onClose();
     } catch (err) {

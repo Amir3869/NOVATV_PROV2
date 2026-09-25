@@ -177,16 +177,36 @@ export type XtreamErrorKind =
   | 'http'
   | 'bad_response';
 
+export type XtreamResponseType = 'json' | 'html' | 'other' | 'unknown';
+
+export interface XtreamTransportMetadata {
+  status: number;
+  requestedUrl: string;
+  finalUrl: string;
+  redirects: string[];
+  contentType?: string;
+  responseType: XtreamResponseType;
+  /** Extrait limité, dépourvu des identifiants Xtream. */
+  safeExcerpt?: string;
+}
+
 export class XtreamError extends Error {
   readonly kind: XtreamErrorKind;
   /** Message destiné à être affiché tel quel dans l'interface. */
   readonly userMessage: string;
+  readonly transport?: XtreamTransportMetadata;
 
-  constructor(kind: XtreamErrorKind, userMessage: string, technical?: string) {
+  constructor(
+    kind: XtreamErrorKind,
+    userMessage: string,
+    technical?: string,
+    transport?: XtreamTransportMetadata,
+  ) {
     super(technical ?? userMessage);
     this.name = 'XtreamError';
     this.kind = kind;
     this.userMessage = userMessage;
+    this.transport = transport;
   }
 }
 
@@ -337,6 +357,55 @@ function redirectUrl(currentUrl: string, location: string | undefined): string |
   }
 }
 
+function redactUrl(raw: string, creds: XtreamCredentials): string {
+  try {
+    const parsed = new URL(raw);
+    parsed.searchParams.delete('username');
+    parsed.searchParams.delete('password');
+    return parsed.toString();
+  } catch {
+    return raw.replaceAll(creds.username, '[user]').replaceAll(creds.password, '[secret]');
+  }
+}
+
+function responseType(contentType: string | undefined, body: unknown): XtreamResponseType {
+  const text = typeof body === 'string' ? body.trimStart() : '';
+  // Le corps prime sur un content-type erroné : certains reverse proxies
+  // répondent HTML avec application/json, précisément le cas à diagnostiquer.
+  if (contentType?.toLowerCase().includes('html') || /^<(?:!doctype\s+)?html(?:\s|>)/i.test(text)) {
+    return 'html';
+  }
+  if (contentType?.toLowerCase().includes('json') || text.startsWith('{') || text.startsWith('[')) {
+    return 'json';
+  }
+  if (contentType || text) return 'other';
+  return 'unknown';
+}
+
+function transportMetadata(
+  requestedUrl: string,
+  finalUrl: string,
+  redirects: string[],
+  status: number,
+  contentType: string | undefined,
+  body: unknown,
+  creds: XtreamCredentials,
+): XtreamTransportMetadata {
+  const text = typeof body === 'string' ? body : '';
+  const safeExcerpt = text
+    ? text.slice(0, 240).replaceAll(creds.password, '[secret]').replaceAll(creds.username, '[user]')
+    : undefined;
+  return {
+    status,
+    requestedUrl: redactUrl(requestedUrl, creds),
+    finalUrl: redactUrl(finalUrl, creds),
+    redirects: redirects.map((item) => redactUrl(item, creds)),
+    ...(contentType ? { contentType } : {}),
+    responseType: responseType(contentType, body),
+    ...(safeExcerpt ? { safeExcerpt } : {}),
+  };
+}
+
 async function nativeXtreamGet(url: string, timeoutMs: number) {
   const request = {
     headers: { Accept: 'application/json' },
@@ -344,6 +413,7 @@ async function nativeXtreamGet(url: string, timeoutMs: number) {
     readTimeout: timeoutMs,
   };
   const visited = new Set<string>();
+  const redirects: string[] = [];
   let currentUrl = url;
   let response = await CapacitorHttp.get({ ...request, url: currentUrl });
 
@@ -351,7 +421,9 @@ async function nativeXtreamGet(url: string, timeoutMs: number) {
     if (attempt > 0) {
       response = await CapacitorHttp.get({ ...request, url: currentUrl });
     }
-    if (!REDIRECT_STATUSES.has(response.status)) return response;
+    if (!REDIRECT_STATUSES.has(response.status)) {
+      return { response, finalUrl: currentUrl, redirects };
+    }
 
     const location = responseHeader(response, 'location');
     let nextUrl = redirectUrl(currentUrl, location);
@@ -360,12 +432,15 @@ async function nativeXtreamGet(url: string, timeoutMs: number) {
       secureUrl.protocol = 'https:';
       nextUrl = secureUrl.toString();
     }
-    if (!nextUrl || visited.has(nextUrl)) return response;
+    if (!nextUrl || visited.has(nextUrl)) {
+      return { response, finalUrl: currentUrl, redirects };
+    }
     visited.add(currentUrl);
+    redirects.push(nextUrl);
     currentUrl = nextUrl;
   }
 
-  return response;
+  return { response, finalUrl: currentUrl, redirects };
 }
 
 async function xtreamRequest(
@@ -392,28 +467,41 @@ async function xtreamRequest(
   // du patch global de fetch et reproduit le comportement des applications
   // natives comme Smarters.
   if (Capacitor.getPlatform() === 'android') {
-    let nativeResponse: Awaited<ReturnType<typeof CapacitorHttp.get>>;
+    let nativeResult: Awaited<ReturnType<typeof nativeXtreamGet>>;
     try {
-      nativeResponse = await nativeXtreamGet(url, timeoutMs);
+      nativeResult = await nativeXtreamGet(url, timeoutMs);
     } catch (err) {
       throw toUserFacingError(err, options.signal);
     }
 
+    const nativeResponse = nativeResult.response;
+    const contentType = responseHeader(nativeResponse, 'content-type');
+    const metadata = transportMetadata(
+      url,
+      nativeResult.finalUrl,
+      nativeResult.redirects,
+      nativeResponse.status,
+      contentType,
+      nativeResponse.data,
+      safe,
+    );
     if (options.signal?.aborted) {
-      throw new XtreamError('aborted', 'Opération annulée.');
+      throw new XtreamError('aborted', 'Opération annulée.', undefined, metadata);
     }
     if (nativeResponse.status === 401 || nativeResponse.status === 403) {
       throw new XtreamError(
         'auth',
         'Identifiant ou mot de passe refusé par le serveur.',
-        `HTTP ${nativeResponse.status}`
+        `HTTP ${nativeResponse.status}`,
+        metadata,
       );
     }
     if (nativeResponse.status < 200 || nativeResponse.status >= 300) {
       throw new XtreamError(
         'http',
         `Le serveur a répondu par une erreur (${nativeResponse.status}). Réessayez plus tard.`,
-        `HTTP ${nativeResponse.status}`
+        `HTTP ${nativeResponse.status}`,
+        metadata,
       );
     }
 
@@ -424,7 +512,8 @@ async function xtreamRequest(
       throw new XtreamError(
         'bad_response',
         "Le serveur n'a pas renvoyé de données exploitables. L'adresse pointe peut-être vers autre chose qu'un serveur Xtream.",
-        nativeResponse.data.slice(0, 200)
+        nativeResponse.data.slice(0, 200),
+        metadata,
       );
     }
   }
@@ -439,30 +528,44 @@ async function xtreamRequest(
     throw toUserFacingError(err, options.signal);
   }
 
+  // Lire le corps avant de construire l'erreur permet de conserver un
+  // extrait technique sûr, même pour un 200 HTML ou un 30x suivi par fetch.
+  const text = await resp.text();
+  const metadata = transportMetadata(
+    url,
+    resp.url || url,
+    resp.url && resp.url !== url ? [resp.url] : [],
+    resp.status,
+    resp.headers.get('content-type') ?? undefined,
+    text,
+    safe,
+  );
   if (!resp.ok) {
     if (resp.status === 401 || resp.status === 403) {
       throw new XtreamError(
         'auth',
         'Identifiant ou mot de passe refusé par le serveur.',
-        `HTTP ${resp.status}`
+        `HTTP ${resp.status}`,
+        metadata,
       );
     }
     throw new XtreamError(
       'http',
       `Le serveur a répondu par une erreur (${resp.status}). Réessayez plus tard.`,
-      `HTTP ${resp.status} ${resp.statusText}`
+      `HTTP ${resp.status} ${resp.statusText}`,
+      metadata,
     );
   }
 
   // Un portail mal configuré renvoie parfois une page HTML avec un code 200.
-  const text = await resp.text();
   try {
     return JSON.parse(text) as unknown;
   } catch {
     throw new XtreamError(
       'bad_response',
       "Le serveur n'a pas renvoyé de données exploitables. L'adresse pointe peut-être vers autre chose qu'un serveur Xtream.",
-      text.slice(0, 200)
+      text.slice(0, 200),
+      metadata,
     );
   }
 }
@@ -1001,18 +1104,40 @@ export const xtreamService = {
   },
 
   /** Programmes à venir d'une chaîne (guide court). */
-  getShortEpg(
+  async getShortEpg(
     creds: XtreamCredentials,
     streamId: number,
     limit = 8,
     options?: RequestOptions
   ) {
-    return xtreamRequest(
-      creds,
-      'get_short_epg',
-      { stream_id: String(streamId), limit: String(limit) },
-      { timeoutMs: TIMEOUT_DETAIL, ...options }
-    );
+    const params = { stream_id: String(streamId), limit: String(limit) };
+    try {
+      return await xtreamRequest(
+        creds,
+        'get_short_epg',
+        params,
+        { timeoutMs: TIMEOUT_DETAIL, ...options }
+      );
+    } catch (error) {
+      // Plusieurs portails anciens ne servent pas get_short_epg mais
+      // exposent la même grille via get_simple_data_table. On ne tente
+      // ce secours que pour une réponse HTTP/non-Xtream : un timeout ou
+      // une annulation ne doit pas doubler inutilement l'attente.
+      const retryable = error instanceof XtreamError
+        && (error.kind === 'bad_response' || error.kind === 'http');
+      if (!retryable) throw error;
+
+      try {
+        return await xtreamRequest(
+          creds,
+          'get_simple_data_table',
+          params,
+          { timeoutMs: TIMEOUT_DETAIL, ...options }
+        );
+      } catch {
+        throw error;
+      }
+    }
   },
 
   /**

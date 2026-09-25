@@ -487,6 +487,9 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           },
         });
         toast.success(t('playlists.syncSummary', result.counts));
+        for (const kind of Object.values(result.familyErrors ?? {})) {
+          toast.error(t(ERROR_KEYS[kind]));
+        }
         schedulePlaylistEpg(playlist.id);
         return;
       }

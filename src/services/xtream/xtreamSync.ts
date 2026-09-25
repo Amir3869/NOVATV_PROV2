@@ -39,6 +39,7 @@ import {
 } from './xtreamService';
 import type { Season, Episode } from '@/types';
 import { buildCategoryHierarchy, type CategoryHierarchyInput } from '@/services/catalog/categoryHierarchy';
+import { normalizeMediaUrl } from '@/services/media/mediaUrl';
 import {
   expandWithChildren,
   hideEmptyParentCategories,
@@ -153,6 +154,38 @@ async function fetchByCategories<T extends { categoryId: string }>(
 }
 
 /**
+ * Certains portails exposent `get_series` mais ignorent le paramètre
+ * `category_id` (ou renvoient une page HTML pour une seule catégorie).
+ * Une erreur sur une catégorie ne doit pas supprimer tout le catalogue
+ * Séries : on retente une seule fois la liste globale puis on conserve
+ * strictement les catégories sélectionnées.
+ */
+async function fetchSeriesByCategories<T extends { categoryId: string }>(
+  categoryIds: string[] | undefined,
+  fetchAll: () => Promise<T[]>,
+  fetchOne: (categoryId: string) => Promise<T[]>,
+  onChunk?: (info: { done: number; total: number; loaded: number }) => void,
+): Promise<T[]> {
+  if (categoryIds === undefined || categoryIds.length === 0) {
+    return fetchByCategories(categoryIds, fetchAll, fetchOne, onChunk);
+  }
+
+  try {
+    const selected = await fetchByCategories(categoryIds, fetchAll, fetchOne, onChunk);
+    if (selected.length > 0) return selected;
+  } catch (error) {
+    if (toSourceErrorKind(error) === 'aborted') throw error;
+    // Le portail peut accepter la requête globale alors qu'il refuse le
+    // filtre par catégorie. La seconde tentative ci-dessous décide si
+    // l'erreur était réellement bloquante.
+  }
+
+  const all = await fetchAll();
+  const selectedIds = new Set(categoryIds);
+  return all.filter((item) => selectedIds.has(item.categoryId));
+}
+
+/**
  * Catalogue rapporté par une synchronisation Xtream.
  *
  * `CatalogPayload` déclare ses champs optionnels, et c'est justifié :
@@ -175,6 +208,12 @@ export type XtreamCatalog = CatalogPayload &
 export interface SyncResult {
   catalog: XtreamCatalog;
   counts: { channels: number; movies: number; series: number };
+  /**
+   * Une famille peut être réellement vide (absence de champ ici) ou avoir
+   * échoué (kind présent). Le catalogue des autres familles reste
+   * exploitable, mais l'interface doit afficher ce diagnostic.
+   */
+  familyErrors?: Partial<Record<'vod' | 'series', SourceErrorKind>>;
   /** Renseigné après authentification, pour l'afficher dans la fiche. */
   expiresAt?: string;
   maxConnections?: number;
@@ -251,19 +290,7 @@ function orUndefined(value: string | undefined): string | undefined {
  * alors que Smarters les affiche.
  */
 export function absoluteMediaUrl(serverUrl: string, raw: string | undefined): string | undefined {
-  const value = orUndefined(raw);
-  if (!value) return undefined;
-  try {
-    const base = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
-    const resolved = new URL(value, base);
-    // Certains portails écrivent `https://cdn/logo//tf1.png` :
-    // l'URL répond parfois, mais les caches et les serveurs d'images
-    // ne traitent pas toujours les deux formes de la même manière.
-    resolved.pathname = resolved.pathname.replace(/\/{2,}/g, '/');
-    return resolved.href;
-  } catch {
-    return value;
-  }
+  return normalizeMediaUrl(raw, serverUrl);
 }
 
 /** Unix secondes ou date lisible → ISO. Sinon rien. */
@@ -712,6 +739,7 @@ export async function syncXtreamCatalog(
   report('auth', 0);
   const { userInfo } = await xtreamService.getAccountInfo(creds, { signal });
   const format = pickLiveFormat(userInfo.allowedOutputFormats);
+  const familyErrors: Partial<Record<'vod' | 'series', SourceErrorKind>> = {};
 
   report('live_categories', 0.1);
   const allLiveCategories = await xtreamService.getLiveCategories(creds, { signal });
@@ -794,13 +822,26 @@ export async function syncXtreamCatalog(
     // un abonnement sans films, c'est un arrêt volontaire.
     if (toSourceErrorKind(err) === 'aborted') throw err;
     movies = [];
+    familyErrors.vod = toSourceErrorKind(err);
   }
 
   report('series_categories', 0.8);
   let series: Series[] = [];
   let seriesCategories: SeriesCategory[] = [];
+  let seriesCategoryError: SourceErrorKind | undefined;
   try {
-    const allSeriesCategories = await xtreamService.getSeriesCategories(creds, { signal });
+    let allSeriesCategories: XtreamCategory[] = [];
+    try {
+      allSeriesCategories = await xtreamService.getSeriesCategories(creds, { signal });
+    } catch (categoryError) {
+      const categoryKind = toSourceErrorKind(categoryError);
+      if (categoryKind === 'aborted') throw categoryError;
+      seriesCategoryError = categoryKind;
+      // Certains portails servent les séries mais pas l'action
+      // get_series_categories. On poursuit avec les identifiants déjà
+      // sélectionnés et la liste globale de séries.
+    }
+
     const seriesSelection = expandWithChildren(
       selectionOrAll(selection, 'series'),
       allSeriesCategories
@@ -810,14 +851,29 @@ export async function syncXtreamCatalog(
         ? allSeriesCategories
         : allSeriesCategories.filter((c) => seriesSelection.includes(c.categoryId));
     report('series', 0.9);
-    const seriesList = await fetchByCategories(
+    const seriesList = await fetchSeriesByCategories(
       seriesSelection,
       () => xtreamService.getSeries(creds, undefined, { signal }),
-      (categoryId) => xtreamService.getSeries(creds, categoryId, { signal }),
-      (chunk) => report('series', 0.9 + 0.1 * (chunk.done / Math.max(1, chunk.total)), chunk),
+      (categoryId) => xtreamService.getSeries(creds, categoryId, { signal })
     );
+    if (seriesCategoryError) familyErrors.series = seriesCategoryError;
+
+    // Si l'endpoint des catégories est absent mais que les contenus sont
+    // disponibles, conserver des catégories plates plutôt que de perdre
+    // toute la famille. Les noms fournisseur restent prioritaires quand
+    // ils existent ; l'identifiant sert uniquement de dernier secours.
+    const fallbackSeriesCategories = [...new Set(
+      seriesList.map((item) => item.categoryId).filter(Boolean),
+    )]
+      .filter((categoryId) => !selectedSeriesCategories.some((c) => c.categoryId === categoryId))
+      .map((categoryId) => ({
+        categoryId,
+        categoryName: `Séries ${categoryId}`,
+        parentId: 0,
+      }));
+    const seriesCategoriesInput = [...selectedSeriesCategories, ...fallbackSeriesCategories];
     const displayedSeriesCategories = hideEmptyParentCategories(
-      selectedSeriesCategories,
+      seriesCategoriesInput,
       new Set(seriesList.map((item) => item.categoryId)),
     );
     const seriesNames = new Map(
@@ -840,6 +896,7 @@ export async function syncXtreamCatalog(
     if (toSourceErrorKind(err) === 'aborted') throw err;
     series = [];
     seriesCategories = [];
+    familyErrors.series = toSourceErrorKind(err);
   }
 
   report('done', 1);
@@ -858,6 +915,7 @@ export async function syncXtreamCatalog(
       movies: movies.length,
       series: series.length,
     },
+    ...(Object.keys(familyErrors).length > 0 ? { familyErrors } : {}),
     expiresAt: isoOrUndefined(userInfo.expiresAt),
     maxConnections: userInfo.maxConnections || undefined,
     allowedOutputFormats: userInfo.allowedOutputFormats,

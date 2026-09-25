@@ -141,15 +141,18 @@ export async function runPlaylistEpg(
   }
   const store = useAppStore.getState();
   const syncedChannelIds = new Set(channels.map((channel) => channel.id));
-  const programsToStore = options.channelIds
-    ? [
-        ...store.epgPrograms.filter(
-          (program) =>
-            program.id.startsWith(`${playlistId}:epg:`) && !syncedChannelIds.has(program.channelId),
-        ),
-        ...result.programs,
-      ]
-    : result.programs;
+  const refreshedChannelIds = new Set(result.programs.map((program) => program.channelId));
+  const programsToStore = [
+    ...store.epgPrograms.filter(
+      (program) =>
+        program.id.startsWith(`${playlistId}:epg:`)
+        // Une chaîne sans résultat fiable ne doit jamais perdre son guide
+        // précédemment stocké. Dès qu'un nouveau résultat existe pour la
+        // chaîne, l'ancien lot est remplacé pour éviter les doublons.
+        && (!syncedChannelIds.has(program.channelId) || !refreshedChannelIds.has(program.channelId)),
+    ),
+    ...result.programs,
+  ];
   store.setEpgPrograms(playlistId, programsToStore);
   const latest = store.channels.filter((c) => c.playlistId === playlistId);
   const patched = applyLogoFallbacks(latest, result.logoFallbacks);

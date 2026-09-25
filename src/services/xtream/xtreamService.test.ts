@@ -138,11 +138,49 @@ describe('réponses inattendues du serveur', () => {
    * `JSON.parse` échoue et l'utilisateur voit une erreur technique
    * incompréhensible.
    */
-  it('intercepte une page HTML servie en HTTP 200', async () => {
+  it('intercepte une page HTML servie en HTTP 200 et conserve son transport', async () => {
     mockFetch(null, { raw: '<html><body>502 Bad Gateway</body></html>' });
-    await expect(xtreamService.getLiveStreams(creds)).rejects.toMatchObject({
-      kind: 'bad_response',
+    try {
+      await xtreamService.getLiveStreams(creds);
+      expect.unreachable('une réponse non JSON était attendue');
+    } catch (error) {
+      expect(error).toMatchObject({ kind: 'bad_response' });
+      const transport = (error as XtreamError).transport;
+      expect(transport).toMatchObject({
+        status: 200,
+        responseType: 'html',
+        redirects: [],
+      });
+      expect(transport?.requestedUrl).not.toContain('password=pass');
+      expect(transport?.safeExcerpt).toContain('502 Bad Gateway');
+    }
+  });
+
+  it('essaie get_simple_data_table quand get_short_epg renvoie du HTML', async () => {
+    const actions: string[] = [];
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const action = new URL(String(input)).searchParams.get('action') ?? '';
+      actions.push(action);
+      if (action === 'get_short_epg') {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'text/html' },
+          text: async () => '<html><body>Apps</body></html>',
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => JSON.stringify({ epg_listings: [{ title: 'Journal' }] }),
+      };
     });
+
+    const result = await xtreamService.getShortEpg(creds, 42);
+
+    expect(result).toMatchObject({ epg_listings: [{ title: 'Journal' }] });
+    expect(actions).toEqual(['get_short_epg', 'get_simple_data_table']);
   });
 
   it('rejette un objet là où un tableau est attendu', async () => {

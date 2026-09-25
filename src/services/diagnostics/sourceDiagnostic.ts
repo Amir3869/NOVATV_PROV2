@@ -1,13 +1,18 @@
 import { secureStore } from '@/lib/secureStore';
 import { useAppStore } from '@/store/useAppStore';
-import { xtreamService } from '@/services/xtream/xtreamService';
+import {
+  xtreamService,
+  XtreamError,
+  type XtreamTransportMetadata,
+} from '@/services/xtream/xtreamService';
+import { mediaUrlCandidates } from '@/services/media/mediaUrl';
 import type { LiveChannel, Playlist } from '@/types';
 
 const IMAGE_PROBE_CONCURRENCY = 10;
 const EPG_PROBE_CONCURRENCY = 4;
 const IMAGE_TIMEOUT_MS = 8_000;
 
-export type DiagnosticImageStatus = 'ok' | 'error' | 'timeout' | 'not-tested';
+export type DiagnosticImageStatus = 'ok' | 'error' | 'timeout' | 'missing-url' | 'not-tested';
 export type DiagnosticEpgProbeStatus = 'ok' | 'error' | 'redirect' | 'missing-stream-id' | 'unsupported' | 'not-tested';
 export type DiagnosticCategoryFamily = 'live' | 'movie' | 'series';
 
@@ -33,6 +38,8 @@ export interface SourceDiagnosticImage {
   elapsedMs?: number;
   naturalWidth?: number;
   naturalHeight?: number;
+  attemptedUrls?: string[];
+  finalUrl?: string;
   error?: string;
 }
 
@@ -49,6 +56,7 @@ export interface SourceDiagnosticEpgProbe {
   responseKeys: string[];
   listingCount: number;
   listingKeys: string[];
+  transport?: XtreamTransportMetadata;
   error?: string;
 }
 
@@ -164,6 +172,7 @@ export interface SourceDiagnosticReport {
     ok: number;
     error: number;
     timeout: number;
+    missingUrl: number;
     notTested: number;
   }>;
   images: SourceDiagnosticImage[];
@@ -271,6 +280,8 @@ interface ImageProbeResult {
   naturalWidth?: number;
   naturalHeight?: number;
   error?: string;
+  attemptedUrls?: string[];
+  finalUrl?: string;
 }
 
 function probeImage(url: string): Promise<ImageProbeResult> {
@@ -299,6 +310,29 @@ function probeImage(url: string): Promise<ImageProbeResult> {
   });
 }
 
+async function probeImageCandidates(urls: string[]): Promise<ImageProbeResult> {
+  const startedAt = Date.now();
+  let last: ImageProbeResult | undefined;
+  for (const url of urls) {
+    const result = await probeImage(url);
+    last = result;
+    if (result.status === 'ok') {
+      return {
+        ...result,
+        elapsedMs: Date.now() - startedAt,
+        attemptedUrls: urls,
+        finalUrl: url,
+      };
+    }
+  }
+  return {
+    ...(last ?? { status: 'error' as const, elapsedMs: 0, error: 'image_load_error' }),
+    elapsedMs: Date.now() - startedAt,
+    attemptedUrls: urls,
+    finalUrl: urls.at(-1),
+  };
+}
+
 type ImageCandidate = {
   kind: SourceDiagnosticImage['kind'];
   catalogId: string;
@@ -313,11 +347,21 @@ function notTestedImages(candidates: ImageCandidate[]): SourceDiagnosticImage[] 
     catalogId: item.catalogId,
     title: item.title,
     category: item.category,
-    url: item.raw?.trim() ? safeUrl(item.raw) ?? '[invalid-url]' : '[missing-url]',
-    status: item.raw?.trim() ? 'not-tested' : 'error',
+    url: !item.raw?.trim()
+      ? '[missing-url]'
+      : safeUrl(mediaUrlCandidates(item.raw)[0]) ?? '[invalid-url]',
+    status: !item.raw?.trim()
+      ? 'missing-url'
+      : mediaUrlCandidates(item.raw).length > 0
+        ? 'not-tested'
+        : 'error',
     probeMode: 'browser-image',
     elapsedMs: 0,
-    ...(item.raw?.trim() ? { error: 'probe_pending' } : { error: 'missing_image_url' }),
+    ...(!item.raw?.trim()
+      ? { error: 'missing_image_url' }
+      : mediaUrlCandidates(item.raw).length > 0
+        ? { error: 'probe_pending' }
+        : { error: 'invalid_image_url' }),
   }));
 }
 
@@ -339,7 +383,7 @@ async function probeImages(
         title: item.title,
         category: item.category,
         url: '[missing-url]',
-        status: 'error' as const,
+        status: 'missing-url' as const,
         probeMode: 'browser-image' as const,
         elapsedMs: 0,
         error: 'missing_image_url',
@@ -348,9 +392,26 @@ async function probeImages(
       return result;
     }
 
+    const candidates = mediaUrlCandidates(item.raw);
+    if (candidates.length === 0) {
+      const result = {
+        kind: item.kind,
+        catalogId: item.catalogId,
+        title: item.title,
+        category: item.category,
+        url: '[invalid-url]',
+        status: 'error' as const,
+        probeMode: 'browser-image' as const,
+        elapsedMs: 0,
+        error: 'invalid_image_url',
+      };
+      notify();
+      return result;
+    }
+
     let probe = cache.get(item.raw);
     if (!probe) {
-      probe = probeImage(item.raw);
+      probe = probeImageCandidates(candidates);
       cache.set(item.raw, probe);
     }
     const result = await probe;
@@ -360,12 +421,14 @@ async function probeImages(
       catalogId: item.catalogId,
       title: item.title,
       category: item.category,
-      url: safeUrl(item.raw) ?? '[invalid-url]',
+      url: safeUrl(candidates[0]) ?? '[invalid-url]',
       status: result.status,
       probeMode: 'browser-image' as const,
       elapsedMs: result.elapsedMs,
       ...(result.naturalWidth ? { naturalWidth: result.naturalWidth } : {}),
       ...(result.naturalHeight ? { naturalHeight: result.naturalHeight } : {}),
+      ...(result.attemptedUrls ? { attemptedUrls: result.attemptedUrls.map((candidate) => safeUrl(candidate) ?? '[invalid-url]') } : {}),
+      ...(result.finalUrl ? { finalUrl: safeUrl(result.finalUrl) ?? '[invalid-url]' } : {}),
       ...(result.error ? { error: result.error } : {}),
     };
   });
@@ -489,17 +552,25 @@ async function probeShortEpg(
       notify();
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message.slice(0, 240) : 'request_failed';
-      const requestStatus = /\bHTTP\s+(301|302|303|307|308)\b/i.test(message)
-        ? ('redirect' as const)
-        : ('error' as const);
+      const transport = error instanceof XtreamError ? error.transport : undefined;
+      const message = error instanceof XtreamError
+        ? error.userMessage
+        : error instanceof Error
+          ? error.message.slice(0, 240)
+          : 'request_failed';
+      const requestStatus = transport?.responseType === 'html'
+        ? ('error' as const)
+        : /\bHTTP\s+(301|302|303|307|308)\b/i.test(message)
+          ? ('redirect' as const)
+          : ('error' as const);
       const result = {
         ...item,
         requestStatus,
-        responseType: requestStatus === 'redirect' ? 'redirect' : 'error',
+        responseType: transport?.responseType ?? (requestStatus === 'redirect' ? 'redirect' : 'error'),
         responseKeys: [],
         listingCount: 0,
         listingKeys: [],
+        ...(transport ? { transport } : {}),
         error: message,
       };
       notify();
@@ -850,6 +921,7 @@ export async function buildSourceDiagnosticReport(
       ok: items.filter((image) => image.status === 'ok').length,
       error: items.filter((image) => image.status === 'error').length,
       timeout: items.filter((image) => image.status === 'timeout').length,
+      missingUrl: items.filter((image) => image.status === 'missing-url').length,
       notTested: items.filter((image) => image.status === 'not-tested').length,
     };
   });
@@ -922,7 +994,9 @@ export function formatSourceDiagnosticSummary(report: SourceDiagnosticReport): s
     },
     images: {
       summary: report.imageSummary,
-      failures: report.images.filter((image) => image.status === 'error' || image.status === 'timeout'),
+      failures: report.images.filter(
+        (image) => image.status === 'error' || image.status === 'timeout' || image.status === 'missing-url',
+      ),
       pending: report.images.filter((image) => image.status === 'not-tested'),
     },
     categories: {

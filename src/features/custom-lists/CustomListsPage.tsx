@@ -16,6 +16,7 @@ import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import { ConfirmDialog } from '@/design-system/components/ConfirmDialog';
 import { AppDialog } from '@/design-system/components/AppDialog';
 import { AddMediaToListDialog } from '@/design-system/components/AddMediaToListDialog';
+import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 import toast from 'react-hot-toast';
 import { useTranslation } from '@/i18n';
 
@@ -392,9 +393,15 @@ function VodListRow({
     >
       <div className="w-16 h-10 rounded-lg bg-surface-3 flex items-center justify-center flex-shrink-0 overflow-hidden">
         {image ? (
-          <img src={image} alt={name} className="w-full h-full object-cover" />
+          <ImageWithFallback
+            src={image}
+            alt={name}
+            className="h-full w-full object-cover"
+            fallbackClassName="h-full w-full"
+            fallback={<Play className="h-5 w-5 text-white/20" />}
+          />
         ) : (
-          <Play className="w-5 h-5 text-white/20" />
+          <Play className="h-5 w-5 text-white/20" />
         )}
       </div>
       <div className="flex-1 min-w-0">

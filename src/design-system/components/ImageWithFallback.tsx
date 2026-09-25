@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/utils/cn';
+import { mediaUrlCandidates } from '@/services/media/mediaUrl';
 
 /**
  * Image distante qui cède la place à un repli quand elle échoue.
@@ -74,9 +75,31 @@ export function ImageWithFallback({
   // de remise à zéro ni clignotement.
   const [failedSources, setFailedSources] = useState<Set<string>>(() => new Set());
   const candidates = Array.from(
-    new Set([src, ...sources].filter((value): value is string => Boolean(value?.trim()))),
+    new Set(
+      [src, ...sources]
+        .flatMap((value) => mediaUrlCandidates(value))
+        .filter((value): value is string => Boolean(value?.trim())),
+    ),
   );
   const activeSrc = candidates.find((candidate) => !failedSources.has(candidate));
+
+  // Une balise img ne dispose pas d'un timeout réseau portable dans une
+  // WebView. Le minuteur borne donc chaque candidat ; le nettoyage évite
+  // qu'un ancien visuel fasse basculer une carte réutilisée par la liste.
+  useEffect(() => {
+    if (!activeSrc) return undefined;
+    const timer = window.setTimeout(() => {
+      // Ce setState est déclenché par un événement externe (le délai
+      // réseau), pas pendant le rendu ; le fallback reste systématique.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFailedSources((current) => {
+        const next = new Set(current);
+        next.add(activeSrc);
+        return next;
+      });
+    }, 8_000);
+    return () => window.clearTimeout(timer);
+  }, [activeSrc]);
 
   if (!activeSrc) {
     return (
