@@ -310,25 +310,61 @@ type XtreamAction =
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-/** Certains portails redirigent HTTP vers HTTPS sans que la WebView
- * native suive la redirection. On retente uniquement ce cas, une fois. */
+/**
+ * Certains portails redirigent HTTP vers HTTPS, un autre nom d'hôte ou
+ * une URL canonique. CapacitorHttp ne suit pas toujours ces redirections
+ * comme fetch ; on les suit explicitement, en conservant les paramètres
+ * Xtream si le serveur ne les recopie pas dans l'en-tête Location.
+ */
+function responseHeader(
+  response: Awaited<ReturnType<typeof CapacitorHttp.get>>,
+  name: string,
+): string | undefined {
+  const headers = response.headers as Record<string, unknown> | undefined;
+  const key = Object.keys(headers ?? {}).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+  const value = key ? headers?.[key] : undefined;
+  return typeof value === 'string' ? value : undefined;
+}
+
+function redirectUrl(currentUrl: string, location: string | undefined): string | undefined {
+  try {
+    const current = new URL(currentUrl);
+    const next = new URL(location ?? currentUrl, currentUrl);
+    if (!next.search && current.search) next.search = current.search;
+    return next.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 async function nativeXtreamGet(url: string, timeoutMs: number) {
   const request = {
-    url,
     headers: { Accept: 'application/json' },
     connectTimeout: timeoutMs,
     readTimeout: timeoutMs,
   };
-  let response = await CapacitorHttp.get(request);
-  if (REDIRECT_STATUSES.has(response.status) && /^http:\/\//i.test(url)) {
-    try {
-      const secureUrl = new URL(url);
-      secureUrl.protocol = 'https:';
-      response = await CapacitorHttp.get({ ...request, url: secureUrl.toString() });
-    } catch {
-      // Conserver la réponse HTTP d'origine pour afficher son vrai code.
+  const visited = new Set<string>();
+  let currentUrl = url;
+  let response = await CapacitorHttp.get({ ...request, url: currentUrl });
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (attempt > 0) {
+      response = await CapacitorHttp.get({ ...request, url: currentUrl });
     }
+    if (!REDIRECT_STATUSES.has(response.status)) return response;
+
+    const location = responseHeader(response, 'location');
+    let nextUrl = redirectUrl(currentUrl, location);
+    if (!location && /^http:\/\//i.test(currentUrl)) {
+      const secureUrl = new URL(currentUrl);
+      secureUrl.protocol = 'https:';
+      nextUrl = secureUrl.toString();
+    }
+    if (!nextUrl || visited.has(nextUrl)) return response;
+    visited.add(currentUrl);
+    currentUrl = nextUrl;
   }
+
   return response;
 }
 

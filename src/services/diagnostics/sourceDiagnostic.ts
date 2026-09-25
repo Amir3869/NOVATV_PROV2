@@ -8,8 +8,19 @@ const EPG_PROBE_CONCURRENCY = 4;
 const IMAGE_TIMEOUT_MS = 8_000;
 
 export type DiagnosticImageStatus = 'ok' | 'error' | 'timeout' | 'not-tested';
-export type DiagnosticEpgProbeStatus = 'ok' | 'error' | 'missing-stream-id' | 'unsupported';
+export type DiagnosticEpgProbeStatus = 'ok' | 'error' | 'redirect' | 'missing-stream-id' | 'unsupported' | 'not-tested';
 export type DiagnosticCategoryFamily = 'live' | 'movie' | 'series';
+
+export interface SourceDiagnosticProgress {
+  phase: 'images' | 'epg';
+  completed: number;
+  total: number;
+}
+
+export interface SourceDiagnosticBuildOptions {
+  probe?: boolean;
+  onProgress?: (progress: SourceDiagnosticProgress) => void;
+}
 
 export interface SourceDiagnosticImage {
   kind: 'channel-logo' | 'movie-poster' | 'series-poster';
@@ -118,10 +129,18 @@ export interface SourceDiagnosticReport {
       tvgId?: string;
     }>;
     probeStatusCounts: Record<DiagnosticEpgProbeStatus, number>;
+    errorGroups: Array<{
+      status: 'error' | 'redirect';
+      error: string;
+      count: number;
+      sampleChannels: string[];
+      sampleChannelIds: string[];
+    }>;
     probes: SourceDiagnosticEpgProbe[];
   };
   categories: SourceDiagnosticCategory[];
   categorySummaries: SourceDiagnosticCategorySummary[];
+  categoryFallbackFamilies: DiagnosticCategoryFamily[];
   categoryAnomalies: Array<{
     type: 'same-name-parent-child' | 'duplicate-name';
     family: DiagnosticCategoryFamily;
@@ -185,16 +204,30 @@ function responseListings(raw: unknown): { keys: string[]; listings: Record<stri
       ),
     };
   }
+  if (typeof raw === 'string') {
+    try {
+      return responseListings(JSON.parse(raw) as unknown);
+    } catch {
+      return { keys: [], listings: [] };
+    }
+  }
   if (!raw || typeof raw !== 'object') return { keys: [], listings: [] };
   const record = raw as Record<string, unknown>;
-  for (const key of ['epg_listings', 'listings', 'programs', 'epg']) {
-    if (Array.isArray(record[key])) {
+  for (const key of ['epg_listings', 'listings', 'programs', 'epg', 'js']) {
+    const value = record[key];
+    if (Array.isArray(value)) {
       return {
         keys: Object.keys(record),
-        listings: record[key].filter(
+        listings: value.filter(
           (item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'),
         ),
       };
+    }
+    if (key === 'js' && (typeof value === 'string' || (value && typeof value === 'object'))) {
+      const nested = responseListings(value);
+      if (nested.listings.length > 0) {
+        return { keys: Object.keys(record), listings: nested.listings };
+      }
     }
   }
   return { keys: Object.keys(record), listings: [] };
@@ -266,19 +299,41 @@ function probeImage(url: string): Promise<ImageProbeResult> {
   });
 }
 
+type ImageCandidate = {
+  kind: SourceDiagnosticImage['kind'];
+  catalogId: string;
+  title: string;
+  category?: string;
+  raw?: string;
+};
+
+function notTestedImages(candidates: ImageCandidate[]): SourceDiagnosticImage[] {
+  return candidates.map((item) => ({
+    kind: item.kind,
+    catalogId: item.catalogId,
+    title: item.title,
+    category: item.category,
+    url: item.raw?.trim() ? safeUrl(item.raw) ?? '[invalid-url]' : '[missing-url]',
+    status: item.raw?.trim() ? 'not-tested' : 'error',
+    probeMode: 'browser-image',
+    elapsedMs: 0,
+    ...(item.raw?.trim() ? { error: 'probe_pending' } : { error: 'missing_image_url' }),
+  }));
+}
+
 async function probeImages(
-  candidates: Array<{
-    kind: SourceDiagnosticImage['kind'];
-    catalogId: string;
-    title: string;
-    category?: string;
-    raw?: string;
-  }>,
+  candidates: ImageCandidate[],
+  onProgress?: (progress: SourceDiagnosticProgress) => void,
 ): Promise<SourceDiagnosticImage[]> {
   const cache = new Map<string, Promise<Awaited<ReturnType<typeof probeImage>>>>();
+  let completed = 0;
+  const notify = () => {
+    completed += 1;
+    onProgress?.({ phase: 'images', completed, total: candidates.length });
+  };
   const results = await mapWithConcurrency(candidates, IMAGE_PROBE_CONCURRENCY, async (item) => {
     if (!item.raw?.trim()) {
-      return {
+      const result = {
         kind: item.kind,
         catalogId: item.catalogId,
         title: item.title,
@@ -289,6 +344,8 @@ async function probeImages(
         elapsedMs: 0,
         error: 'missing_image_url',
       };
+      notify();
+      return result;
     }
 
     let probe = cache.get(item.raw);
@@ -297,6 +354,7 @@ async function probeImages(
       cache.set(item.raw, probe);
     }
     const result = await probe;
+    notify();
     return {
       kind: item.kind,
       catalogId: item.catalogId,
@@ -314,12 +372,19 @@ async function probeImages(
   return results;
 }
 
-async function probeShortEpg(
-  playlist: Playlist,
+function epgProbeBase(
   channels: LiveChannel[],
   storedProgramCounts: Map<string, number>,
-): Promise<SourceDiagnosticEpgProbe[]> {
-  const base = channels.map((channel) => ({
+): Array<{
+  channelId: string;
+  channel: string;
+  category?: string;
+  streamId?: number;
+  epgChannelId?: string;
+  tvgId?: string;
+  storedProgramCount: number;
+}> {
+  return channels.map((channel) => ({
     channelId: channel.id,
     channel: channel.name,
     category: channel.categoryName,
@@ -328,30 +393,65 @@ async function probeShortEpg(
     tvgId: channel.tvgId,
     storedProgramCount: storedProgramCounts.get(channel.id) ?? 0,
   }));
+}
+
+function notTestedEpgProbes(
+  channels: LiveChannel[],
+  storedProgramCounts: Map<string, number>,
+): SourceDiagnosticEpgProbe[] {
+  return epgProbeBase(channels, storedProgramCounts).map((item) => ({
+    ...item,
+    requestStatus: item.streamId ? 'not-tested' : 'missing-stream-id',
+    responseType: 'not-requested',
+    responseKeys: [],
+    listingCount: 0,
+    listingKeys: [],
+    error: item.streamId ? 'probe_pending' : 'missing_stream_id',
+  }));
+}
+
+async function probeShortEpg(
+  playlist: Playlist,
+  channels: LiveChannel[],
+  storedProgramCounts: Map<string, number>,
+  onProgress?: (progress: SourceDiagnosticProgress) => void,
+): Promise<SourceDiagnosticEpgProbe[]> {
+  const base = epgProbeBase(channels, storedProgramCounts);
+  let completed = 0;
+  const notify = () => {
+    completed += 1;
+    onProgress?.({ phase: 'epg', completed, total: base.length });
+  };
 
   if (playlist.type !== 'xtream' || !playlist.xtream) {
-    return base.map((item) => ({
-      ...item,
-      requestStatus: 'unsupported' as const,
-      responseType: 'not-requested',
-      responseKeys: [],
-      listingCount: 0,
-      listingKeys: [],
-      error: 'short_epg_requires_xtream',
-    }));
+    return base.map((item) => {
+      notify();
+      return {
+        ...item,
+        requestStatus: 'unsupported' as const,
+        responseType: 'not-requested',
+        responseKeys: [],
+        listingCount: 0,
+        listingKeys: [],
+        error: 'short_epg_requires_xtream',
+      };
+    });
   }
 
   const password = await secureStore.getPlaylistPassword(playlist.id);
   if (!password) {
-    return base.map((item) => ({
-      ...item,
-      requestStatus: 'error' as const,
-      responseType: 'not-requested',
-      responseKeys: [],
-      listingCount: 0,
-      listingKeys: [],
-      error: 'playlist_password_unavailable',
-    }));
+    return base.map((item) => {
+      notify();
+      return {
+        ...item,
+        requestStatus: 'error' as const,
+        responseType: 'not-requested',
+        responseKeys: [],
+        listingCount: 0,
+        listingKeys: [],
+        error: 'playlist_password_unavailable',
+      };
+    });
   }
 
   const credentials = {
@@ -362,7 +462,7 @@ async function probeShortEpg(
 
   return mapWithConcurrency(base, EPG_PROBE_CONCURRENCY, async (item) => {
     if (!item.streamId) {
-      return {
+      const result = {
         ...item,
         requestStatus: 'missing-stream-id' as const,
         responseType: 'not-requested',
@@ -371,12 +471,14 @@ async function probeShortEpg(
         listingKeys: [],
         error: 'missing_stream_id',
       };
+      notify();
+      return result;
     }
 
     try {
       const raw = await xtreamService.getShortEpg(credentials, item.streamId, 12);
       const parsed = responseListings(raw);
-      return {
+      const result = {
         ...item,
         requestStatus: 'ok' as const,
         responseType: Array.isArray(raw) ? 'array' : typeof raw,
@@ -384,16 +486,24 @@ async function probeShortEpg(
         listingCount: parsed.listings.length,
         listingKeys: parsed.listings[0] ? Object.keys(parsed.listings[0]) : [],
       };
+      notify();
+      return result;
     } catch (error) {
-      return {
+      const message = error instanceof Error ? error.message.slice(0, 240) : 'request_failed';
+      const requestStatus = /\bHTTP\s+(301|302|303|307|308)\b/i.test(message)
+        ? ('redirect' as const)
+        : ('error' as const);
+      const result = {
         ...item,
-        requestStatus: 'error' as const,
-        responseType: 'error',
+        requestStatus,
+        responseType: requestStatus === 'redirect' ? 'redirect' : 'error',
         responseKeys: [],
         listingCount: 0,
         listingKeys: [],
-        error: error instanceof Error ? error.message.slice(0, 240) : 'request_failed',
+        error: message,
       };
+      notify();
+      return result;
     }
   });
 }
@@ -405,6 +515,7 @@ function buildCategoryDiagnostics(
   categories: SourceDiagnosticCategory[];
   summaries: SourceDiagnosticCategorySummary[];
   anomalies: SourceDiagnosticReport['categoryAnomalies'];
+  categoryFallbackFamilies: DiagnosticCategoryFamily[];
 } {
   const rows: SourceDiagnosticCategory[] = [];
   const sources: Array<{
@@ -436,6 +547,27 @@ function buildCategoryDiagnostics(
     { family: 'series', categories: state.seriesCategories, count: (category) => category.seriesCount ?? 0 },
   ];
 
+  const categoryContentCounts = new Map<string, number>();
+  const categoryContentNames = new Map<string, string>();
+  const contentSources: Array<{
+    family: DiagnosticCategoryFamily;
+    items: readonly { playlistId: string; categoryId?: string; categoryName?: string }[];
+  }> = [
+    { family: 'live', items: state.channels },
+    { family: 'movie', items: state.movies },
+    { family: 'series', items: state.series },
+  ];
+  for (const contentSource of contentSources) {
+    for (const item of contentSource.items) {
+      if (item.playlistId !== playlistId || !item.categoryId) continue;
+      const key = `${contentSource.family}:${item.categoryId}`;
+      categoryContentCounts.set(key, (categoryContentCounts.get(key) ?? 0) + 1);
+      if (!categoryContentNames.has(key) && item.categoryName?.trim()) {
+        categoryContentNames.set(key, item.categoryName.trim());
+      }
+    }
+  }
+
   for (const source of sources) {
     const categories = source.categories.filter((category) => category.playlistId === playlistId);
     const byId = new Map(categories.map((category) => [category.id, category]));
@@ -456,11 +588,49 @@ function buildCategoryDiagnostics(
         relation: category.relation,
         regionCode: category.regionCode,
         qualities: category.qualities ?? [],
-        contentCount: source.count(category),
+        contentCount: Math.max(
+          source.count(category),
+          categoryContentCounts.get(`${source.family}:${category.id}`) ?? 0,
+        ),
         duplicateNameKey: nameKey,
         sameNameAsParent: Boolean(parent && normalizeCategoryName(parent.name) === nameKey),
       });
     }
+  }
+
+  const categoryFallbackFamilies: DiagnosticCategoryFamily[] = [];
+  for (const source of sources) {
+    const existingIds = new Set(
+      rows
+        .filter((category) => category.family === source.family)
+        .map((category) => category.id),
+    );
+    const contentCategoryIds = [...categoryContentCounts.keys()]
+      .filter((key) => key.startsWith(`${source.family}:`))
+      .map((key) => key.slice(source.family.length + 1));
+    let addedFallback = false;
+    for (const categoryId of contentCategoryIds) {
+      if (existingIds.has(categoryId)) continue;
+      const key = `${source.family}:${categoryId}`;
+      const name = categoryContentNames.get(key) ?? `[category-name-missing:${categoryId}]`;
+      const nameKey = normalizeCategoryName(name);
+      rows.push({
+        family: source.family,
+        id: categoryId,
+        name,
+        originalName: name,
+        childIds: [],
+        childCount: 0,
+        relation: 'flat',
+        qualities: [],
+        contentCount: categoryContentCounts.get(key) ?? 0,
+        duplicateNameKey: nameKey,
+        sameNameAsParent: false,
+      });
+      existingIds.add(categoryId);
+      addedFallback = true;
+    }
+    if (addedFallback) categoryFallbackFamilies.push(source.family);
   }
 
   const summaries = sources.map((source) => {
@@ -518,10 +688,13 @@ function buildCategoryDiagnostics(
     }
   }
 
-  return { categories: rows, summaries, anomalies };
+  return { categories: rows, summaries, anomalies, categoryFallbackFamilies };
 }
 
-export async function buildSourceDiagnosticReport(playlistId: string): Promise<SourceDiagnosticReport> {
+export async function buildSourceDiagnosticReport(
+  playlistId: string,
+  options: SourceDiagnosticBuildOptions = {},
+): Promise<SourceDiagnosticReport> {
   const state = useAppStore.getState();
   const playlist = state.playlists.find((item) => item.id === playlistId);
   if (!playlist) throw new Error('source_not_found');
@@ -570,10 +743,17 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
     })),
   ];
 
-  const [imageResults, epgProbes] = await Promise.all([
-    probeImages(imageCandidates),
-    probeShortEpg(playlist, channels, storedProgramCounts),
-  ]);
+  let imageResults: SourceDiagnosticImage[];
+  let epgProbes: SourceDiagnosticEpgProbe[];
+  if (options.probe === false) {
+    imageResults = notTestedImages(imageCandidates);
+    epgProbes = notTestedEpgProbes(channels, storedProgramCounts);
+  } else {
+    [imageResults, epgProbes] = await Promise.all([
+      probeImages(imageCandidates, options.onProgress),
+      probeShortEpg(playlist, channels, storedProgramCounts, options.onProgress),
+    ]);
+  }
 
   const categoryDiagnostics = buildCategoryDiagnostics(playlistId, state);
   const categoryCounts = {
@@ -584,10 +764,38 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
   const probeStatusCounts: Record<DiagnosticEpgProbeStatus, number> = {
     ok: 0,
     error: 0,
+    redirect: 0,
     'missing-stream-id': 0,
     unsupported: 0,
+    'not-tested': 0,
   };
   for (const probe of epgProbes) probeStatusCounts[probe.requestStatus] += 1;
+
+  const epgErrorGroups = new Map<string, {
+    status: 'error' | 'redirect';
+    error: string;
+    count: number;
+    sampleChannels: string[];
+    sampleChannelIds: string[];
+  }>();
+  for (const probe of epgProbes) {
+    if (probe.requestStatus !== 'error' && probe.requestStatus !== 'redirect') continue;
+    const error = probe.error ?? 'request_failed';
+    const status = probe.requestStatus;
+    const key = `${status}:${error}`;
+    const group = epgErrorGroups.get(key) ?? {
+      status,
+      error,
+      count: 0,
+      sampleChannels: [],
+      sampleChannelIds: [],
+    };
+    group.count += 1;
+    if (group.sampleChannels.length < 10) group.sampleChannels.push(probe.channel);
+    if (group.sampleChannelIds.length < 10) group.sampleChannelIds.push(probe.channelId);
+    epgErrorGroups.set(key, group);
+  }
+  const errorGroups = [...epgErrorGroups.values()].sort((left, right) => right.count - left.count);
 
   const categoryByKey = new Map(
     categoryDiagnostics.categories.map((category) => [`${category.family}:${category.id}`, category]),
@@ -674,10 +882,12 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
       matchedChannelIds: [...channelIdsWithPrograms],
       missingChannels,
       probeStatusCounts,
+      errorGroups,
       probes: epgProbes,
     },
     categories: categoryDiagnostics.categories,
     categorySummaries: categoryDiagnostics.summaries,
+    categoryFallbackFamilies: categoryDiagnostics.categoryFallbackFamilies,
     categoryAnomalies: categoryDiagnostics.anomalies,
     categoryContentMatches,
     imageSummary,
@@ -702,14 +912,22 @@ export function formatSourceDiagnosticSummary(report: SourceDiagnosticReport): s
       channelsWithPrograms: report.epg.channelsWithPrograms,
       channelsWithoutPrograms: report.epg.channelsWithoutPrograms,
       probeStatusCounts: report.epg.probeStatusCounts,
-      problematicProbes: report.epg.probes.filter((probe) => probe.requestStatus !== 'ok' || probe.listingCount === 0),
+      errorGroups: report.epg.errorGroups,
+      problematicProbes: report.epg.probes.filter(
+        (probe) =>
+          (probe.requestStatus !== 'ok' && probe.requestStatus !== 'not-tested') ||
+          (probe.listingCount === 0 && probe.requestStatus !== 'not-tested'),
+      ),
+      pendingProbes: report.epg.probes.filter((probe) => probe.requestStatus === 'not-tested'),
     },
     images: {
       summary: report.imageSummary,
-      failures: report.images.filter((image) => image.status !== 'ok'),
+      failures: report.images.filter((image) => image.status === 'error' || image.status === 'timeout'),
+      pending: report.images.filter((image) => image.status === 'not-tested'),
     },
     categories: {
       summaries: report.categorySummaries,
+      fallbackFamilies: report.categoryFallbackFamilies,
       anomalies: report.categoryAnomalies,
       contentNameMatches: report.categoryContentMatches,
     },
@@ -725,6 +943,7 @@ export function formatSourceCategoryDiagnostic(report: SourceDiagnosticReport): 
     catalog: report.catalog,
     categories: report.categories,
     summaries: report.categorySummaries,
+    fallbackFamilies: report.categoryFallbackFamilies,
     anomalies: report.categoryAnomalies,
     contentNameMatches: report.categoryContentMatches,
   }, null, 2);

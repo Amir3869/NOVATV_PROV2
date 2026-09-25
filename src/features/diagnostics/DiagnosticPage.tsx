@@ -29,6 +29,9 @@ export function DiagnosticPage() {
   const [report, setReport] = useState<SourceDiagnosticReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [analysisRunning, setAnalysisRunning] = useState(false);
+  const [analysisError, setAnalysisError] = useState(false);
+  const [analysisPhase, setAnalysisPhase] = useState<'images' | 'epg' | null>(null);
   const [section, setSection] = useState<DiagnosticSection>('summary');
   const [chunkIndex, setChunkIndex] = useState(0);
 
@@ -36,6 +39,9 @@ export function DiagnosticPage() {
     let cancelled = false;
     setLoading(true);
     setError(false);
+    setAnalysisRunning(false);
+    setAnalysisError(false);
+    setAnalysisPhase(null);
     setReport(null);
     if (!playlistId) {
       setLoading(false);
@@ -45,16 +51,40 @@ export function DiagnosticPage() {
       };
     }
 
-    void buildSourceDiagnosticReport(playlistId)
-      .then((nextReport) => {
-        if (!cancelled) setReport(nextReport);
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void (async () => {
+      try {
+        // Le catalogue et les catégories sont affichés immédiatement. Les
+        // sondes réseau potentiellement longues continuent ensuite en tâche
+        // de fond, au lieu de laisser l'écran Android vide pendant plusieurs
+        // minutes.
+        const initialReport = await buildSourceDiagnosticReport(playlistId, { probe: false });
+        if (cancelled) return;
+        setReport(initialReport);
+        setLoading(false);
+        setAnalysisRunning(true);
+
+        try {
+          const completeReport = await buildSourceDiagnosticReport(playlistId, {
+            onProgress: (progress) => {
+              if (!cancelled) setAnalysisPhase(progress.phase);
+            },
+          });
+          if (!cancelled) setReport(completeReport);
+        } catch {
+          if (!cancelled) setAnalysisError(true);
+        } finally {
+          if (!cancelled) {
+            setAnalysisRunning(false);
+            setAnalysisPhase(null);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -119,8 +149,12 @@ export function DiagnosticPage() {
     );
   }
 
-  const imageFailures = report.images.filter((image) => image.status !== 'ok').length;
-  const epgProblems = report.epg.probes.filter((probe) => probe.requestStatus !== 'ok' || probe.listingCount === 0).length;
+  const imageFailures = report.images.filter((image) => image.status === 'error' || image.status === 'timeout').length;
+  const epgProblems = report.epg.probes.filter(
+    (probe) =>
+      probe.requestStatus !== 'not-tested' &&
+      (probe.requestStatus !== 'ok' || probe.listingCount === 0),
+  ).length;
   const categoryProblems = report.categoryAnomalies.length + report.categoryContentMatches.length;
   const sections: Array<{ id: DiagnosticSection; label: string; icon: typeof Radio }> = [
     { id: 'summary', label: t('playlists.diagnosticSummary'), icon: CheckCircle2 },
@@ -146,6 +180,19 @@ export function DiagnosticPage() {
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-black text-white">{t('playlists.diagnosticTitle')}</h1>
               <p className="mt-1 max-w-3xl text-sm text-white/45">{t('playlists.diagnosticHint')}</p>
+              {analysisRunning && (
+                <p className="mt-2 flex items-center gap-2 text-xs text-accent">
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  {t('playlists.diagnosticLoading')}
+                  {analysisPhase ? ` · ${t(analysisPhase === 'images' ? 'playlists.diagnosticImages' : 'playlists.diagnosticEpg')}` : ''}
+                </p>
+              )}
+              {analysisError && !analysisRunning && (
+                <p className="mt-2 flex items-center gap-2 text-xs text-amber-300">
+                  <TriangleAlert className="h-3.5 w-3.5" />
+                  {t('playlists.diagnosticFailed')}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -255,7 +302,7 @@ export function DiagnosticPage() {
             className="min-h-[28rem] w-full resize-y rounded-xl border border-line bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-white/80 outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
           <p className="mt-2 flex items-center gap-2 text-xs text-white/35">
-            <LoaderCircle className="h-3.5 w-3.5" />
+            {analysisRunning ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {t('playlists.diagnosticBlock', { current: safeChunkIndex + 1, total: chunks.length })}
           </p>
         </GlassCard>
