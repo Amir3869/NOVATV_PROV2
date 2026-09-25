@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Plus, Server, Link as LinkIcon, FileText, RefreshCw, Trash2, Edit2, AlertCircle, Wifi, CheckCircle2, CalendarDays, Layers, Tags, FileDown } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -35,11 +36,6 @@ import { M3UUrlForm } from './forms/M3UUrlForm';
 import { M3UFileForm } from './forms/M3UFileForm';
 import { EditSourceDialog } from './EditSourceDialog';
 import { runPlaylistEpg, schedulePlaylistEpg } from './runPlaylistEpg';
-import {
-  buildSourceDiagnosticReport,
-  copySourceDiagnostic,
-  formatSourceDiagnostic,
-} from '@/services/diagnostics/sourceDiagnostic';
 import { syncM3UFromUrl, toM3UErrorKind } from '@/services/m3u/m3uSync';
 import {
   toEPGErrorKind,
@@ -206,8 +202,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
   const [deleting, setDeleting] = useState(false);
   const [epgBusy, setEpgBusy] = useState(false);
   const [epgStep, setEpgStep] = useState<EPGSyncStep | null>(null);
-  const [diagnosticBusy, setDiagnosticBusy] = useState(false);
-  const [diagnosticText, setDiagnosticText] = useState<string | null>(null);
+  const router = useRouter();
 
   /**
    * Écran de modification des catégories.
@@ -527,29 +522,6 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
     }
   };
 
-  const handleExportDiagnostic = async () => {
-    setDiagnosticBusy(true);
-    try {
-      const report = await buildSourceDiagnosticReport(playlist.id);
-      setDiagnosticText(formatSourceDiagnostic(report));
-      toast.success(t('playlists.diagnosticReady'));
-    } catch {
-      toast.error(t('playlists.diagnosticFailed'));
-    } finally {
-      setDiagnosticBusy(false);
-    }
-  };
-
-  const handleCopyDiagnostic = async () => {
-    if (!diagnosticText) return;
-    try {
-      await copySourceDiagnostic(diagnosticText);
-      toast.success(t('playlists.diagnosticCopied'));
-    } catch {
-      toast.error(t('playlists.diagnosticFailed'));
-    }
-  };
-
   const typeLabel =
     playlist.type === 'xtream'
       ? t('playlists.xtreamCodes')
@@ -637,13 +609,13 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
           )}
           <button
             type="button"
-            onClick={handleExportDiagnostic}
-            disabled={diagnosticBusy || syncing}
-            aria-label={t('playlists.exportDiagnostic')}
-            title={t('playlists.exportDiagnostic')}
+            onClick={() => router.push(`/diagnostics?playlistId=${encodeURIComponent(playlist.id)}`)}
+            disabled={syncing}
+            aria-label={t('playlists.diagnosticOpenPage')}
+            title={t('playlists.diagnosticOpenPage')}
             className="source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
           >
-            <FileDown className={cn('h-4 w-4', diagnosticBusy && 'animate-pulse')} />
+            <FileDown className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -823,39 +795,6 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
         onCancel={() => setConfirmDelete(false)}
       />
 
-      <AppDialog
-        open={diagnosticText !== null}
-        onClose={() => setDiagnosticText(null)}
-        title={t('playlists.diagnosticTitle')}
-        description={t('playlists.diagnosticHint')}
-        size="lg"
-      >
-        <div className="space-y-3">
-          <textarea
-            readOnly
-            value={diagnosticText ?? ''}
-            onFocus={(event) => event.currentTarget.select()}
-            aria-label={t('playlists.diagnosticTitle')}
-            className="h-80 w-full resize-y rounded-xl border border-line bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-white/80 outline-none focus:border-accent"
-          />
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDiagnosticText(null)}
-              className="min-h-11 rounded-xl bg-white/5 px-4 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white"
-            >
-              {t('common.close')}
-            </button>
-            <button
-              type="button"
-              onClick={handleCopyDiagnostic}
-              className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              {t('playlists.copyDiagnostic')}
-            </button>
-          </div>
-        </div>
-      </AppDialog>
     </GlassCard>
   );
 }

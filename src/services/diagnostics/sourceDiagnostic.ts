@@ -129,6 +129,15 @@ export interface SourceDiagnosticReport {
     categoryIds: string[];
     parentId?: string;
   }>;
+  categoryContentMatches: Array<{
+    family: DiagnosticCategoryFamily;
+    contentId: string;
+    contentName: string;
+    categoryId: string;
+    categoryName: string;
+    categoryContentCount: number;
+    onlyContentInCategory: boolean;
+  }>;
   imageSummary: Array<{
     kind: SourceDiagnosticImage['kind'];
     total: number;
@@ -580,6 +589,49 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
   };
   for (const probe of epgProbes) probeStatusCounts[probe.requestStatus] += 1;
 
+  const categoryByKey = new Map(
+    categoryDiagnostics.categories.map((category) => [`${category.family}:${category.id}`, category]),
+  );
+  const contentRows: Array<{
+    family: DiagnosticCategoryFamily;
+    contentId: string;
+    contentName: string;
+    categoryId?: string;
+  }> = [
+    ...channels.map((channel) => ({
+      family: 'live' as const,
+      contentId: channel.id,
+      contentName: channel.name,
+      categoryId: channel.categoryId,
+    })),
+    ...movies.map((movie) => ({
+      family: 'movie' as const,
+      contentId: movie.id,
+      contentName: movie.name,
+      categoryId: movie.categoryId,
+    })),
+    ...series.map((item) => ({
+      family: 'series' as const,
+      contentId: item.id,
+      contentName: item.name,
+      categoryId: item.categoryId,
+    })),
+  ];
+  const categoryContentMatches = contentRows.flatMap((content) => {
+    if (!content.categoryId) return [];
+    const category = categoryByKey.get(`${content.family}:${content.categoryId}`);
+    if (!category || normalizeCategoryName(content.contentName) !== category.duplicateNameKey) return [];
+    return [{
+      family: content.family,
+      contentId: content.contentId,
+      contentName: content.contentName,
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryContentCount: category.contentCount,
+      onlyContentInCategory: category.contentCount === 1,
+    }];
+  });
+
   const imageKinds: SourceDiagnosticImage['kind'][] = ['channel-logo', 'movie-poster', 'series-poster'];
   const imageSummary = imageKinds.map((kind) => {
     const items = imageResults.filter((image) => image.kind === kind);
@@ -627,6 +679,7 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
     categories: categoryDiagnostics.categories,
     categorySummaries: categoryDiagnostics.summaries,
     categoryAnomalies: categoryDiagnostics.anomalies,
+    categoryContentMatches,
     imageSummary,
     images: imageResults,
   };
@@ -634,6 +687,71 @@ export async function buildSourceDiagnosticReport(playlistId: string): Promise<S
 
 export function formatSourceDiagnostic(report: SourceDiagnosticReport): string {
   return JSON.stringify(report, null, 2);
+}
+
+export function formatSourceDiagnosticSummary(report: SourceDiagnosticReport): string {
+  return JSON.stringify({
+    format: report.format,
+    version: report.version,
+    generatedAt: report.generatedAt,
+    source: report.source,
+    catalog: report.catalog,
+    epg: {
+      method: report.epg.method,
+      programsStored: report.epg.programsStored,
+      channelsWithPrograms: report.epg.channelsWithPrograms,
+      channelsWithoutPrograms: report.epg.channelsWithoutPrograms,
+      probeStatusCounts: report.epg.probeStatusCounts,
+      problematicProbes: report.epg.probes.filter((probe) => probe.requestStatus !== 'ok' || probe.listingCount === 0),
+    },
+    images: {
+      summary: report.imageSummary,
+      failures: report.images.filter((image) => image.status !== 'ok'),
+    },
+    categories: {
+      summaries: report.categorySummaries,
+      anomalies: report.categoryAnomalies,
+      contentNameMatches: report.categoryContentMatches,
+    },
+  }, null, 2);
+}
+
+export function formatSourceCategoryDiagnostic(report: SourceDiagnosticReport): string {
+  return JSON.stringify({
+    format: report.format,
+    version: report.version,
+    generatedAt: report.generatedAt,
+    source: report.source,
+    catalog: report.catalog,
+    categories: report.categories,
+    summaries: report.categorySummaries,
+    anomalies: report.categoryAnomalies,
+    contentNameMatches: report.categoryContentMatches,
+  }, null, 2);
+}
+
+export function splitSourceDiagnostic(text: string, maxChars = 12_000): string[] {
+  if (text.length <= maxChars) return [text];
+  const chunks: string[] = [];
+  let current = '';
+  for (const line of text.split('\n')) {
+    const next = current ? `${current}\n${line}` : line;
+    if (next.length <= maxChars) {
+      current = next;
+      continue;
+    }
+    if (current) chunks.push(current);
+    if (line.length <= maxChars) {
+      current = line;
+      continue;
+    }
+    for (let offset = 0; offset < line.length; offset += maxChars) {
+      chunks.push(line.slice(offset, offset + maxChars));
+    }
+    current = '';
+  }
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 /** Copie le rapport sans dépendance native : l'utilisateur le colle ici. */
