@@ -44,7 +44,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         // Android peut réafficher la barre après un changement de fenêtre,
         // une reprise ou un geste système. On réapplique le mode masqué à
