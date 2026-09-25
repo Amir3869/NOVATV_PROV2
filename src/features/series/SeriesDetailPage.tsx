@@ -27,7 +27,6 @@ export function SeriesDetailPage({ seriesId }: { seriesId: string }) {
   const setSeriesDetails = useAppStore((s) => s.setSeriesDetails);
   const { series: allSeries } = useActiveCatalog();
   const router = useRouter();
-  const [imgError, setImgError] = useState(false);
   const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
   const [errorSeriesId, setErrorSeriesId] = useState<string | null>(null);
   const [fetchedSeriesId, setFetchedSeriesId] = useState<string | null>(null);
@@ -135,21 +134,24 @@ export function SeriesDetailPage({ seriesId }: { seriesId: string }) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="detail-page min-h-screen">
       {/* Hero */}
       <div className="relative h-64 md:h-96 overflow-hidden">
-        {series.backdrop && !imgError ? (
-          <img src={series.backdrop} alt={series.name} className="absolute inset-0 w-full h-full object-cover object-top" onError={() => setImgError(true)} />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-surface-0" />
-        )}
+        <ImageWithFallback
+          src={series.backdrop}
+          sources={[series.cover]}
+          alt={series.name}
+          className="absolute inset-0 h-full w-full object-cover object-top"
+          fallbackClassName="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-surface-0"
+          fallback={<span aria-hidden />}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/50 to-black/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-surface-0/70 via-transparent to-transparent" />
         <button
           type="button"
           onClick={() => router.back()}
           aria-label={t('common.back')}
-          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10"
+          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -208,7 +210,7 @@ export function SeriesDetailPage({ seriesId }: { seriesId: string }) {
           {resumeEpisodeId && (
             <Link
               href={`/player?type=episode&id=${encodeURIComponent(resumeEpisodeId)}&seriesId=${encodeURIComponent(series.id)}`}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 min-h-11 px-6 py-3.5 bg-accent hover:bg-accent-hover text-white on-accent font-bold text-sm rounded-xl transition-colors min-w-36"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 min-h-11 px-6 py-3.5 bg-accent hover:bg-accent-hover text-white on-accent font-bold text-sm rounded-xl transition-colors min-w-36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
             >
               <Play className="w-4 h-4 fill-white" />
               {lastWatched ? t('common.resume') : t('common.watch')}
@@ -293,7 +295,7 @@ function SeasonAccordion({ season, episodes, isExpanded, onToggle, seriesId }: {
     <GlassCard variant="glass" padding="none">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-4 hover:bg-white/3 rounded-xl transition-colors"
+        className="min-h-14 w-full flex items-center justify-between px-4 py-4 hover:bg-white/3 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
       >
         <div className="flex items-center gap-3">
           <span className="font-semibold text-white">
@@ -324,7 +326,7 @@ function EpisodeRow({ episode, seriesId }: { episode: Episode; seriesId: string 
   return (
     <Link
       href={`/player?type=episode&id=${episode.id}&seriesId=${seriesId}`}
-      className="group flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors"
+      className="group flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* Thumbnail */}
       <div className="relative flex-shrink-0 w-28 aspect-video rounded-lg overflow-hidden bg-surface-3">

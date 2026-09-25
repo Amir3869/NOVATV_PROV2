@@ -366,7 +366,7 @@ export function ChannelBrowser({
               }}
               placeholder={t('player.channelListSearch')}
               aria-label={t('player.channelListSearch')}
-              className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 transition-all select-text"
+              className="min-h-11 w-full rounded-xl border border-white/8 bg-white/5 ps-10 pe-4 py-2.5 text-sm text-white placeholder:text-white/20 transition-all focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40 select-text"
               style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
             />
           </div>
@@ -396,7 +396,7 @@ export function ChannelBrowser({
                     data-active={active}
                     onClick={() => setActiveCategory(category.id)}
                     className={cn(
-                      'w-full text-start px-4 py-2.5 flex items-center justify-between gap-2 transition-colors',
+                      'w-full min-h-11 text-start px-4 py-2.5 flex items-center justify-between gap-2 transition-colors',
                       'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-white',
                       active
                         ? 'bg-accent/15 text-white border-s-2 border-accent'
@@ -438,7 +438,7 @@ export function ChannelBrowser({
                       data-current={isCurrent}
                       onClick={() => onSelect(channel)}
                       className={cn(
-                        'w-full text-start px-4 py-2.5 flex items-center gap-3 transition-colors',
+                        'w-full min-h-11 text-start px-4 py-2.5 flex items-center gap-3 transition-colors',
                         'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-white',
                         isCurrent ? 'bg-accent/15' : 'hover:bg-white/5'
                       )}

@@ -61,7 +61,7 @@ function SettingsRow({ label, description, icon: Icon, rightElement, onClick, hr
 
   const rowClassName = cn(
     'settings-row w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-left transition-all',
-    interactive ? 'hover:bg-white/5 cursor-pointer' : 'cursor-default',
+    interactive ? 'hover:bg-white/5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset' : 'cursor-default',
     className
   );
 
@@ -105,7 +105,7 @@ function Toggle2({ value, onChange, label }: { value: boolean; onChange: (v: boo
       aria-label={label}
       onClick={() => onChange(!value)}
       className={cn(
-        'relative w-11 h-6 rounded-full transition-all duration-300',
+        'relative w-11 h-6 rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1',
         value ? 'bg-accent' : 'bg-white/10'
       )}
     >
@@ -267,7 +267,7 @@ export function SettingsPage() {
   if (!hydrated) return <ListPageSkeleton rows={5} />;
 
   return (
-    <div className="settings-page mx-auto min-h-screen w-full max-w-2xl space-y-6 bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10">
+    <div className="settings-page library-page mx-auto min-h-screen w-full max-w-2xl space-y-6 bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10">
       <h1 className="text-2xl font-black text-white">{t('settings.title')}</h1>
 
       <div className="settings-layout">

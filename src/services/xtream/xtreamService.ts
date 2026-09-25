@@ -308,6 +308,30 @@ type XtreamAction =
   | 'get_short_epg'
   | 'get_simple_data_table';
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Certains portails redirigent HTTP vers HTTPS sans que la WebView
+ * native suive la redirection. On retente uniquement ce cas, une fois. */
+async function nativeXtreamGet(url: string, timeoutMs: number) {
+  const request = {
+    url,
+    headers: { Accept: 'application/json' },
+    connectTimeout: timeoutMs,
+    readTimeout: timeoutMs,
+  };
+  let response = await CapacitorHttp.get(request);
+  if (REDIRECT_STATUSES.has(response.status) && /^http:\/\//i.test(url)) {
+    try {
+      const secureUrl = new URL(url);
+      secureUrl.protocol = 'https:';
+      response = await CapacitorHttp.get({ ...request, url: secureUrl.toString() });
+    } catch {
+      // Conserver la réponse HTTP d'origine pour afficher son vrai code.
+    }
+  }
+  return response;
+}
+
 async function xtreamRequest(
   creds: XtreamCredentials,
   action: XtreamAction,
@@ -334,12 +358,7 @@ async function xtreamRequest(
   if (Capacitor.getPlatform() === 'android') {
     let nativeResponse: Awaited<ReturnType<typeof CapacitorHttp.get>>;
     try {
-      nativeResponse = await CapacitorHttp.get({
-        url,
-        headers: { Accept: 'application/json' },
-        connectTimeout: timeoutMs,
-        readTimeout: timeoutMs,
-      });
+      nativeResponse = await nativeXtreamGet(url, timeoutMs);
     } catch (err) {
       throw toUserFacingError(err, options.signal);
     }

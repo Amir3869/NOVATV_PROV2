@@ -50,7 +50,7 @@ interface EmptyStateProps {
  * clic de souris.
  */
 const BUTTON_BASE =
-  'px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors ' +
+  'min-h-11 px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors ' +
   'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-black';
 

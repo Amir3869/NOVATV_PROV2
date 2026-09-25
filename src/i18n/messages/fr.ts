@@ -242,6 +242,11 @@ export const fr = {
     loadFailedDescription: 'Le téléchargement a échoué ou aucune chaîne n’a pu être associée. Réessayez.',
     showPast: 'Voir les programmes passés',
     hidePast: 'Masquer les programmes passés',
+    selectedChannels: '{count} chaîne(s) sélectionnée(s)',
+    selectedChannelsSummary: '{selected} / {total} chaînes sélectionnées',
+    selectAll: 'Tout',
+    selectNone: 'Aucune',
+    syncSelected: 'Synchroniser la sélection',
   },
 
   // ── Favoris, historique, listes ──

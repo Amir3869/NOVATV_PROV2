@@ -103,7 +103,7 @@ function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
             <button
               type="button"
               onClick={onClose}
-              className="min-h-11 rounded-xl border border-line px-4 py-2 text-sm text-white/60 hover:bg-white/10"
+              className="min-h-11 rounded-xl border border-line px-4 py-2 text-sm text-white/60 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {t('common.cancel')}
             </button>
@@ -111,7 +111,7 @@ function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
               type="button"
               disabled={!dirty}
               onClick={apply}
-              className="min-h-11 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white on-accent disabled:opacity-40"
+              className="min-h-11 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
             >
               {t('common.save')}
             </button>
@@ -130,7 +130,7 @@ function AddMediaToListBody({ listId, onClose }: Omit<Props, 'open'>) {
               setSelected(idsOf(current?.items, type));
             }}
             className={cn(
-              'flex-1 min-h-11 rounded-xl px-3 py-2 text-sm font-medium',
+              'flex-1 min-h-11 rounded-xl px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
               family === type ? 'bg-accent text-white on-accent' : 'text-white/60 hover:bg-white/10 hover:text-white',
             )}
           >

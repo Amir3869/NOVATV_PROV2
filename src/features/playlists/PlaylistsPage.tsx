@@ -107,7 +107,7 @@ export function PlaylistsPage() {
           <button
             type="button"
             onClick={() => setAddMode('xtream')}
-            className="flex items-center gap-2 min-h-11 px-4 py-2.5 bg-accent text-white on-accent text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white on-accent transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <Plus className="w-4 h-4" />
             {t('common.add')}
@@ -135,7 +135,7 @@ export function PlaylistsPage() {
                 aria-pressed={addMode === mode}
                 onClick={() => setAddMode(mode)}
                 className={cn(
-                  'flex items-center gap-2 min-h-11 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border',
+                  'flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   addMode === mode ? 'bg-accent text-white border-accent' : 'bg-white/5 text-white/60 border-white/8 hover:bg-white/10'
                 )}
               >
@@ -571,7 +571,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
               disabled={syncing}
               type="button"
               aria-label={t('playlists.syncPlaylist')}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+              title={t('playlists.syncPlaylist')}
+              className="source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent transition-colors hover:bg-accent/25 hover:text-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
             >
               <RefreshCw className={cn('h-4 w-4', syncing && 'animate-spin')} />
             </button>
@@ -585,16 +586,15 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
               onClick={handleOpenCategories}
               disabled={loadingCategories || syncing}
               aria-label={t('playlists.categoriesEdit')}
+              title={t('playlists.categoriesEdit')}
               className={cn(
-                'inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition-colors disabled:opacity-50 sm:px-2.5',
-                'w-11 sm:w-auto',
+                'source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1',
                 editCatalog
                   ? 'bg-accent/20 text-accent'
                   : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
               )}
             >
               <Layers className={cn('h-4 w-4', loadingCategories && 'animate-pulse')} />
-              <span className="hidden sm:inline">{t('playlists.categoriesEdit')}</span>
             </button>
           )}
           {/* Renommer les catégories et les chaînes. Disponible pour
@@ -609,16 +609,15 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             disabled={syncing}
             aria-expanded={showRenames}
             aria-label={t('playlists.catalogManage')}
+            title={t('playlists.catalogManage')}
             className={cn(
-              'inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition-colors disabled:opacity-50 sm:px-2.5',
-              'w-11 sm:w-auto',
+              'source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1',
               showRenames
                 ? 'bg-accent/20 text-accent'
                 : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
             )}
           >
             <Tags className="h-4 w-4" />
-            <span className="hidden sm:inline">{t('playlists.catalogManage')}</span>
           </button>
           {/* Guide des programmes. Bouton absent quand la source n'en
               propose pas : une liste M3U sans adresse XMLTV n'a aucun
@@ -630,7 +629,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
               disabled={epgBusy || syncing}
               type="button"
               aria-label={t('playlists.syncEpg')}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+              title={t('playlists.syncEpg')}
+              className="source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
             >
               <CalendarDays className={cn('h-4 w-4', epgBusy && 'animate-pulse')} />
             </button>
@@ -641,7 +641,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             disabled={diagnosticBusy || syncing}
             aria-label={t('playlists.exportDiagnostic')}
             title={t('playlists.exportDiagnostic')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+            className="source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
           >
             <FileDown className={cn('h-4 w-4', diagnosticBusy && 'animate-pulse')} />
           </button>
@@ -650,7 +650,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             onClick={() => setEditing(true)}
             disabled={syncing}
             aria-label={t('playlists.editPlaylist')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+            title={t('playlists.editPlaylist')}
+            className="source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
           >
             <Edit2 className="h-4 w-4" />
           </button>
@@ -658,7 +659,8 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             type="button"
             onClick={() => setConfirmDelete(true)}
             aria-label={t('playlists.deletePlaylist')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-red-900/20 hover:text-red-400"
+            title={t('playlists.deletePlaylist')}
+            className="source-action-button flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-red-900/20 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -847,7 +849,7 @@ function PlaylistItem({ playlist }: { playlist: Playlist }) {
             <button
               type="button"
               onClick={handleCopyDiagnostic}
-              className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover"
+              className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {t('playlists.copyDiagnostic')}
             </button>

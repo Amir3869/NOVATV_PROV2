@@ -180,7 +180,7 @@ export function AppDialog({
               onClick={handleClose}
               disabled={busy}
               aria-label={t('common.close')}
-              className="w-11 h-11 -mt-1 -me-2 rounded-xl flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40 flex-shrink-0"
+              className="-mt-1 -me-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white/40 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
             >
               <X className="w-4 h-4" />
             </button>

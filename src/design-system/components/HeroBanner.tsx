@@ -75,11 +75,14 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
       }}
     >
       {/* Background */}
-      <div className="home-hero-height relative w-full">
+      <div className={cn('home-hero-height relative w-full', !backdrop && 'home-hero-poster-mode')}>
         <ImageWithFallback
           src={visual}
           alt={item.name}
-          className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700"
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700',
+            !backdrop && 'hero-poster-visual',
+          )}
           fallbackClassName="absolute inset-0 bg-gradient-to-br from-[#1A0000] via-surface-2 to-surface-0"
           fallback={<span aria-hidden />}
         />
@@ -135,7 +138,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
                 lui, reste sombre. */}
             <Link
               href={href}
-              className="flex items-center gap-2 px-6 py-3 bg-[#ffffff] text-[#0b0b0c] text-sm font-bold rounded-xl hover:bg-[#ffffff]/90 transition-all duration-200 shadow-lg"
+              className="flex min-h-11 items-center gap-2 px-6 py-3 bg-[#ffffff] text-[#0b0b0c] text-sm font-bold rounded-xl hover:bg-[#ffffff]/90 transition-all duration-200 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
             >
               <Play className="w-4 h-4 fill-[#0b0b0c]" />
               {watchProgress && watchProgress > 0 ? t('common.resume') : t('common.watch')}
@@ -145,7 +148,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
               type="button"
               aria-pressed={isFav}
               onClick={() => toggleFavorite(item.id, item.mediaType)}
-              className="flex items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold rounded-xl hover:bg-white/15 border border-white/10 transition-all duration-200"
+              className="flex min-h-11 items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold rounded-xl hover:bg-white/15 border border-white/10 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <Heart className={cn('w-4 h-4', isFav ? 'fill-accent text-accent' : '')} />
               {isFav ? t('common.removed') : t('common.myList')}
@@ -153,7 +156,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
 
             <Link
               href={href}
-              className="home-hero-details flex items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold rounded-xl hover:bg-white/15 border border-white/10 transition-all duration-200"
+              className="home-hero-details flex min-h-11 items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold rounded-xl hover:bg-white/15 border border-white/10 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <Info className="w-4 h-4" />
               {t('common.details')}
@@ -182,7 +185,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
                 aria-label={t('common.showContent', { index: i + 1, total: items.length })}
                 aria-current={i === activeIndex}
                 className={cn(
-                  'rounded-full transition-all duration-300',
+                  'rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   i === activeIndex ? 'w-5 h-1.5 bg-accent' : 'w-1.5 h-1.5 bg-white/30 hover:bg-white/60'
                 )}
               />
@@ -196,7 +199,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
               type="button"
               aria-label={t('common.previousContent')}
               onClick={() => go(-1)}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all"
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -204,7 +207,7 @@ export function HeroBanner({ items, className }: HeroBannerProps) {
               type="button"
               aria-label={t('common.nextContent')}
               onClick={() => go(1)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white/60 hover:text-white hover:bg-black/50 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <ChevronRight className="w-5 h-5" />
             </button>

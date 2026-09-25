@@ -6,7 +6,7 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { useClock } from '@/hooks/useClock';
 import { ListPageSkeleton } from '@/design-system/components/LoadingSkeleton';
 import Link from 'next/link';
-import { CalendarDays, ChevronLeft, ChevronRight, Radio, Play } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Play, Radio, Search } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Badge } from '@/design-system/components/Badge';
 import { ProgressBar } from '@/design-system/components/ProgressBar';
@@ -34,13 +34,15 @@ interface EpgRow {
   isPast: boolean;
 }
 
-export function EPGPage() {
+function EPGPageContent() {
   const { t } = useTranslation();
   const { channels: allChannels, epgPrograms: allPrograms, activePlaylistId } = useActiveCatalog();
   const [epgBusy, setEpgBusy] = useState(false);
   const channelRenames = useAppStore((s) => s.channelRenames);
   const [dayOffset, setDayOffset] = useState(0);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[] | null>(null);
+  const [channelSelectorOpen, setChannelSelectorOpen] = useState(true);
+  const [channelSearch, setChannelSearch] = useState('');
   const [showPast, setShowPast] = useState(false);
   const nowMs = useClock();
 
@@ -57,6 +59,23 @@ export function EPGPage() {
     const ids = new Set(allPrograms.map((p) => p.channelId));
     return allChannels.filter((ch) => ids.has(ch.id));
   }, [allChannels, allPrograms]);
+  const channelsWithGuideSet = useMemo(
+    () => new Set(channelsWithGuide.map((channel) => channel.id)),
+    [channelsWithGuide],
+  );
+
+  const selectedChannelSet = useMemo(
+    () => new Set(selectedChannelIds ?? allChannels.map((channel) => channel.id)),
+    [allChannels, selectedChannelIds],
+  );
+  const selectedChannelCount = selectedChannelSet.size;
+  const filteredChannelOptions = useMemo(() => {
+    const query = channelSearch.trim().toLowerCase();
+    if (!query) return allChannels;
+    return allChannels.filter((channel) =>
+      channelDisplayName(channel.id, channel.name, channelRenames).toLowerCase().includes(query),
+    );
+  }, [allChannels, channelSearch, channelRenames]);
 
   const nowPlaying = useMemo(() => indexNowPlaying(allPrograms, nowMs), [allPrograms, nowMs]);
   const upcoming = useMemo(() => indexUpcoming(allPrograms, nowMs), [allPrograms, nowMs]);
@@ -83,9 +102,10 @@ export function EPGPage() {
       };
     };
 
-    if (dayOffset === 0 && !selectedChannelId && !showPast) {
+    if (dayOffset === 0 && !showPast) {
       const out: EpgRow[] = [];
       for (const ch of channelsWithGuide) {
+        if (!selectedChannelSet.has(ch.id)) continue;
         const current = nowPlaying.get(ch.id);
         const next = upcoming.get(ch.id);
         if (current) out.push(toRow(current));
@@ -98,7 +118,7 @@ export function EPGPage() {
       const start = Date.parse(p.start);
       const stop = Date.parse(p.stop);
       if (Number.isNaN(start) || Number.isNaN(stop)) return false;
-      if (selectedChannelId && p.channelId !== selectedChannelId) return false;
+      if (!selectedChannelSet.has(p.channelId)) return false;
       if (stop < startMs || start > endMs) return false;
       if (dayOffset === 0 && !showPast && stop <= nowMs) return false;
       return true;
@@ -113,13 +133,24 @@ export function EPGPage() {
     dayOffset,
     nowMs,
     nowPlaying,
-    selectedChannelId,
+    selectedChannelSet,
     showPast,
     upcoming,
   ]);
 
+  const selectAllChannels = () => setSelectedChannelIds(null);
+  const selectNoChannels = () => setSelectedChannelIds([]);
+  const toggleChannel = (channelId: string) => {
+    const next = new Set(selectedChannelSet);
+    if (next.has(channelId)) next.delete(channelId);
+    else next.add(channelId);
+
+    const allSelected = next.size === allChannels.length && allChannels.every((channel) => next.has(channel.id));
+    setSelectedChannelIds(allSelected ? null : [...next]);
+  };
+
   const handleRetryEpg = async () => {
-    if (!activePlaylistId || epgBusy) return;
+    if (!activePlaylistId || epgBusy || selectedChannelCount === 0) return;
     setEpgBusy(true);
     const epgToastId = `epg-retry-${activePlaylistId}`;
     const updateEpgToast = (progress: EPGSyncProgress) => {
@@ -141,6 +172,7 @@ export function EPGPage() {
     updateEpgToast({ step: 'download', ratio: 0 });
     try {
       const result = await runPlaylistEpg(activePlaylistId, {
+        channelIds: selectedChannelIds ?? undefined,
         onProgress: updateEpgToast,
       });
       if (!result) {
@@ -169,29 +201,8 @@ export function EPGPage() {
 
   if (!hydrated) return <ListPageSkeleton />;
 
-  const channelChip = (ch: LiveChannel) => (
-    <button
-      key={ch.id}
-      type="button"
-      onClick={() => setSelectedChannelId(ch.id === selectedChannelId ? null : ch.id)}
-      className={cn(
-        'flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium transition-all',
-        ch.id === selectedChannelId ? 'bg-accent text-white' : 'border border-line bg-surface-2 text-white/60'
-      )}
-    >
-      <ImageWithFallback
-        src={ch.logo}
-        alt={channelLabel(ch)}
-        className="h-5 w-8 object-contain"
-        fallbackClassName="h-5 w-8 shrink-0"
-        fallback={<Radio className="h-3.5 w-3.5" />}
-      />
-      <span className="max-w-[9rem] truncate">{channelLabel(ch)}</span>
-    </button>
-  );
-
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
+    <div className="epg-page min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black text-white">{t('epg.title')}</h1>
@@ -202,7 +213,7 @@ export function EPGPage() {
             type="button"
             onClick={() => setDayOffset((d) => Math.max(d - 1, -1))}
             disabled={dayOffset <= -1}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-2 text-white/60 transition-colors hover:bg-surface-3 hover:text-white disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-2 text-white/60 transition-colors hover:bg-surface-3 hover:text-white disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -213,7 +224,7 @@ export function EPGPage() {
                 type="button"
                 onClick={() => setDayOffset(offset)}
                 className={cn(
-                  'min-h-11 rounded-full px-4 text-sm font-semibold transition-all',
+                  'min-h-11 rounded-full px-4 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   offset === dayOffset ? 'bg-accent text-white' : 'border border-line bg-surface-2 text-white/60 hover:bg-surface-3 hover:text-white'
                 )}
               >
@@ -225,7 +236,7 @@ export function EPGPage() {
             type="button"
             onClick={() => setDayOffset((d) => Math.min(d + 1, 1))}
             disabled={dayOffset >= 1}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-2 text-white/60 transition-colors hover:bg-surface-3 hover:text-white disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-2 text-white/60 transition-colors hover:bg-surface-3 hover:text-white disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -236,53 +247,129 @@ export function EPGPage() {
         <button
           type="button"
           onClick={() => setShowPast((v) => !v)}
-          className="min-h-11 rounded-full border border-line bg-surface-2 px-4 text-sm text-white/60 hover:text-white"
+          className="min-h-11 rounded-full border border-line bg-surface-2 px-4 text-sm text-white/60 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           {showPast ? t('epg.hidePast') : t('epg.showPast')}
         </button>
       )}
 
-      <div className="flex gap-6">
-        <div className="flex-shrink-0 space-y-1 hidden md:block w-52">
-          <p className="text-xs text-white/30 uppercase tracking-wider mb-2 px-2">{t('common.channels')}</p>
-          <button
-            type="button"
-            onClick={() => setSelectedChannelId(null)}
-            className={cn('w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors', !selectedChannelId ? 'bg-accent/15 text-white' : 'text-white/50 hover:bg-white/5 hover:text-white')}
-          >
-            <CalendarDays className="w-4 h-4" />
-            {t('epg.allChannels')}
-          </button>
-          {channelsWithGuide.map((ch) => (
-            <button
-              key={ch.id}
-              type="button"
-              onClick={() => setSelectedChannelId(ch.id === selectedChannelId ? null : ch.id)}
-              className={cn('w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors', ch.id === selectedChannelId ? 'bg-accent/15 text-white' : 'text-white/50 hover:bg-white/5 hover:text-white')}
-            >
-              <ImageWithFallback
-                src={ch.logo}
-                alt={channelLabel(ch)}
-                className="w-8 h-5 object-contain"
-                fallbackClassName="w-8 h-5 flex-shrink-0"
-                fallback={<Radio className="w-4 h-4" />}
-              />
-              <span className="truncate">{channelLabel(ch)}</span>
-            </button>
-          ))}
-        </div>
+      <section className="epg-channel-selector rounded-2xl border border-line bg-surface-1">
+        <button
+          type="button"
+          onClick={() => setChannelSelectorOpen((open) => !open)}
+          aria-expanded={channelSelectorOpen}
+          className="flex min-h-14 w-full items-center gap-3 px-4 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+            <Radio className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-white">{t('common.channels')}</span>
+            <span className="block truncate text-xs text-white/40">
+              {t('epg.selectedChannelsSummary', {
+                selected: selectedChannelCount,
+                total: allChannels.length,
+              })}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2 text-xs text-white/45">
+            {channelSelectorOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
 
-        <div className="flex-1 min-w-0">
-          <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-none pb-2 mb-4">
-            <button
-              type="button"
-              onClick={() => setSelectedChannelId(null)}
-              className={cn('flex h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-all', !selectedChannelId ? 'bg-accent text-white' : 'border border-line bg-surface-2 text-white/60')}
-            >
-              {t('epg.allChannels')}
-            </button>
-            {channelsWithGuide.map(channelChip)}
+        {channelSelectorOpen && (
+          <div className="border-t border-line px-3 pb-3 pt-3 sm:px-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">{t('common.search')}</span>
+                <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                <input
+                  type="search"
+                  value={channelSearch}
+                  onChange={(event) => setChannelSearch(event.target.value)}
+                  placeholder={t('common.search')}
+                  className="min-h-10 w-full rounded-xl border border-line bg-surface-2 ps-9 pe-3 text-sm text-white placeholder:text-white/35 focus:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                />
+              </label>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllChannels}
+                  className={cn(
+                    'min-h-10 rounded-xl px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    selectedChannelIds === null || selectedChannelCount === allChannels.length
+                      ? 'bg-accent/15 text-white'
+                      : 'border border-line text-white/55 hover:bg-white/5 hover:text-white',
+                  )}
+                >
+                  {t('epg.selectAll')}
+                </button>
+                <button
+                  type="button"
+                  onClick={selectNoChannels}
+                  className={cn(
+                    'min-h-10 rounded-xl px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    selectedChannelCount === 0
+                      ? 'bg-accent/15 text-white'
+                      : 'border border-line text-white/55 hover:bg-white/5 hover:text-white',
+                  )}
+                >
+                  {t('epg.selectNone')}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-line bg-surface-2/40">
+              {filteredChannelOptions.length === 0 ? (
+                <p className="px-3 py-6 text-center text-sm text-white/40">{t('search.noResultsFor', { query: channelSearch })}</p>
+              ) : (
+                filteredChannelOptions.map((channel) => {
+                  const selected = selectedChannelSet.has(channel.id);
+                  return (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => toggleChannel(channel.id)}
+                      aria-pressed={selected}
+                      className="flex min-h-12 w-full items-center gap-3 border-b border-line px-3 text-start last:border-b-0 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                    >
+                      <span className={cn(
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border',
+                        selected ? 'border-accent bg-accent text-white' : 'border-white/25 text-transparent',
+                      )}>
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                      <ImageWithFallback
+                        src={channel.logo}
+                        alt={channelLabel(channel)}
+                        className="h-6 w-9 shrink-0 object-contain"
+                        fallbackClassName="h-6 w-9 shrink-0"
+                        fallback={<Radio className="h-3.5 w-3.5 text-white/35" />}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-white/80">{channelLabel(channel)}</span>
+                      {channelsWithGuideSet.has(channel.id) && <span className="text-[10px] uppercase tracking-wide text-accent">EPG</span>}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="text-xs text-white/40">{t('epg.selectedChannels', { count: selectedChannelCount })}</span>
+              <button
+                type="button"
+                onClick={handleRetryEpg}
+                disabled={!activePlaylistId || epgBusy || selectedChannelCount === 0}
+                className="min-h-10 rounded-xl bg-accent px-3 text-xs font-semibold text-white transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {epgBusy ? t('playlists.syncing') : t('epg.syncSelected')}
+              </button>
+            </div>
           </div>
+        )}
+      </section>
+
+      <div className="min-w-0">
 
           {rows.length === 0 ? (
             <EmptyState
@@ -368,7 +455,12 @@ export function EPGPage() {
             />
           )}
         </div>
-      </div>
     </div>
   );
+}
+
+export function EPGPage() {
+  const { activePlaylistId } = useActiveCatalog();
+
+  return <EPGPageContent key={activePlaylistId ?? 'none'} />;
 }

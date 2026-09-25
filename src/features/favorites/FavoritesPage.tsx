@@ -50,7 +50,7 @@ export function FavoritesPage() {
   if (!hydrated) return <GridPageSkeleton count={8} />;
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 md:px-8 lg:px-10 py-6 space-y-6">
+    <div className="library-page min-h-screen bg-surface-0 px-4 pb-12 md:px-8 lg:px-10 py-6 space-y-6">
       {/* Tabs */}
       <div className="flex gap-1 bg-surface-1 rounded-xl p-1 border border-line">
         {tabs.map((tab) => (
@@ -58,7 +58,7 @@ export function FavoritesPage() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all',
+              'flex-1 flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
               activeTab === tab.id ? 'bg-accent text-white shadow-md' : 'text-white/50 hover:text-white hover:bg-surface-3'
             )}
           >
@@ -96,7 +96,7 @@ export function FavoritesPage() {
       {(activeTab === 'all' || activeTab === 'movies') && favMovies.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           {activeTab === 'all' && <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><Film className="w-4 h-4 text-accent" />{t('nav.movies')}</h2>}
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {favMovies.map((movie) => <MovieCard key={movie.id} movie={movie} />)}
           </div>
         </section>
@@ -106,7 +106,7 @@ export function FavoritesPage() {
       {(activeTab === 'all' || activeTab === 'series') && favSeries.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">
           {activeTab === 'all' && <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-accent" />{t('nav.series')}</h2>}
-          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {favSeries.map((series) => <SeriesCard key={series.id} series={series} />)}
           </div>
         </section>

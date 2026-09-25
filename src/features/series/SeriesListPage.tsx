@@ -37,6 +37,7 @@ export function SeriesListPage() {
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState(ALL_CATEGORY);
+  const [mobileCategoryDirectoryOpen, setMobileCategoryDirectoryOpen] = useState(true);
   const view = 'grid' as const;
 
   const favoriteSeriesIds = useMemo(
@@ -121,6 +122,10 @@ export function SeriesListPage() {
 
   const inProgress = allSeries.filter((s) => s.lastWatchedEpisodeId);
   const browsing = !search && category === ALL_CATEGORY;
+  const selectCategory = (id: string) => {
+    setCategory(id);
+    setMobileCategoryDirectoryOpen(false);
+  };
 
   // Voir useHydrated : ne rien conclure tant que les données
   // enregistrées ne sont pas relues.
@@ -129,8 +134,8 @@ export function SeriesListPage() {
   if (!hydrated) return <GridPageSkeleton />;
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
-      <div className="category-browse-layout category-browse-layout-hierarchical">
+    <div className="catalog-page min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8 md:space-y-10">
+      <div className={`category-browse-layout category-browse-layout-hierarchical ${!mobileCategoryDirectoryOpen ? 'category-directory-collapsed' : ''}`}>
         <HierarchicalCategoryDirectory
           title={t('liveTV.categories')}
           subtitle={t('series.count', { count: allSeries.length })}
@@ -139,7 +144,7 @@ export function SeriesListPage() {
           allLabel={t('common.all')}
           allCount={allSeries.length}
           activeId={category}
-          onSelect={setCategory}
+          onSelect={selectCategory}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder={t('series.searchPlaceholder')}
@@ -148,6 +153,24 @@ export function SeriesListPage() {
           className="mb-4 md:mb-0"
         />
         <div className="catalog-category-content space-y-8 md:space-y-10">
+          <button
+            type="button"
+            onClick={() => setMobileCategoryDirectoryOpen(true)}
+            className="category-mobile-selection"
+          >
+            <ChevronLeft className="h-4 w-4 shrink-0 rtl:rotate-180" />
+            <span className="truncate">
+              {category === ALL_CATEGORY
+                ? t('common.all')
+                : category === FAVORITES_CATEGORY
+                  ? t('common.favorites')
+                  : categoryDisplayName(
+                      category,
+                      categoryNodes.find((node) => node.id === category)?.name ?? t('liveTV.categories'),
+                      categoryRenames,
+                    )}
+            </span>
+          </button>
 
       {browsing && inProgress.length > 0 && (
         <CatalogRail title={t('series.inProgress')}>
@@ -186,7 +209,7 @@ export function SeriesListPage() {
               <button
                 type="button"
                 onClick={() => setCategory(ALL_CATEGORY)}
-                className="flex h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm font-medium text-white/60 transition hover:bg-surface-2 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="category-inline-back flex h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm font-medium text-white/60 transition hover:bg-surface-2 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
                 {t('common.back')}

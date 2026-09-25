@@ -51,7 +51,7 @@ export function HistoryPage() {
   if (!hydrated) return <ListPageSkeleton />;
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8">
+    <div className="library-page min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black text-white">{t('history.title')}</h1>
@@ -62,7 +62,7 @@ export function HistoryPage() {
           <button
             type="button"
             onClick={clearHistory}
-            className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface-2 text-sm font-semibold text-white/70 transition-all hover:bg-surface-3 hover:text-white"
+            className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface-2 text-sm font-semibold text-white/70 transition-all hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:w-auto sm:px-4"
           >
             <Trash2 className="h-4 w-4" />
             {t('history.clearAll')}
@@ -173,7 +173,7 @@ function HistoryItem({ entry, onRemove, completed = false }: {
         <Link
           href={href}
           aria-label={t('common.play')}
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/20 text-accent transition-colors hover:bg-accent/30"
+          className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/20 text-accent transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Play className="h-4 w-4 fill-current" />
         </Link>
@@ -181,7 +181,7 @@ function HistoryItem({ entry, onRemove, completed = false }: {
           type="button"
           onClick={() => onRemove(entry.id)}
           aria-label={t('common.delete')}
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Trash2 className="h-4 w-4" />
         </button>

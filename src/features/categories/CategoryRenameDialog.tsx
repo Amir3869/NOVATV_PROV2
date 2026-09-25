@@ -37,14 +37,14 @@ export function CategoryRenameDialog({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 min-h-11 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all"
+            className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/5 py-2.5 text-sm text-white/60 transition-all hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="flex-1 min-h-11 py-2.5 rounded-xl bg-accent text-white on-accent text-sm font-semibold hover:bg-accent-hover transition-colors"
+            className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-accent py-2.5 text-sm font-semibold text-white on-accent transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {t('common.save')}
           </button>
@@ -60,7 +60,7 @@ export function CategoryRenameDialog({
         onChange={(e) => setName(e.target.value)}
         placeholder={initialName}
         maxLength={40}
-        className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
+        className="w-full min-h-11 rounded-xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 transition-all focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
       />
       <p className="text-xs text-white/30 mt-2 leading-relaxed">{t('liveTV.categoryRenameHint')}</p>
     </AppDialog>

@@ -16,6 +16,7 @@ import {
   syncEPG,
   syncXtreamShortEPG,
   buildXtreamEPGUrl,
+  mergeEPGResults,
   applyLogoFallbacks,
   toEPGErrorKind,
   type EPGSyncOptions,
@@ -74,13 +75,15 @@ function channelsForSelectedLiveCategories(
 
 export async function runPlaylistEpg(
   playlistId: string,
-  options: Pick<EPGSyncOptions, 'onProgress' | 'signal'> = {}
+  options: Pick<EPGSyncOptions, 'onProgress' | 'signal'> & { channelIds?: readonly string[] } = {}
 ): Promise<EPGSyncResult | null> {
   const state = useAppStore.getState();
   const playlist = state.playlists.find((p) => p.id === playlistId);
   if (!playlist) return null;
 
-  const channels = channelsForSelectedLiveCategories(state, playlistId);
+  const selectedChannelIds = options.channelIds ? new Set(options.channelIds) : null;
+  const channels = channelsForSelectedLiveCategories(state, playlistId)
+    .filter((channel) => !selectedChannelIds || selectedChannelIds.has(channel.id));
   if (channels.length === 0) return null;
 
   let url: string | null = null;
@@ -102,22 +105,32 @@ export async function runPlaylistEpg(
   let result: EPGSyncResult;
 
   if (xtreamCredentials) {
-    // Priorité au guide court : il interroge uniquement les chaînes
-    // réellement importées et évite le XMLTV global parfois gigantesque.
-    result = await syncXtreamShortEPG(xtreamCredentials, channels, playlistId, {
+    // Le guide court est rapide, mais certains portails ne le remplissent
+    // que pour une partie des chaînes. Le XMLTV complète alors les trous
+    // au lieu de remplacer les programmes déjà récupérés.
+    const shortResult = await syncXtreamShortEPG(xtreamCredentials, channels, playlistId, {
       signal: options.signal,
       onProgress: options.onProgress,
       keepAheadDays: state.preferences.epgDays,
     });
 
-    // Certains portails ne proposent pas get_short_epg. On conserve le
-    // XMLTV complet uniquement comme repli, jamais comme premier choix.
-    if (result.programs.length === 0) {
-      result = await syncEPG(url, channels, playlistId, {
-        onProgress: options.onProgress,
-        signal: options.signal,
-        keepAheadDays: state.preferences.epgDays,
-      });
+    if (shortResult.unmatchedChannels === 0) {
+      result = shortResult;
+    } else {
+      try {
+        const xmltvResult = await syncEPG(url, channels, playlistId, {
+          onProgress: options.onProgress,
+          signal: options.signal,
+          keepAheadDays: state.preferences.epgDays,
+        });
+        result = mergeEPGResults(shortResult, xmltvResult, channels.length);
+      } catch (error) {
+        // Un guide court partiel reste exploitable si le XMLTV du portail
+        // est indisponible. Si le guide court est totalement vide, on
+        // conserve l'erreur XMLTV pour ne pas masquer une vraie panne.
+        if (shortResult.programs.length === 0) throw error;
+        result = shortResult;
+      }
     }
   } else {
     result = await syncEPG(url, channels, playlistId, {
@@ -127,7 +140,17 @@ export async function runPlaylistEpg(
     });
   }
   const store = useAppStore.getState();
-  store.setEpgPrograms(playlistId, result.programs);
+  const syncedChannelIds = new Set(channels.map((channel) => channel.id));
+  const programsToStore = options.channelIds
+    ? [
+        ...store.epgPrograms.filter(
+          (program) =>
+            program.id.startsWith(`${playlistId}:epg:`) && !syncedChannelIds.has(program.channelId),
+        ),
+        ...result.programs,
+      ]
+    : result.programs;
+  store.setEpgPrograms(playlistId, programsToStore);
   const latest = store.channels.filter((c) => c.playlistId === playlistId);
   const patched = applyLogoFallbacks(latest, result.logoFallbacks);
   if (patched !== latest) {

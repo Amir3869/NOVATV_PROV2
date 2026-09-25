@@ -74,7 +74,7 @@ export interface EPGSyncOptions {
 
 export interface EPGSyncResult {
   /** Origine réellement utilisée : XMLTV complet ou guide court Xtream. */
-  source?: 'xmltv' | 'xtream_short';
+  source?: 'xmltv' | 'xtream_short' | 'merged';
   programs: EPGProgram[];
   /** Nombre de chaînes de la source appariées à une chaîne du guide. */
   matchedChannels: number;
@@ -243,6 +243,28 @@ export function normalizeEpgText(value: string | undefined, fallback?: string): 
  * déclaratif et souvent absent, alors on compte aussi les octets reçus
  * au fil de l'eau et on coupe dès le dépassement.
  */
+const XMLTV_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+async function nativeXmltvGet(url: string) {
+  const request = {
+    url,
+    headers: { Accept: 'application/xml,text/xml,*/*' },
+    connectTimeout: 120_000,
+    readTimeout: 120_000,
+  };
+  let response = await CapacitorHttp.get(request);
+  if (XMLTV_REDIRECT_STATUSES.has(response.status) && /^http:\/\//i.test(url)) {
+    try {
+      const secureUrl = new URL(url);
+      secureUrl.protocol = 'https:';
+      response = await CapacitorHttp.get({ ...request, url: secureUrl.toString() });
+    } catch {
+      // Conserver le statut initial si le serveur HTTPS n'est pas disponible.
+    }
+  }
+  return response;
+}
+
 async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string> {
   const timeout = AbortSignal.timeout(120_000);
   const combined =
@@ -252,12 +274,7 @@ async function downloadXMLTV(url: string, signal?: AbortSignal): Promise<string>
 
   if (Capacitor.getPlatform() === 'android') {
     try {
-      const nativeResponse = await CapacitorHttp.get({
-        url,
-        headers: { Accept: 'application/xml,text/xml,*/*' },
-        connectTimeout: 120_000,
-        readTimeout: 120_000,
-      });
+      const nativeResponse = await nativeXmltvGet(url);
       if (signal?.aborted) {
         throw new EPGSyncError('aborted', 'Téléchargement du guide annulé.');
       }
@@ -501,7 +518,13 @@ export async function syncEPG(
 
   const wantedChannelIds = new Set(
     channels.flatMap((channel) =>
-      [channel.epgChannelId, channel.tvgId].filter((id): id is string => Boolean(id)),
+      [
+        channel.epgChannelId,
+        channel.tvgId,
+        typeof channel.streamId === 'number' && channel.streamId > 0
+          ? String(channel.streamId)
+          : undefined,
+      ].filter((id): id is string => Boolean(id)),
     ),
   );
   const wantedChannelNames = new Set(
@@ -748,6 +771,35 @@ export async function syncXtreamShortEPG(
     unmatchedChannels: channels.length - matched.size,
     warnings: errors.slice(0, 50),
     logoFallbacks: {},
+  };
+}
+
+/**
+ * Fusionne le guide court Xtream et le XMLTV sans écraser les chaînes
+ * déjà alimentées par le premier. Certains portails répondent avec un
+ * guide court pour une partie du catalogue seulement.
+ */
+export function mergeEPGResults(
+  primary: EPGSyncResult,
+  supplement: EPGSyncResult,
+  totalChannels: number,
+): EPGSyncResult {
+  const programs = new Map<string, EPGProgram>();
+  const channelKeys = new Set<string>();
+
+  for (const program of [...primary.programs, ...supplement.programs]) {
+    const key = `${program.channelId}|${program.start}|${program.title}`;
+    if (!programs.has(key)) programs.set(key, program);
+    channelKeys.add(program.channelId);
+  }
+
+  return {
+    source: 'merged',
+    programs: [...programs.values()].sort((a, b) => Date.parse(a.start) - Date.parse(b.start)),
+    matchedChannels: channelKeys.size,
+    unmatchedChannels: Math.max(0, totalChannels - channelKeys.size),
+    warnings: [...new Set([...primary.warnings, ...supplement.warnings])].slice(0, 50),
+    logoFallbacks: { ...supplement.logoFallbacks, ...primary.logoFallbacks },
   };
 }
 

@@ -155,12 +155,12 @@ function SidebarContent({
           <>
             <NovaLogo variant="compact" size="sm" className="flex-1" />
             {onClose && (
-              <button type="button" onClick={onClose} aria-label={t('nav.closeMenu')} className="text-white/40 hover:text-white transition-colors">
+              <button type="button" onClick={onClose} aria-label={t('nav.closeMenu')} className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                 <X className="w-4 h-4" />
               </button>
             )}
             {onToggle && (
-              <button type="button" onClick={onToggle} aria-label={t('nav.collapseMenu')} className="text-white/40 hover:text-white transition-colors">
+              <button type="button" onClick={onToggle} aria-label={t('nav.collapseMenu')} className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}

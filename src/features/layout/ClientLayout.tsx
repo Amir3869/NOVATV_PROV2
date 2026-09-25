@@ -50,6 +50,12 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
    * par-dessus l'écran de bienvenue. `isSamePath` ignore cette barre.
    */
   const isImmersive = isSamePath(pathname, '/player') || isSamePath(pathname, '/welcome');
+  const toastPosition = isMobile && orientation === 'portrait' ? 'top-center' as const : 'top-right' as const;
+  const toastTop = isMobile
+    ? orientation === 'portrait'
+      ? 'calc(var(--safe-top) + 5.5rem)'
+      : 'calc(var(--safe-top) + 3.75rem)'
+    : undefined;
 
   // Fait suivre le défilement horizontal quand on navigue à la télécommande.
   // Monté ici une seule fois : couvre toutes les rangées de l'application.
@@ -124,7 +130,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
       {/* Toast notifications */}
       <Toaster
-        position="top-right"
+        position={toastPosition}
+        containerStyle={{ top: toastTop, zIndex: 100 }}
         toastOptions={{
           // Les couleurs passent par les jetons CSS pour que la notification
           // suive le theme : figee en sombre, elle restait noire sur une

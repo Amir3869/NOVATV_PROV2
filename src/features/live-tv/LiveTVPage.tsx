@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { ChevronLeft } from 'lucide-react';
 import { SectionHeader } from '@/design-system/components/SectionHeader';
 import { ChannelCard } from '@/design-system/components/MediaCard';
 import { EmptyState } from '@/design-system/components/EmptyState';
@@ -39,6 +40,7 @@ export function LiveTVPage() {
   const sessionUnlocked = useAppStore((s) => s.sessionUnlocked);
   const catalogReady = useAppStore((s) => s.catalogReady);
   const [showCategories, setShowCategories] = useState(false);
+  const [mobileCategoryDirectoryOpen, setMobileCategoryDirectoryOpen] = useState(true);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const favorites = useAppStore((s) => s.favorites);
@@ -197,6 +199,7 @@ export function LiveTVPage() {
       }
     }
     setActiveCategory(id);
+    setMobileCategoryDirectoryOpen(false);
   };
 
   if (!hydrated || !catalogReady) {
@@ -229,7 +232,7 @@ export function LiveTVPage() {
         />
       </AppDialog>
 
-      <div className="category-browse-layout category-browse-layout-hierarchical">
+      <div className={`category-browse-layout category-browse-layout-hierarchical ${!mobileCategoryDirectoryOpen ? 'category-directory-collapsed' : ''}`}>
         <HierarchicalCategoryDirectory
           title={t('liveTV.categories')}
           subtitle={t('liveTV.catalogStats', {
@@ -255,6 +258,22 @@ export function LiveTVPage() {
           className="mb-4 md:mb-0"
         />
         <div className="catalog-category-content space-y-8 md:space-y-10">
+          <button
+            type="button"
+            onClick={() => setMobileCategoryDirectoryOpen(true)}
+            className="category-mobile-selection"
+          >
+            <ChevronLeft className="h-4 w-4 shrink-0 rtl:rotate-180" />
+            <span className="truncate">
+              {effectiveActiveCategory && effectiveActiveCategory !== ALL_CHANNELS
+                ? categoryDisplayName(
+                    effectiveActiveCategory,
+                    categoryNodes.find((node) => node.id === effectiveActiveCategory)?.name ?? t('liveTV.categories'),
+                    categoryRenames,
+                  )
+                : t('liveTV.allCategories')}
+            </span>
+          </button>
 
       {landing && favoriteChannels.length > 0 && (
         <section className="rounded-3xl border border-line bg-surface-1 p-4 sm:p-5">

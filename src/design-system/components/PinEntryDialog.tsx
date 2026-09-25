@@ -99,7 +99,7 @@ export function PinEntryDialog({
               type="button"
               onClick={() => press(d)}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors disabled:opacity-50"
+              className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
             >
               {d}
             </button>
@@ -109,7 +109,7 @@ export function PinEntryDialog({
             type="button"
             onClick={() => press('0')}
             disabled={busy}
-            className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors disabled:opacity-50"
+            className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white text-lg font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             0
           </button>
@@ -118,7 +118,7 @@ export function PinEntryDialog({
             onClick={backspace}
             disabled={busy || value.length === 0}
             aria-label={t('common.erase')}
-            className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white/60 hover:text-white flex items-center justify-center transition-colors disabled:opacity-40"
+            className="min-h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/8 text-white/60 hover:text-white flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             <Delete className="w-4 h-4" />
           </button>
@@ -128,7 +128,7 @@ export function PinEntryDialog({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="mt-4 min-h-11 text-xs text-white/40 hover:text-white underline underline-offset-2 transition-colors disabled:opacity-50"
+          className="mt-4 min-h-11 text-xs text-white/40 hover:text-white underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {t('common.cancel')}
         </button>

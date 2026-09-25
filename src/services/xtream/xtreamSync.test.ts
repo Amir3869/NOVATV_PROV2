@@ -688,6 +688,7 @@ describe('syncXtreamCatalog — sélection des catégories', () => {
     expect(result.counts.channels).toBe(1);
     expect(result.catalog.channels[0].name).toBe('TF1');
     expect(result.catalog.liveCategories.map((c) => c.name).sort()).toEqual(['FR | TF1']);
+    expect(result.catalog.liveCategories[0].parentId).toBe('p1:livecat:1');
   });
 
   it('ignore une catégorie cochée que le serveur ne connaît plus', async () => {
@@ -752,6 +753,12 @@ describe('absoluteMediaUrl', () => {
   it('résout un chemin relatif contre le serveur', () => {
     expect(absoluteMediaUrl('http://s.com:8080', '/images/tf1.png')).toBe(
       'http://s.com:8080/images/tf1.png'
+    );
+  });
+
+  it('normalise les doubles barres dans le chemin', () => {
+    expect(absoluteMediaUrl('http://s.com', 'https://cdn/logo//tf1.png')).toBe(
+      'https://cdn/logo/tf1.png',
     );
   });
 

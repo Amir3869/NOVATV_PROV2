@@ -37,8 +37,8 @@ export function SearchBar({
         placeholder={placeholder}
         autoFocus={autoFocus}
         className={cn(
-          'w-full rounded-xl border border-white/8 bg-white/6 py-2.5 ps-10 pe-10 text-sm text-white backdrop-blur-xl placeholder:text-white/30',
-          'focus:border-accent/50 focus:bg-white/8 focus:outline-none',
+          'min-h-11 w-full rounded-xl border border-white/8 bg-white/6 py-2.5 ps-10 pe-10 text-sm text-white backdrop-blur-xl placeholder:text-white/30',
+          'focus:border-accent/50 focus:bg-white/8 focus:outline-none focus:ring-2 focus:ring-accent/40',
           'transition-all duration-200'
         )}
       />
@@ -46,7 +46,7 @@ export function SearchBar({
         <button
           type="button"
           onClick={() => { onChange(''); onClear?.(); ref.current?.focus(); }}
-          className="absolute end-3.5 text-white/40 transition-colors hover:text-white/70"
+          className="absolute end-0 flex h-11 w-11 items-center justify-center rounded-lg text-white/40 transition-colors hover:bg-white/5 hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <X className="h-4 w-4" />
         </button>

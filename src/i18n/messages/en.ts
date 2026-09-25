@@ -228,6 +228,11 @@ export const en: Messages = {
     loadFailedDescription: 'The download failed, or no channel could be matched. Try again.',
     showPast: 'Show past programmes',
     hidePast: 'Hide past programmes',
+    selectedChannels: '{count} selected channel(s)',
+    selectedChannelsSummary: '{selected} / {total} channels selected',
+    selectAll: 'All',
+    selectNone: 'None',
+    syncSelected: 'Sync selection',
   },
 
   favorites: {

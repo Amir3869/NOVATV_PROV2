@@ -47,7 +47,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="flex-1 min-h-11 px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-40"
+            className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/5 px-4 py-2.5 text-sm text-white/70 transition-all hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             {t('common.cancel')}
           </button>
@@ -56,7 +56,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             className={cn(
-              'flex-1 min-h-11 px-4 py-2.5 rounded-xl text-sm font-semibold text-white on-accent transition-colors disabled:opacity-40',
+              'flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold text-white on-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40',
               tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-accent hover:bg-accent-hover',
             )}
           >

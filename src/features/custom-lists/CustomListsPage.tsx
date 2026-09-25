@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, Edit2, Film, Grid2X2, Plus, Play, Radio, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Film, Grid2X2, Plus, Play, Radio, Search, Trash2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { EmptyState } from '@/design-system/components/EmptyState';
 import { ChannelCard, MovieCard, SeriesCard } from '@/design-system/components/MediaCard';
@@ -53,9 +53,21 @@ export function CustomListsPage() {
         series: allSeries,
       })
     : [];
-  const filteredItems = mediaFilter === 'all'
+  // Une liste mono-famille n'a pas besoin d'onglets de filtre : son contenu
+  // indique déjà le type de média. Pour une liste mixte, on ne propose que
+  // les familles réellement présentes, avec « Tous » en tête.
+  const presentFamilies = new Set(resolvedItems.map((item) => item.mediaType));
+  const familyFilterIds: Array<'all' | 'channel' | 'movie' | 'series'> =
+    presentFamilies.size > 1
+      ? [
+          'all',
+          ...(['channel', 'movie', 'series'] as const).filter((family) => presentFamilies.has(family)),
+        ]
+      : [];
+  const effectiveMediaFilter = familyFilterIds.includes(mediaFilter) ? mediaFilter : 'all';
+  const filteredItems = effectiveMediaFilter === 'all'
     ? resolvedItems
-    : resolvedItems.filter((item) => item.mediaType === mediaFilter);
+    : resolvedItems.filter((item) => item.mediaType === effectiveMediaFilter);
 
   const hydrated = useHydrated();
 
@@ -90,7 +102,7 @@ export function CustomListsPage() {
           action={{ label: t('lists.create'), onClick: () => setShowCreate(true) }}
         />
       ) : (
-        <div className="lists-browse-layout">
+        <div className={cn('lists-browse-layout', !mobileDirectoryOpen && 'lists-directory-collapsed')}>
           <aside className="lists-directory min-w-0">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -103,30 +115,13 @@ export function CustomListsPage() {
                 type="button"
                 onClick={() => setShowCreate(true)}
                 aria-label={t('lists.newList')}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setMobileDirectoryOpen((open) => !open)}
-              aria-expanded={mobileDirectoryOpen}
-              className="lists-mobile-current mb-2 flex min-h-12 w-full items-center gap-3 rounded-2xl border border-line bg-surface-1/95 px-3 text-start shadow-lg shadow-black/10 backdrop-blur-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <Grid2X2 className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
-                  {mobileDirectoryOpen ? t('common.close') : t('lists.changeList')}
-                </span>
-                <span className="block truncate text-sm font-semibold text-white">
-                  {selectedList?.name ?? t('lists.selectList')}
-                </span>
-              </span>
-            </button>
-
-            <div className={cn('lists-directory-list', mobileDirectoryOpen && 'lists-directory-list-open')}>
+            <div className="lists-directory-list">
               {profileLists.map((list) => {
                 const active = list.id === resolvedSelectedListId;
                 return (
@@ -136,13 +131,13 @@ export function CustomListsPage() {
                     onClick={() => selectList(list.id)}
                     aria-pressed={active}
                     className={cn(
-                      'flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                      'lists-directory-item flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                       active
-                        ? 'border-s-2 border-accent bg-accent/15 text-white'
+                        ? 'lists-directory-item-active border-s-2 border-accent bg-accent/15 text-white'
                         : 'text-white/70 hover:bg-surface-2 hover:text-white',
                     )}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-lg">
+                    <span className="lists-directory-item-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-lg">
                       {list.icon || '📋'}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -168,7 +163,55 @@ export function CustomListsPage() {
               </section>
             ) : (
               <>
-                <section className="lists-content-header mb-5 border-b border-line pb-4">
+                <div className="lists-mobile-content-header">
+                  <button
+                    type="button"
+                    onClick={() => setMobileDirectoryOpen(true)}
+                    aria-label={t('common.back')}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <ArrowLeft className="h-5 w-5 rtl:rotate-180" />
+                  </button>
+                  <span className="lists-mobile-content-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-lg">
+                    {selectedList.icon || '📋'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-sm font-bold text-white">{selectedList.name}</h2>
+                    <p className="truncate text-xs text-white/45">
+                      {t(selectedList.items.length === 1 ? 'lists.itemCountSingular' : 'lists.itemCount', { count: selectedList.items.length })}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={t('lists.addContent')}
+                      onClick={() => setAddMediaOpen(true)}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-white transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t('lists.renameList')}
+                      onClick={() => {
+                        setDraftName(selectedList.name);
+                        setRenaming(true);
+                      }}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl text-white/55 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t('lists.deleteList')}
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex h-11 w-11 items-center justify-center rounded-xl text-white/40 transition hover:bg-red-900/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <section className="lists-content-header lists-desktop-content-header mb-5 border-b border-line pb-4">
                   <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-xl">
                       {selectedList.icon || '📋'}
@@ -230,39 +273,38 @@ export function CustomListsPage() {
                       </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setAddMediaOpen(true)}
-                    className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 text-xs font-semibold text-white on-accent transition hover:bg-accent-hover sm:hidden"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t('lists.addContent')}
-                  </button>
                 </section>
 
-                <div className="lists-filter-bar mb-5 flex flex-wrap items-center gap-2" role="tablist" aria-label={t('lists.title')}>
-                  {[
-                    { id: 'all' as const, label: t('common.all'), icon: Grid2X2 },
-                    { id: 'channel' as const, label: t('lists.channelsTab'), icon: Radio },
-                    { id: 'movie' as const, label: t('lists.moviesTab'), icon: Film },
-                    { id: 'series' as const, label: t('lists.seriesTab'), icon: BookOpen },
-                  ].map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      role="tab"
-                      aria-selected={mediaFilter === id}
-                      onClick={() => setMediaFilter(id)}
-                      className={cn(
-                        'flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:gap-2',
-                        mediaFilter === id ? 'border-accent/40 bg-accent/15 text-white' : 'border-line text-white/45 hover:bg-white/5 hover:text-white/80',
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{label}</span>
-                    </button>
-                  ))}
-                </div>
+                {familyFilterIds.length > 0 && (
+                  <div className="lists-filter-bar mb-5 flex flex-wrap items-center gap-2" role="tablist" aria-label={t('lists.title')}>
+                    {familyFilterIds.map((id) => {
+                      const filter = id === 'all'
+                        ? { label: t('common.all'), icon: Grid2X2 }
+                        : id === 'channel'
+                          ? { label: t('lists.channelsTab'), icon: Radio }
+                          : id === 'movie'
+                            ? { label: t('lists.moviesTab'), icon: Film }
+                            : { label: t('lists.seriesTab'), icon: BookOpen };
+                      const Icon = filter.icon;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          role="tab"
+                          aria-selected={effectiveMediaFilter === id}
+                          onClick={() => setMediaFilter(id)}
+                          className={cn(
+                            'lists-family-filter flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:gap-2',
+                            effectiveMediaFilter === id ? 'border-accent/40 bg-accent/15 text-white' : 'border-line text-white/45 hover:bg-white/5 hover:text-white/80',
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{filter.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {!selectedList.items.length ? (
                   <EmptyState
@@ -275,6 +317,7 @@ export function CustomListsPage() {
                   <EmptyState emoji="🔎" title={t('lists.noneFound')} description={t('lists.searchPlaceholder')} />
                 ) : (
                   <VirtualGrid
+                    className="lists-media-grid"
                     items={filteredItems}
                     getKey={(item) => item.itemId}
                     renderItem={(item) => {
@@ -399,7 +442,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 min-h-11 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all"
+            className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-white/8 bg-white/5 py-2.5 text-sm text-white/60 transition-all hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {t('common.cancel')}
           </button>
@@ -407,7 +450,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
             type="button"
             onClick={handleCreate}
             disabled={!name.trim()}
-            className="flex-1 min-h-11 py-2.5 rounded-xl bg-accent text-white on-accent text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
+            className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-accent py-2.5 text-sm font-semibold text-white on-accent transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             {t('common.create')}
           </button>
@@ -425,7 +468,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 aria-pressed={icon === e}
                 onClick={() => setIcon(e)}
                 className={cn(
-                  'w-11 h-11 rounded-xl text-lg flex items-center justify-center transition-all',
+                  'flex h-11 w-11 items-center justify-center rounded-xl text-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   icon === e ? 'bg-accent/20 ring-1 ring-accent' : 'bg-white/5 hover:bg-white/10',
                 )}
               >
@@ -443,7 +486,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
             onChange={(e) => setName(e.target.value)}
             placeholder={t('lists.defaultName')}
             maxLength={30}
-            className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
+            className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/40 transition-all"
           />
         </div>
 
@@ -457,7 +500,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t('lists.descriptionPlaceholder')}
             maxLength={60}
-            className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 transition-all"
+            className="w-full min-h-11 px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/40 transition-all"
           />
         </div>
       </div>

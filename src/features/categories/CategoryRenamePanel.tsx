@@ -19,7 +19,7 @@ import {
 } from '@/services/catalog/categoryLayout';
 
 const iconBtn =
-  'w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-white/50';
+  'w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-white/50';
 
 /**
  * Liste de renommage des catégories. Le titre est celui de la fenêtre
@@ -157,7 +157,7 @@ export function CategoryRenamePanel({
                 aria-pressed={isLocked}
                 title={isLocked ? t('parental.unlock') : t('parental.lock')}
                 className={cn(
-                  'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
+                  'w-11 h-11 rounded-xl flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   isLocked
                     ? 'bg-accent/15 text-accent hover:bg-accent/25'
                     : 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white'
@@ -172,7 +172,7 @@ export function CategoryRenamePanel({
                   onClick={() => handleRename(cat.id, '')}
                   aria-label={t('liveTV.restoreCategoryName')}
                   title={t('liveTV.restoreCategoryName')}
-                  className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                  className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -182,7 +182,7 @@ export function CategoryRenamePanel({
                 type="button"
                 onClick={() => setEditing(cat)}
                 aria-label={t('liveTV.renameCategory')}
-                className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <Pencil className="w-4 h-4" />
               </button>

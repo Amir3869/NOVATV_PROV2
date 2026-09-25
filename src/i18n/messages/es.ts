@@ -222,6 +222,11 @@ export const es: Messages = {
     loadFailedDescription: 'La descarga falló o no se pudo asociar ninguna cadena. Inténtalo de nuevo.',
     showPast: 'Ver programas pasados',
     hidePast: 'Ocultar programas pasados',
+    selectedChannels: '{count} canal(es) seleccionado(s)',
+    selectedChannelsSummary: '{selected} / {total} canales seleccionados',
+    selectAll: 'Todo',
+    selectNone: 'Ninguno',
+    syncSelected: 'Sincronizar selección',
   },
 
   favorites: {

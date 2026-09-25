@@ -43,7 +43,7 @@ export function AddToListDialog({ open, mediaId, mediaType, onClose }: AddToList
           <p className="text-sm text-white/60 leading-relaxed">{t('lists.addToNone')}</p>
           <Link
             href="/lists"
-            className="inline-flex min-h-11 items-center justify-center px-4 py-2.5 rounded-xl bg-accent text-white on-accent text-sm font-semibold hover:bg-accent-hover transition-colors"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white on-accent transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {t('lists.addToGo')}
           </Link>

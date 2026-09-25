@@ -370,7 +370,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
               onChange={(e) => field.onChange(e.target.value)}
               placeholder={field.placeholder}
               disabled={busy}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 focus:bg-white/7 transition-all disabled:opacity-50"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 focus:bg-white/7 focus:ring-2 focus:ring-accent/40 transition-all disabled:opacity-50"
             />
           </div>
         ))}
@@ -404,7 +404,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={() => abortRef.current?.abort()}
-              className="text-xs text-white/50 hover:text-white underline underline-offset-2 transition-colors"
+              className="min-h-11 rounded-lg px-2 text-xs text-white/50 underline underline-offset-2 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {t('common.cancel')}
             </button>
@@ -416,7 +416,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={handleTest}
             disabled={busy || !serverUrl || !username || !password}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all disabled:opacity-40"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/8 bg-white/5 px-4 py-2.5 text-sm text-white/70 transition-all hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             <Wifi className={cn('w-4 h-4', testing && 'animate-pulse')} />
             {testing ? t('common.testing') : t('common.test')}
@@ -430,7 +430,7 @@ export function XtreamForm({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={handleLoadCategories}
             disabled={busy || !canSubmit}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             <Plus className="w-4 h-4" />
             {loadingCategories ? t('playlists.categoriesLoading') : t('common.continue')}

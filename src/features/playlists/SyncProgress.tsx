@@ -113,7 +113,13 @@ export function SyncProgress({
           </p>
           {epgStatus === 'active' && progress?.step === 'epg' && (
             <p className="text-xs text-white/60 tabular-nums mt-0.5">
-              {Math.round((progress.ratio ?? 0) * 100)} %
+              {progress.done !== undefined && progress.total !== undefined && progress.total > 0
+                ? t('playlists.epgProgressChannels', {
+                    done: progress.done,
+                    total: progress.total,
+                    percent: Math.round((progress.ratio ?? 0) * 100),
+                  })
+                : `${Math.round((progress.ratio ?? 0) * 100)} %`}
             </p>
           )}
           {epgStatus === 'done' && epgSummary && (

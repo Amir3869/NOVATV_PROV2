@@ -20,8 +20,9 @@ import type { LiveChannel } from '@/types';
 /**
  * Ligne Live « cinéma » (look B).
  *
- * Visuel : affiche émission si l'EPG en a une, sinon logo chaîne,
- * sinon monogramme. Jamais une carte noire vide.
+ * Visuel : affiche émission en arrière-plan si l'EPG en a une, sinon
+ * logo chaîne. Le cadre du logo utilise toujours une icône TV neutre
+ * quand le logo est absent ou invalide. Jamais une carte noire vide.
  */
 export function BroadcastChannelCard({
   channel,

@@ -114,7 +114,7 @@ export function QualityMenu({ quality, onSelect, onClose }: QualityMenuProps) {
             type="button"
             onClick={onClose}
             aria-label={t('common.close')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X className="w-4 h-4" />
           </button>

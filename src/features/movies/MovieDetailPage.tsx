@@ -25,7 +25,6 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
   const { t } = useTranslation();
   const { movies: allMovies } = useActiveCatalog();
   const router = useRouter();
-  const [imgError, setImgError] = useState(false);
   const [showAddToList, setShowAddToList] = useState(false);
   const movie = allMovies.find((m) => m.id === movieId);
   const playlists = useAppStore((s) => s.playlists);
@@ -81,14 +80,17 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
   const similar = allMovies.filter((m) => m.id !== movieId && m.categoryId === movie.categoryId).slice(0, 6);
 
   return (
-    <div className="min-h-screen">
+    <div className="detail-page min-h-screen">
       {/* Hero backdrop */}
       <div className="relative h-64 md:h-96 overflow-hidden">
-        {movie.backdrop && !imgError ? (
-          <img src={movie.backdrop} alt={movie.name} className="absolute inset-0 w-full h-full object-cover" onError={() => setImgError(true)} />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-surface-0" />
-        )}
+        <ImageWithFallback
+          src={movie.backdrop}
+          sources={[movie.logo]}
+          alt={movie.name}
+          className="absolute inset-0 h-full w-full object-cover"
+          fallbackClassName="absolute inset-0 bg-gradient-to-br from-black via-zinc-900 to-surface-0"
+          fallback={<span aria-hidden />}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/50 to-black/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-surface-0/80 via-transparent to-transparent" />
 
@@ -97,7 +99,7 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
           type="button"
           onClick={() => router.back()}
           aria-label={t('common.back')}
-          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10"
+          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -142,7 +144,7 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
         <div className="flex gap-3 flex-wrap">
           <Link
             href={`/player?type=movie&id=${movie.id}`}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 min-h-11 px-6 py-3.5 bg-accent hover:bg-accent-hover text-white on-accent font-bold text-sm rounded-xl transition-colors shadow-lg shadow-red-900/20 min-w-36"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 min-h-11 px-6 py-3.5 bg-accent hover:bg-accent-hover text-white on-accent font-bold text-sm rounded-xl transition-colors shadow-lg shadow-red-900/20 min-w-36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
           >
             <Play className="w-4 h-4 fill-white" />
             {movie.watchProgress && movie.watchProgress > 0 ? t('common.resume') : t('common.watch')}
@@ -150,7 +152,7 @@ export function MovieDetailPage({ movieId }: { movieId: string }) {
 
           <button
             onClick={() => toggleFavorite(movie.id, 'movie')}
-            className={cn('flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all border', isFav ? 'bg-accent/15 text-accent border-accent/30' : 'bg-white/5 text-white/70 border-white/8 hover:bg-white/10')}
+            className={cn('flex min-h-11 items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', isFav ? 'bg-accent/15 text-accent border-accent/30' : 'bg-white/5 text-white/70 border-white/8 hover:bg-white/10')}
           >
             <Heart className={cn('w-4 h-4', isFav && 'fill-accent')} />
             {isFav ? t('common.removed') : t('common.favorites')}

@@ -33,7 +33,7 @@ export function SectionHeader({
       {onSeeAll && (
         <button
           onClick={onSeeAll}
-          className="flex items-center gap-1 text-sm text-white/50 hover:text-accent transition-colors font-medium"
+          className="flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-white/50 transition-colors hover:bg-white/5 hover:text-accent font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           {seeAllLabel}
           <ChevronRight className="w-4 h-4" />

@@ -231,6 +231,11 @@ export const ar: Messages = {
     loadFailedDescription: 'فشل التنزيل أو تعذّر ربط أي قناة. أعد المحاولة.',
     showPast: 'عرض البرامج السابقة',
     hidePast: 'إخفاء البرامج السابقة',
+    selectedChannels: '{count} قناة محددة',
+    selectedChannelsSummary: '{selected} / {total} قناة محددة',
+    selectAll: 'الكل',
+    selectNone: 'لا شيء',
+    syncSelected: 'مزامنة التحديد',
   },
 
   favorites: {

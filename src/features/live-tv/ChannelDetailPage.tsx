@@ -10,6 +10,7 @@ import { Badge } from '@/design-system/components/Badge';
 import { GlassCard } from '@/design-system/components/GlassCard';
 import { ProgressBar } from '@/design-system/components/ProgressBar';
 import { EmptyState } from '@/design-system/components/EmptyState';
+import { ImageWithFallback } from '@/design-system/components/ImageWithFallback';
 import { useAppStore } from '@/store/useAppStore';
 import { useActiveCatalog } from '@/hooks/useActiveCatalog';
 import { useHydrated } from '@/hooks/useHydrated';
@@ -25,7 +26,6 @@ export function ChannelDetailPage({ channelId }: Props) {
   const { t } = useTranslation();
   const { channels: allChannels, epgPrograms: allPrograms } = useActiveCatalog();
   const router = useRouter();
-  const [imgError, setImgError] = useState(false);
   const channel = allChannels.find((c) => c.id === channelId);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const isFav = useAppStore((s) => s.isFavorite(channelId));
@@ -71,7 +71,7 @@ export function ChannelDetailPage({ channelId }: Props) {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="detail-page min-h-screen">
       {/* Hero */}
       <div className="channel-detail-hero relative h-32 sm:h-40 md:h-56 lg:h-64 bg-gradient-to-br from-black via-zinc-900 to-surface-0 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface-0" />
@@ -81,20 +81,20 @@ export function ChannelDetailPage({ channelId }: Props) {
           type="button"
           onClick={() => router.back()}
           aria-label={t('common.back')}
-          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10"
+          className="cinema absolute top-4 start-4 w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
 
         {/* Channel logo centered */}
         <div className="absolute inset-0 flex items-center justify-center">
-          {channel.logo && !imgError ? (
-            <img src={channel.logo} alt={displayName} className="max-h-16 max-w-32 object-contain filter drop-shadow-2xl md:max-h-24 md:max-w-48" onError={() => setImgError(true)} />
-          ) : (
-            <div className="h-12 w-16 rounded-xl bg-white/5 flex items-center justify-center md:h-16 md:w-24">
-              <Radio className="h-6 w-6 text-white/30 md:h-8 md:w-8" />
-            </div>
-          )}
+          <ImageWithFallback
+            src={channel.logo}
+            alt={displayName}
+            className="max-h-16 max-w-32 object-contain filter drop-shadow-2xl md:max-h-24 md:max-w-48"
+            fallbackClassName="flex h-12 w-16 items-center justify-center rounded-xl bg-white/5 md:h-16 md:w-24"
+            fallback={<Radio className="h-6 w-6 text-white/30 md:h-8 md:w-8" />}
+          />
         </div>
       </div>
 
@@ -114,7 +114,7 @@ export function ChannelDetailPage({ channelId }: Props) {
                   onClick={() => setRenameOpen(true)}
                   aria-label={t('liveTV.renameChannel')}
                   title={t('liveTV.renameChannel')}
-                  className="w-11 h-11 rounded-xl bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-all inline-flex items-center justify-center"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 text-white/40 transition-all hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
@@ -125,7 +125,7 @@ export function ChannelDetailPage({ channelId }: Props) {
             </div>
             <button
               onClick={() => toggleFavorite(channel.id, 'channel')}
-              className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all', isFav ? 'bg-accent/20 text-accent' : 'bg-white/5 text-white/40 hover:text-white')}
+              className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', isFav ? 'bg-accent/20 text-accent' : 'bg-white/5 text-white/40 hover:text-white')}
             >
               <Heart className={cn('w-5 h-5', isFav && 'fill-accent')} />
             </button>
@@ -134,7 +134,7 @@ export function ChannelDetailPage({ channelId }: Props) {
           {/* Watch button */}
           <Link
             href={`/player?type=live&id=${channel.id}`}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-white shadow-lg shadow-red-900/20 transition-colors hover:bg-accent-hover sm:py-3.5"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-white shadow-lg shadow-red-900/20 transition-colors hover:bg-accent-hover sm:py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
           >
             <Radio className="w-4 h-4" />
             {t('liveTV.watchLive')}

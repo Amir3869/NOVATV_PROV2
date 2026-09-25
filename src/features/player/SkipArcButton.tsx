@@ -28,7 +28,7 @@ export function SkipArcButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur-md pointer-events-auto disabled:opacity-30"
+      className="relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur-md pointer-events-auto disabled:opacity-30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
     >
       <svg
         viewBox="0 0 48 48"

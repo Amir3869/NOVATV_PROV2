@@ -147,6 +147,13 @@ export async function parseXMLTV(
     wantedChannelIds,
     wantedChannelNames,
   } = options;
+  // Les identifiants XMLTV ne sont pas toujours cohérents avec la casse
+  // de `tvg-id` / `epg_channel_id`. Le mapping final est déjà insensible
+  // à la casse ; le filtre amont doit l'être aussi, sinon les programmes
+  // sont jetés avant même d'atteindre la phase de rapprochement.
+  const wantedChannelIdKeys = wantedChannelIds
+    ? new Set([...wantedChannelIds].map((id) => id.trim().toLowerCase()).filter(Boolean))
+    : undefined;
 
   const result: EPGParseResult = { channels: [], programs: [], errors: [] };
 
@@ -259,15 +266,18 @@ export async function parseXMLTV(
     const startStr = el.getAttribute('start');
     const stopStr = el.getAttribute('stop');
 
-    if (
-      wantedChannelIds &&
-      wantedChannelIds.size > 0 &&
-      (!channelId ||
-        (!wantedChannelIds.has(channelId) &&
-          !wantedChannelNames?.has(
-            normalizeChannelName(channelNameById.get(channelId) || channelId)
-          )))
-    ) {
+    const channelIdKey = channelId?.toLowerCase();
+    const matchesWantedId = Boolean(
+      channelIdKey && wantedChannelIdKeys && wantedChannelIdKeys.has(channelIdKey),
+    );
+    const matchesWantedName = Boolean(
+      channelId &&
+        wantedChannelNames?.has(
+          normalizeChannelName(channelNameById.get(channelId) || channelId),
+        ),
+    );
+
+    if (wantedChannelIdKeys && wantedChannelIdKeys.size > 0 && !matchesWantedId && !matchesWantedName) {
       processed++;
       if (processed % chunkSize === 0) await yieldToUI();
       continue;

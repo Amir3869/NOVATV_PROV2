@@ -327,7 +327,7 @@ export function ChannelCard({ channel, className, variant = 'list', listId, from
       >
       <div className={cn('w-16 h-10 rounded-lg bg-surface-3 flex items-center justify-center flex-shrink-0 overflow-hidden', blocked && 'opacity-50')}>
         <ImageWithFallback
-          src={channel.logo || artwork}
+          src={channel.logo}
           alt={displayName}
           className="max-h-8 max-w-14 object-contain"
           fallbackClassName="w-16 h-10"

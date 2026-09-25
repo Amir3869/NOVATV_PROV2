@@ -210,6 +210,16 @@ describe('parseXMLTV', () => {
     expect(r.channels).toHaveLength(2);
   });
 
+  it('conserve un programme quand la casse de l identifiant XMLTV diffère', async () => {
+    const xml = `<tv>
+      <channel id="TF1.FR"><display-name>TF1</display-name></channel>
+      <programme channel="TF1.FR" start="20260101200000 +0100" stop="20260101210000 +0100"><title>Journal</title></programme>
+    </tv>`;
+    const r = await parseXMLTV(xml, { wantedChannelIds: new Set(['tf1.fr']) });
+    expect(r.programs).toHaveLength(1);
+    expect(r.programs[0].channelId).toBe('TF1.FR');
+  });
+
   it('lit l’affiche d’un programme via <icon>, <poster> ou <image>', async () => {
     const xml = `<?xml version="1.0"?>
 <tv>

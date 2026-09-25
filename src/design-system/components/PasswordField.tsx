@@ -39,7 +39,7 @@ export function PasswordField({
         placeholder={placeholder}
         disabled={disabled}
         autoComplete={autoComplete}
-        className="w-full px-4 py-3 pe-12 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 focus:bg-white/7 transition-all disabled:opacity-50"
+        className="w-full min-h-11 rounded-xl border border-white/8 bg-white/5 px-4 py-3 pe-12 text-sm text-white placeholder:text-white/20 transition-all focus:border-accent/50 focus:bg-white/7 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50"
       />
       <button
         type="button"

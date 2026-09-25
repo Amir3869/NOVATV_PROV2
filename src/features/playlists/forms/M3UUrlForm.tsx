@@ -50,7 +50,7 @@ export function M3UUrlForm({ onClose }: { onClose: () => void }) {
               onChange={(e) => field.onChange(e.target.value)}
               placeholder={field.placeholder}
               disabled={busy}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 transition-all disabled:opacity-50"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/40 transition-all disabled:opacity-50"
             />
             {field.hint && <p className="text-xs text-white/30 mt-1">{field.hint}</p>}
           </div>
@@ -68,14 +68,14 @@ export function M3UUrlForm({ onClose }: { onClose: () => void }) {
         {busy && progress && <M3UProgress progress={progress} onCancel={cancel} />}
 
         <div className="flex gap-3">
-          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 transition-all disabled:opacity-40">
+          <button type="button" onClick={onClose} disabled={busy} className="flex min-h-11 items-center justify-center rounded-xl border border-white/8 bg-white/5 px-4 py-2.5 text-sm text-white/60 transition-all hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40">
             {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={handleImport}
             disabled={busy || !name || !url}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40"
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             <Plus className="w-4 h-4" />
             {busy ? t('playlists.adding') : t('common.import')}

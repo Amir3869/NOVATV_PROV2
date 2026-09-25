@@ -253,11 +253,14 @@ function orUndefined(value: string | undefined): string | undefined {
 export function absoluteMediaUrl(serverUrl: string, raw: string | undefined): string | undefined {
   const value = orUndefined(raw);
   if (!value) return undefined;
-  if (/^https?:\/\//i.test(value)) return value;
-  if (value.startsWith('//')) return `http:${value}`;
   try {
     const base = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
-    return new URL(value, base).href;
+    const resolved = new URL(value, base);
+    // Certains portails écrivent `https://cdn/logo//tf1.png` :
+    // l'URL répond parfois, mais les caches et les serveurs d'images
+    // ne traitent pas toujours les deux formes de la même manière.
+    resolved.pathname = resolved.pathname.replace(/\/{2,}/g, '/');
+    return resolved.href;
   } catch {
     return value;
   }
@@ -810,7 +813,8 @@ export async function syncXtreamCatalog(
     const seriesList = await fetchByCategories(
       seriesSelection,
       () => xtreamService.getSeries(creds, undefined, { signal }),
-      (categoryId) => xtreamService.getSeries(creds, categoryId, { signal })
+      (categoryId) => xtreamService.getSeries(creds, categoryId, { signal }),
+      (chunk) => report('series', 0.9 + 0.1 * (chunk.done / Math.max(1, chunk.total)), chunk),
     );
     const displayedSeriesCategories = hideEmptyParentCategories(
       selectedSeriesCategories,

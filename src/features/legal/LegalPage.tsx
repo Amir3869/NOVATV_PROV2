@@ -115,7 +115,7 @@ export function LegalPage({ document: documentId }: { document: LegalDocument })
   const doc = DOCUMENTS[documentId];
 
   return (
-    <div className="legal-page min-h-screen mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 md:px-8 lg:px-10 space-y-6">
+    <div className="legal-page library-page min-h-screen mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 md:px-8 lg:px-10 space-y-6">
       {/* `Link` et non `router.back()` : on peut arriver ici par un lien
           direct ou un signet, auquel cas il n'y a aucune page précédente
           et le bouton Retour ne ferait rien. La destination est fixe. */}
@@ -158,7 +158,7 @@ export function LegalPage({ document: documentId }: { document: LegalDocument })
                   href={url}
                   target="_blank"
                   rel="noreferrer"
-                  className="min-w-0 truncate text-sm text-white/80 underline decoration-white/20 underline-offset-4 transition hover:text-white"
+                  className="min-w-0 truncate rounded text-sm text-white/80 underline decoration-white/20 underline-offset-4 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   {name}
                 </a>

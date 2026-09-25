@@ -195,14 +195,14 @@ export function CategoryPicker({
                 placeholder={t('playlists.categoriesSearch')}
                 aria-label={t('playlists.categoriesSearch')}
                 disabled={busy}
-                className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50 focus:bg-white/7 transition-all disabled:opacity-50"
+                className="w-full ps-10 pe-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white placeholder:text-white/20 min-h-11 focus:outline-none focus:border-accent/50 focus:bg-white/7 focus:ring-2 focus:ring-accent/40 transition-all disabled:opacity-50"
               />
             </div>
             <button
               type="button"
               onClick={handleToggleAll}
               disabled={busy || visibleIds.length === 0}
-              className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-40 whitespace-nowrap"
+              className="min-h-11 px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-40 whitespace-nowrap"
             >
               {allVisibleChecked
                 ? t('playlists.categoriesClearAll')
@@ -331,7 +331,7 @@ export function CategoryPicker({
                                 )
                               }
                               className={cn(
-                                'w-full flex items-center gap-3 px-4 py-2.5 text-start transition-colors',
+                                'w-full flex min-h-11 items-center gap-3 px-4 py-2.5 text-start transition-colors',
                                 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-white',
                                 'disabled:opacity-40',
                                 checked ? 'bg-accent/10' : 'hover:bg-white/5'
@@ -397,7 +397,7 @@ export function CategoryPicker({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-40"
+          className="flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/8 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-40"
         >
           <ChevronLeft className="w-4 h-4" />
           {t('playlists.categoriesBack')}
@@ -410,7 +410,7 @@ export function CategoryPicker({
             mènerait à un écran d'accueil désert, sans explication.
           */
           disabled={busy || empty}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-40"
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-40"
         >
           {submitLabel}
         </button>

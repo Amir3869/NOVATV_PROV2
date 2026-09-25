@@ -72,7 +72,7 @@ export function CategoryDirectory({
               onClick={() => setMobileSearchOpen((open) => !open)}
               aria-label={searchLabel ?? 'Rechercher'}
               aria-expanded={mobileSearchOpen}
-              className="category-directory-search-trigger flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="category-directory-search-trigger flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <Search className="h-4 w-4" />
             </button>
@@ -82,7 +82,7 @@ export function CategoryDirectory({
               type="button"
               onClick={onManage}
               aria-label={manageLabel}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-2 text-white/60 transition hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <Pencil className="h-4 w-4" />
             </button>

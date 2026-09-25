@@ -40,16 +40,18 @@ import { cn } from '@/utils/cn';
  * sans rendu supplémentaire.
  */
 interface ImageWithFallbackProps {
-  /** Adresse du logo. `null` ou vide affiche directement le repli. */
+  /** Première adresse à essayer. `null` ou vide passe aux autres sources. */
   src: string | null | undefined;
+  /** Adresses de secours essayées dans l'ordre si la précédente échoue. */
+  sources?: readonly (string | null | undefined)[];
   /** Texte alternatif, lu par les lecteurs d'écran. */
   alt: string;
   /** Classes appliquées à la balise image. */
   className?: string;
   /**
    * Ce qu'on montre à la place quand l'image manque ou échoue.
-   * L'appelant décide : une icône sur une carte de chaîne, une
-   * initiale sur une affiche de film.
+   * L'appelant décide : une icône TV/radio neutre sur une carte de
+   * chaîne, ou un visuel approprié pour une affiche de film.
    */
   fallback: ReactNode;
   /**
@@ -61,19 +63,28 @@ interface ImageWithFallbackProps {
 
 export function ImageWithFallback({
   src,
+  sources = [],
   alt,
   className,
   fallback,
   fallbackClassName,
 }: ImageWithFallbackProps) {
-  // On retient l'adresse fautive, pas un simple booléen : c'est ce qui
-  // permet de savoir, sans effet, si l'échec concerne l'image courante.
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const failed = failedSrc !== null && failedSrc === src;
+  // On retient les adresses fautives, pas un simple booléen : chaque
+  // contenu peut ainsi essayer son propre chemin de secours sans effet
+  // de remise à zéro ni clignotement.
+  const [failedSources, setFailedSources] = useState<Set<string>>(() => new Set());
+  const candidates = Array.from(
+    new Set([src, ...sources].filter((value): value is string => Boolean(value?.trim()))),
+  );
+  const activeSrc = candidates.find((candidate) => !failedSources.has(candidate));
 
-  if (!src || failed) {
+  if (!activeSrc) {
     return (
-      <div className={cn('flex items-center justify-center', fallbackClassName)}>
+      <div
+        className={cn('flex items-center justify-center', fallbackClassName)}
+        role={alt ? 'img' : 'presentation'}
+        aria-label={alt || undefined}
+      >
         {fallback}
       </div>
     );
@@ -81,13 +92,19 @@ export function ImageWithFallback({
 
   return (
     <img
-      key={src}
-      src={src}
+      key={activeSrc}
+      src={activeSrc}
       alt={alt}
       className={className}
       referrerPolicy="no-referrer"
       decoding="async"
-      onError={() => setFailedSrc(src)}
+      onError={() =>
+        setFailedSources((current) => {
+          const next = new Set(current);
+          next.add(activeSrc);
+          return next;
+        })
+      }
     />
   );
 }

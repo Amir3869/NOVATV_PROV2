@@ -172,7 +172,7 @@ export function M3UProgress({
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-white/50 hover:text-white underline underline-offset-2 transition-colors flex-shrink-0"
+          className="min-h-11 rounded-lg px-2 text-xs text-white/50 underline underline-offset-2 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent flex-shrink-0"
         >
           {t('common.cancel')}
         </button>
@@ -222,7 +222,7 @@ export function M3UWarnings({ warnings, onClose }: { warnings: string[]; onClose
       <button
         type="button"
         onClick={onClose}
-        className="text-xs text-white/60 hover:text-white underline underline-offset-2 transition-colors"
+        className="min-h-11 rounded-lg px-2 text-xs text-white/60 underline underline-offset-2 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {t('common.close')}
       </button>

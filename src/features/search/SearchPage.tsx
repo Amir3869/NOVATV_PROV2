@@ -80,7 +80,7 @@ export function SearchPage() {
   if (!hydrated) return <ListPageSkeleton rows={4} />;
 
   return (
-    <div className="min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
+    <div className="library-page min-h-screen bg-surface-0 px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8 lg:px-10 lg:pt-10 space-y-6">
       {/* Search input */}
       <div className="mx-auto w-full max-w-2xl">
         <h1 className="text-2xl font-black text-white mb-4">{t('search.title')}</h1>
@@ -102,14 +102,14 @@ export function SearchPage() {
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider">{t('search.recentSearches')}</h2>
-                <button onClick={() => setSearchHistory([])} className="text-xs text-white/30 hover:text-white/60 transition-colors">{t('search.clear')}</button>
+                <button onClick={() => setSearchHistory([])} className="min-h-11 rounded-lg px-2 text-xs text-white/30 transition-colors hover:bg-white/5 hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">{t('search.clear')}</button>
               </div>
               <div className="space-y-1">
                 {searchHistory.map((item) => (
                   <button
                     key={item}
                     onClick={() => setQuery(item)}
-                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent group"
                   >
                     <Clock className="w-4 h-4 text-white/30 flex-shrink-0" />
                     <span className="text-sm text-white/70 group-hover:text-white transition-colors flex-1">{item}</span>
@@ -132,7 +132,7 @@ export function SearchPage() {
                 <button
                   key={s}
                   onClick={() => setQuery(s)}
-                  className="px-4 py-2 rounded-full bg-white/5 border border-white/8 text-sm text-white/60 hover:bg-white/10 hover:text-white hover:border-white/15 transition-all"
+                  className="min-h-11 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm text-white/60 transition-all hover:border-white/15 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   {s}
                 </button>
@@ -154,7 +154,7 @@ export function SearchPage() {
                 <Link
                   key={cat.href}
                   href={cat.href}
-                  className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/8 hover:border-white/10 transition-all group"
+                  className="flex min-h-14 items-center gap-3 rounded-xl border border-white/5 bg-white/5 p-4 transition-all hover:border-white/10 hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent group"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${cat.color}20` }}>
                     <cat.icon className="w-4 h-4" style={{ color: cat.color }} />

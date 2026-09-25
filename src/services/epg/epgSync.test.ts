@@ -9,6 +9,7 @@ import {
   toEPGErrorKind,
   EPGSyncError,
   syncEPG,
+  mergeEPGResults,
   logoFallbacksFromEpg,
   applyLogoFallbacks,
   broadcastArtworkUrl,
@@ -72,6 +73,52 @@ describe('buildXtreamEPGUrl', () => {
       password: 'p',
     });
     expect(url).not.toContain('//xmltv.php');
+  });
+});
+
+describe('mergeEPGResults', () => {
+  const shortProgram: EPGProgram = {
+    id: 'short-1',
+    channelId: 'pl1:live:1',
+    title: 'Journal',
+    start: '2026-08-20T19:00:00Z',
+    stop: '2026-08-20T19:40:00Z',
+  };
+  const xmlProgram: EPGProgram = {
+    id: 'xml-1',
+    channelId: 'pl1:live:2',
+    title: 'Film',
+    start: '2026-08-20T20:00:00Z',
+    stop: '2026-08-20T22:00:00Z',
+  };
+
+  it('conserve le guide court et complète les chaînes absentes avec XMLTV', () => {
+    const result = mergeEPGResults(
+      {
+        source: 'xtream_short',
+        programs: [shortProgram],
+        matchedChannels: 1,
+        unmatchedChannels: 2,
+        warnings: [],
+        logoFallbacks: {},
+      },
+      {
+        source: 'xmltv',
+        programs: [shortProgram, xmlProgram],
+        matchedChannels: 2,
+        unmatchedChannels: 1,
+        warnings: ['xml warning'],
+        logoFallbacks: { 'pl1:live:2': 'http://guide/2.png' },
+      },
+      3,
+    );
+
+    expect(result.source).toBe('merged');
+    expect(result.programs).toHaveLength(2);
+    expect(result.matchedChannels).toBe(2);
+    expect(result.unmatchedChannels).toBe(1);
+    expect(result.warnings).toEqual(['xml warning']);
+    expect(result.logoFallbacks['pl1:live:2']).toBe('http://guide/2.png');
   });
 });
 
@@ -285,6 +332,31 @@ describe('syncEPG', () => {
     const result = await syncEPG('http://x/xmltv.php', [channel()], 'pl1');
     expect(result.source).toBe('xmltv');
     expect(result.programs).toEqual([]);
+  });
+
+  it('conserve un XMLTV identifie par le streamId Xtream', async () => {
+    const start = new Date(Date.now() + 60 * 60 * 1000);
+    const stop = new Date(start.getTime() + 60 * 60 * 1000);
+    const xmltvDate = (date: Date) =>
+      `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}${String(date.getUTCHours()).padStart(2, '0')}${String(date.getUTCMinutes()).padStart(2, '0')}${String(date.getUTCSeconds()).padStart(2, '0')} +0000`;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          `<tv><channel id="42"><display-name>Chaîne inconnue</display-name></channel><programme channel="42" start="${xmltvDate(start)}" stop="${xmltvDate(stop)}"><title>Direct</title></programme></tv>`,
+          { status: 200 },
+        )
+      ),
+    );
+
+    const result = await syncEPG(
+      'http://x/xmltv.php',
+      [channel({ streamId: 42 })],
+      'pl1',
+    );
+    expect(result.programs).toHaveLength(1);
+    expect(result.matchedChannels).toBe(1);
   });
 
   it('traduit un 403 en erreur d authentification', async () => {
